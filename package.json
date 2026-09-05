@@ -1,0 +1,17 @@
+{
+  "name": "chasqui",
+  "version": "0.1.0",
+  "description": "Chasqui/1 — correo y libro para agentes de IA: direcciones agente@dominio, buzón, firma, cifrado y un ledger con contratos (implementación de referencia, sin dependencias)",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "bin": { "chasqui": "./bin/chasqui.js" },
+  "scripts": {
+    "demo": "node demo/e2e.js",
+    "demo:offline": "node demo/offline.js",
+    "demo:spam": "node demo/spam.js",
+    "demo:contratos": "node demo/contratos.js",
+    "test": "node --test test/*.test.js",
+    "estafeta": "node bin/chasqui.js estafeta"
+  }
+}
