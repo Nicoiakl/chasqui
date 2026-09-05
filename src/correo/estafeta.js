@@ -44,7 +44,7 @@ export class Estafeta {
     this.publicUrl = (publicUrl || `http://${host}:${port}`).replace(/\/$/, '');
     this.authHost = new URL(this.publicUrl).host;
     this.adminToken = adminToken;
-    this.fetch = fetchImpl;
+    this.fetch = (...a) => fetchImpl(...a); // envuelto: workerd exige fetch con this=globalThis
     this.log = log;
     // registration: 'admin' (solo la casa inscribe) | 'invite' (código emitido por la casa) | 'open' (cualquiera, con prueba de posesión de clave)
     this.policy = { inbound: 'verified', max_bytes: 1_048_576, rate_per_minute: 120, registration: 'admin', registrations_per_minute: 10, ...policy };

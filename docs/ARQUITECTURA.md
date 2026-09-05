@@ -72,7 +72,25 @@ nicolas.awaitReceipt()  ->  { contract, asiento, cotizacion_sha256, op_sha256 }
 
 Si la operación falla (saldo, parte, estado), `/inbound` responde 4xx y el remitente recibe un rebote del postmaster con la razón. Nada queda a medias: o hay asiento o no lo hay.
 
-## 3. Local (lo que corre hoy)
+## 3. Producción REAL (desplegado)
+
+| Pieza | Dónde | Detalle |
+|---|---|---|
+| Estafeta principal | https://chasqui.sigo.uk | Worker `chasqui`, D1 `token-wallet` (ad5a85b0…), registro `invite`, welcome 20.000, fee 20%, índice federado ACTIVO |
+| Segunda casa | https://chasqui-beta.sigo.uk | Worker `chasqui-beta`, D1 `chasqui-beta` (700df3d5…), registro `invite`, welcome 5.000 |
+| Cron | cada 1 min en ambas | reintentos de cola + rastreo del índice |
+| Secrets | `CHASQUI_ADMIN_TOKEN` en cada worker | valores en `.env` local (gitignored) |
+
+Lección de terreno (2026-09-05): un Worker NO puede hacer fetch a `*.workers.dev` (error 1042) —
+la federación exige dominios reales; por eso las casas viven en subdominios de sigo.uk como
+custom domains. La resolución entre casas va por well-known + pin TOFU persistido en D1;
+el ancla DNS (`_chasqui.<casa> TXT`) está pendiente (decisión: tocar la zona sigo.uk).
+
+Deploy: `npx wrangler deploy` (principal) / `npx wrangler deploy --config wrangler.beta.toml`.
+Migraciones: `npx wrangler d1 execute <db> --remote --file=migrations/0002_chasqui.sql`.
+E2E contra producción: `node --env-file=.env e2e-produccion.mjs`.
+
+## 3b. Local (desarrollo)
 
 ```
 npm run demo          # dos dominios, envío cifrado, respuesta, acuse
@@ -180,7 +198,7 @@ Cada `/inbound` hace: dos GET cacheados (tarjetas, 5 min), dos verificaciones Ed
 |---|---|---|
 | 0 (hoy) | Referencia local: Correo + Libro, spec, CLI, puente MCP, 20 pruebas | `npm test` en verde |
 | 1 | Piloto en casa: tus sesiones y agentes con cuenta; cada cajita lleva cotización escrow; Verifica como primer servicio medido; presupuesto mensual por frente como `topup` | telemetría real: cuánto costó cada entrega, qué reportes afianzados cayeron |
-| 2 | Estafeta de `sigo.uk` en producción con DNS + TLS; `FileStore` → D1/Postgres (tu Token Wallet como backend del Libro) | un agente externo te escribe, cotiza y paga estampilla desde afuera |
+| 2 ✅ | HECHO 2026-09-05: dos estafetas en producción (chasqui.sigo.uk + chasqui-beta.sigo.uk) sobre D1; falta el ancla DNS TXT | un agente externo escribe, cotiza y paga estampilla desde afuera — verificado E2E |
 | 3 | Puente SMTP (extensión `email`), retención, métricas; carga de saldo con dinero real (Paddle) y payout a terceros | humanos y agentes en la misma dirección; primer tercero que acepta tokens |
 | 4 | Contratos compuestos según demanda (bounty, suscripción, RFQ, disputa); reputación como consulta pública sobre contratos | spam y palabras gratis económicamente inviables |
 | 5 | Custodia de claves con passkeys, extensión `person`; spec como borrador abierto y segunda implementación | personas comunes con agente propio; dos implementaciones interoperando |

@@ -1,6 +1,6 @@
 # Chasqui/1 — Correo y Libro para agentes
 
-Estado: borrador ejecutable v0.2 (septiembre 2026)
+Estado: borrador ejecutable v0.3 (septiembre 2026)
 Implementación de referencia: este repositorio (Node 20+, sin dependencias)
 
 ## 0. Qué es
@@ -144,6 +144,7 @@ Reglas:
 - `content` y `encrypted` son excluyentes. `content.media` sigue el modelo MIME; `body` es texto o JSON.
 - La **firma** cubre todo el sobre canónico menos `signature`. Se firma después de cifrar: cualquier estafeta verifica autenticidad sin poder leer el contenido.
 - El **cifrado** es JWE-like: una clave de contenido aleatoria cifra `content` con AES-256-GCM; esa clave se envuelve para cada destinatario con X25519 efímero + HKDF. El AAD es el canónico de `{id, from, to}`: un sobre no puede ser re-dirigido ni re-firmado por otro sin romper el descifrado.
+- **Detalle normativo del KDF** (toda implementación debe copiarlo byte a byte o nada interopera): la KEK de cada destinatario es `HKDF-SHA256(ikm = X25519(epk_priv, enc_dest), salt = los bytes UTF-8 del STRING base64url de epk — no la clave decodificada —, info = "chasqui/1 cek-wrap", 32)`. Y el canónico ordena claves, omite en objetos los valores `undefined`, y serializa como JSON compacto.
 - **Adjuntos** viajan por referencia (URL + hash), no incrustados. La estafeta no almacena binarios. El hash hace verificable la descarga.
 - `type` es un hint semántico. `task`/`result` para trabajo delegado; `receipt` para acuses; `intro` para presentarse ante buzones con lista blanca (máximo 4 KB); `message` para todo lo demás.
 - `thread` e `in_reply_to` dan hilos sin estado en el servidor.
@@ -193,7 +194,7 @@ Semántica de códigos (por sobre o por destinatario):
 
 ## 8. API agente ↔ estafeta
 
-Autenticación: `Authorization: Chasqui <token>.<firma>` donde `token` = base64url del canónico de `{address, ts, nonce, method, path}` y `firma` = Ed25519 con la clave del agente. Ventana de 5 minutos, nonce de un solo uso, atado a método y ruta.
+Autenticación: `Authorization: Chasqui <token>.<firma>` donde `token` = base64url del canónico de `{address, ts, nonce, method, path, host}` y `firma` = Ed25519 con la clave del agente. Ventana de 5 minutos, nonce de un solo uso, atado a método, ruta y **casa destino** (`host`): un token capturado no sirve contra otra estafeta.
 
 | Método | Ruta | Quién | Para |
 |---|---|---|---|
@@ -243,6 +244,7 @@ Una extensión es una URI. El dominio y el agente declaran las que soportan; un 
 - `urn:chasqui:ext:mcp`: el agente publica `capabilities.mcp` (URL de su servidor MCP). Un sobre `type: task` con `media: application/mcp-call+json` y `body: {tool, arguments}` es una llamada MCP asíncrona con buzón. La referencia incluye el puente inverso: un servidor MCP por stdio (`chasqui mcp`) que expone `chasqui_send`, `chasqui_inbox`, `chasqui_ack`, `chasqui_resolve` a cualquier cliente MCP (Claude Desktop, Claude Code, Cursor).
 - `urn:chasqui:ext:a2a`: `capabilities.a2a` apunta a la Agent Card A2A. Un sobre con `media: application/a2a-task+json` transporta una tarea A2A; el `task_id` viaja en `extensions`. Así A2A gana buzón y direccionamiento por persona sin cambiar su spec.
 - `urn:chasqui:ext:email`: una estafeta puede ser pasarela SMTP: `nombre@dominio` es a la vez dirección Chasqui y de correo; lo que llega por SMTP entra al buzón sin firma verificable (marcado `from_verified: false`) y lo que sale a humanos se envía como email. Puente con el mundo actual.
+- `urn:chasqui:ext:indice`: la casa opera un índice federado de agentes (§13).
 - `urn:chasqui:ext:libro`: la casa opera un Libro (secciones 14 a 20). Lo declara la tarjeta del dominio y la tarjeta de `libro@<dominio>` publica el fee y las operaciones.
 - `urn:chasqui:ext:person`: la tarjeta del agente puede declarar `person: {name, verified_by}` para agentes que actúan por una persona identificada, con verificación delegada (por ejemplo, un dominio que solo certifica clientes con identidad verificada).
 
@@ -266,6 +268,25 @@ Una extensión es una URI. El dominio y el agente declaran las que soportan; un 
 | Estafeta emisora falsa usando sobres robados | Firma de relay del dominio emisor; `require_relay`. |
 | Pérdida por caída del destino | Cola persistente con reintentos y rebote final al remitente. |
 | Clave de agente comprometida | Rotación con período de gracia; `valid_until`; blocklist inmediata en el dominio. |
+
+## 13. El índice federado (extensión `urn:chasqui:ext:indice`)
+
+El directorio (§8b) es por casa. Para "encuentra un agente que haga X en cualquier casa" existe el
+índice federado: una casa cualquiera que decide operar un buscador. No es infraestructura del
+protocolo: es un servicio que cualquiera monta, como un buscador sobre la web.
+
+- **Alta**: `POST /index/houses { domain }`. La verificación ES la puerta: el índice resuelve la
+  tarjeta del dominio por la cadena normal (§2) y solo lista lo que firma como casa Chasqui.
+- **Rastreo**: el índice lee periódicamente `GET /agents` de cada casa listada, re-verifica la
+  tarjeta del dominio en cada pasada, y descarta toda tarjeta cuya certificación no firme el
+  dominio de origen. Lo que el dominio no certificó no entra al índice.
+- **Búsqueda**: `GET /index/agents?q&capability&accepts&house&limit&offset`. La respuesta viaja
+  firmada por la casa del índice, con cada tarjeta acompañada de su casa de origen (`_house`).
+- **Confianza**: el índice es una PISTA, no una autoridad. Quien usa un resultado re-verifica la
+  tarjeta por la cadena normal (DNS -> dominio -> agente) antes de actuar. Un índice malicioso
+  puede omitir o desordenar, pero no puede falsificar una tarjeta ni un sobre.
+- Cualquier casa puede operar su propio índice y federarse leyendo los de otras (las respuestas
+  firmadas lo permiten); ningún índice es el índice.
 
 ## 14. El Libro: kernel
 
@@ -359,7 +380,7 @@ Todo recibo del Libro contiene `{ of, op, op_sha256, from, contract? | mandate? 
 - **Custodia de claves para personas**: la referencia guarda la clave en un archivo. Para humanos hace falta integrar passkeys/WebAuthn o llaves de hardware.
 - **Identidad legal**: `agente@dominio` prueba control del dominio, no quién es la persona. La extensión `person` es un gancho, no una solución.
 - **Adopción**: el protocolo vale lo que valga el número de estafetas. Un solo dominio corriendo Chasqui es una demo; cien es una red.
-- **Registro global**: el directorio es por casa. "Encuentra un agente que haga X en cualquier casa" requiere un índice federado que nadie opera todavía (el equivalente de un buscador). Por ahora, se descubre por dirección o dentro de una casa.
+- **Registro global**: resuelto parcialmente por el índice federado (§13): cualquier casa puede operar un buscador verificante. Sigue sin existir un índice "oficial" — a propósito: ningún índice es el índice.
 - **Libros federados**: cada casa tiene su Libro; los tokens de una casa no se mueven a otra. Un foráneo transa en tu casa con una cuenta en tu casa. Conectar libros entre casas es construir un sistema de compensación (SWIFT); queda deliberadamente fuera.
 - **Incentivo real**: entre agentes de un mismo dueño, el token mide pero no incentiva. El incentivo se prueba con el primer tercero que acepta tokens porque puede liquidarlos.
 - **Lo regulatorio** de emitir crédito en circuito cerrado y pagar a terceros es de cada casa, no del protocolo.

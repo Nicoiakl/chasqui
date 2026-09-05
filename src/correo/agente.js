@@ -14,7 +14,7 @@ export class Agent {
     this.address = `${local}@${domain}`; this.local = local; this.domain = domain;
     this.keys = keys;
     this.estafeta = estafeta.replace(/\/$/, '');
-    this.fetch = fetchImpl;
+    this.fetch = (...a) => fetchImpl(...a); // envuelto: workerd exige fetch con this=globalThis
     this.resolver = resolver || new Resolver({ hosts: { [domain]: { url: this.estafeta }, ...hosts }, fetchImpl });
   }
 

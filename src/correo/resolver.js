@@ -29,7 +29,7 @@ export function parseTxtRecord(txt) {
 export class Resolver {
   constructor({ hosts = {}, fetchImpl = globalThis.fetch, cacheTtlMs = 5 * 60 * 1000, pins = {}, timeoutMs = 5000, onPin = null } = {}) {
     this.hosts = { ...hosts };          // { "beta.local": { url: "http://localhost:4002", sig?: "<pub>" } }
-    this.fetch = fetchImpl;
+    this.fetch = (...a) => fetchImpl(...a); // envuelto: workerd exige fetch con this=globalThis
     this.cacheTtlMs = cacheTtlMs;
     this.pins = { ...pins };            // dominio -> clave pública pineada (TOFU o DNS)
     this.timeoutMs = timeoutMs;

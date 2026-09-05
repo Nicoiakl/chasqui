@@ -26,10 +26,15 @@ src/correo/agente.js     cliente: register (admin|invite|open), rotateKeys, dire
 src/libro/libro.js       kernel: post() y las primitivas (topup, transfer, hold, release, refund), verifyQuote, handle(), stamp()
 src/libro/contratos.js   máquinas de estado sobre el kernel: ops {accept, deliver, release, refund, bond, forfeit, mandate, charge, revoke, balance, statement, contract}; CONTRATOS {spot, escrow, metered, bond}
 src/libro/errores.js     LibroError(code, message)
-src/puentes/mcp.js       servidor MCP por stdio: chasqui_send/inbox/ack/resolve/outbox/directory + chasqui_quote/accept/libro/balance/contract
+src/puentes/mcp.js       servidor MCP por stdio: chasqui_send/inbox/ack/resolve/outbox/directory/search + chasqui_quote/accept/libro/balance/contract
+src/nucleo/almacen-d1.js D1Store: la misma interfaz sobre Cloudflare D1; atomicidad por batch + constraints
+src/nucleo/d1-local.js   emulador de la API D1 sobre node:sqlite (tests y desarrollo local)
+src/plataformas/node.js  adaptador node:http (start() lo usa)
+src/plataformas/worker.js adaptador Cloudflare Workers (fetch + scheduled); config por env
+migrations/0002_chasqui.sql  esquema D1 (los invariantes viven en constraints)
 bin/chasqui.js           CLI
 demo/                    e2e, offline, spam (correo) · contratos (libro)
-test/                    correo.test.js (9) · libro.test.js (11) · registro.test.js (6)  -> `npm test`
+test/                    correo (9) · libro (11) · registro (6) · invariantes+D1 (13) · indice (4) -> `npm test` (43)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
 
@@ -62,7 +67,7 @@ Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no 
 
 - **Nuevo contrato**: agrega la op a `contratos.js` (`ops.<nombre>`) y, si se cotiza, `CONTRATOS.<kind>` con `onAccept`. No toques `libro.js`. Agrega un test en `test/libro.test.js`.
 - **Nueva política de buzón**: `politica.js` (`applyInboxPolicy`) y, si necesita Libro, el bloque `p.stamp` en `estafeta.inbound` es el modelo.
-- **Otro almacenamiento**: implementa la misma interfaz que `FileStore` (todos los métodos, incluidos `libro*`) y pásala como `store` a `Estafeta`. Esquema SQL sugerido en `docs/ARQUITECTURA.md`.
+- **Otro almacenamiento**: implementa la misma interfaz async que `FileStore` (todos los métodos, incluidos `libro*`, `markSeenIfNew`, `claimDueJobs`, `useNonce`, `libroCommit`, `inboundCommit` y los `index*`) y pásala como `store` a `Estafeta`. Referencia: `src/nucleo/almacen-d1.js` + `migrations/0002_chasqui.sql`.
 - **Nueva extensión** (URI `urn:chasqui:ext:*`): decláralo en la tarjeta (`extensions` / `capabilities`), transporta datos en `extensions[uri]` del sobre.
 
 ## Convenciones
@@ -73,4 +78,7 @@ Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no 
 
 ## Estado y siguiente paso
 
-Fase 0 completa (referencia local). Siguiente: `PostgresStore`/D1 para la estafeta de producción y DNS de `sigo.uk`. Hoja de ruta en `docs/ARQUITECTURA.md` sección 6.
+Fase 2 DESPLEGADA (2026-09-05): dos casas en producción sobre Cloudflare Workers + D1 —
+https://chasqui.sigo.uk (índice federado activo, registro por invitación, welcome 20.000, fee 20%)
+y https://chasqui-beta.sigo.uk. E2E federado verificado. Ver docs/ARQUITECTURA.md §3.
+Pendiente: ancla DNS TXT (decisión de Nicholas), fase 3 (SMTP, retención, métricas, dinero real).
