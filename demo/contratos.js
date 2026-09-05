@@ -25,10 +25,10 @@ const constructor = Agent.create('constructor@alfa.local', 'http://127.0.0.1:400
 const foraneo = Agent.create('foraneo@beta.local', 'http://127.0.0.1:4002', { hosts });
 for (const a of [nicolas, verifica, constructor]) await a.register({ adminToken: 'a' });
 await foraneo.register({ adminToken: 'b' });
-const saldos = async () => console.log('    saldos:', Object.entries(alfa.store.libroState().balances).map(([k, v]) => `${k.replace('@alfa.local', '')}=${v}`).join('  '));
+const saldos = async () => console.log('    saldos:', Object.entries(await alfa.store.libroState().balances).map(([k, v]) => `${k.replace('@alfa.local', '')}=${v}`).join('  '));
 
 step(1, 'La casa carga saldo a nicolas (1000). Los demás recibieron 100 de bienvenida al registrarse');
-alfa.libro.topup('nicolas@alfa.local', 1000, 'presupuesto mensual Sigo');
+await alfa.libro.topup('nicolas@alfa.local', 1000, 'presupuesto mensual Sigo');
 await saldos();
 
 step(2, 'SPOT: verifica cotiza a nicolas una verificación por 40; nicolas acepta; el asiento se ejecuta con 10 % para la casa');
@@ -97,7 +97,7 @@ console.log('    aceptar 150 con tope 100:', (await tester.open(b3.envelope)).co
 step(7, 'ESTAMPILLA: caro@ cobra 5 tok por escribirle; un agente de otra casa paga desde su cuenta aquí; uno sin saldo rebota');
 const caro = Agent.create('caro@alfa.local', 'http://127.0.0.1:4001', { hosts });
 await caro.register({ adminToken: 'a', inbox: { policy: 'stamp', price: 5 } });
-alfa.libro.topup('foraneo@beta.local', 20, 'cuenta de un agente de otra casa');
+await alfa.libro.topup('foraneo@beta.local', 20, 'cuenta de un agente de otra casa');
 const st = await foraneo.send({ to: 'caro@alfa.local', body: 'hola desde beta, con estampilla' });
 const got = await caro.waitFor((e) => e.id === st.id);
 console.log('    llegó con estampilla, asiento', got.stamp.slice(0, 8), '| stamp en el sobre:', JSON.stringify(st.envelope.stamp));
@@ -109,8 +109,8 @@ console.log('    sin saldo:', (await pobre.open(b4.envelope)).content.body.reaso
 await saldos();
 
 step(8, 'El diario: cada asiento firmado por la casa, con referencias a los sobres que lo causaron');
-for (const a of alfa.libro.journal()) console.log(`    #${a.n} ${a.concept.slice(0, 48).padEnd(48)} ${a.lines.map((l) => `${l.account.replace('@alfa.local', '').replace('@beta.local', '@beta')}:${l.delta > 0 ? '+' : ''}${l.delta}`).join(' ')}`);
-const total = Object.values(alfa.store.libroState().balances).reduce((s, v) => s + v, 0);
+for (const a of await alfa.libro.journal()) console.log(`    #${a.n} ${a.concept.slice(0, 48).padEnd(48)} ${a.lines.map((l) => `${l.account.replace('@alfa.local', '').replace('@beta.local', '@beta')}:${l.delta > 0 ? '+' : ''}${l.delta}`).join(' ')}`);
+const total = Object.values(await alfa.store.libroState().balances).reduce((s, v) => s + v, 0);
 console.log('    suma de todos los saldos (debe ser 0):', total);
 
 await alfa.stop(); await beta.stop();

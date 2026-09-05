@@ -49,7 +49,10 @@ export class Libro {
     this.casa = `casa@${domain}`;
     this.address = `libro@${domain}`;
     this.tx = null; // transacción en curso: { state, asientos, contracts: Map, mandates: Map, op }
+    this._lock = Promise.resolve(); // serializa las transacciones DENTRO de esta instancia; entre
+                                    // procesos/isolates protegen las constraints de D1 (fallar cerrado)
   }
+  _serial(fn) { const run = this._lock.then(fn); this._lock = run.catch(() => {}); return run; }
   get feePct() { return this.feeBps / 10_000; } // compat de lectura (tarjeta de libro@)
 
   // ---------- transacción ----------
@@ -104,7 +107,8 @@ export class Libro {
   // Primitivas construidas sobre post()
   async topup(account, amount, concept = 'carga', meta = {}) {
     parseAddress(account); this._amount(amount);
-    return this.post(concept, [{ account: this.casa, delta: -amount }, { account, delta: amount }], { kind: 'topup', ...meta });
+    const asentar = () => this.post(concept, [{ account: this.casa, delta: -amount }, { account, delta: amount }], { kind: 'topup', ...meta });
+    return this.tx ? asentar() : this._serial(asentar);
   }
   async transfer(from, to, amount, concept, meta = {}, refs = {}) {
     this._amount(amount);
@@ -164,24 +168,26 @@ export class Libro {
     const op = CONTRATOS.ops[body.op];
     if (!op) return { ok: false, code: 400, reason: `operación desconocida: ${body.op}. Válidas: ${Object.keys(CONTRATOS.ops).join(', ')}` };
     const ctx = { libro: this, env, from: env.from, body, senderCard, opHash: sha256hex(canonical(env)), scope: senderCard?.delegation?.scope || null };
-    this._begin();
-    let result;
-    try { result = await op(ctx); }
-    catch (e) {
-      this._abort();
-      if (e instanceof LibroError) return { ok: false, code: e.code, reason: e.message };
-      throw e;
-    }
-    const out = { ok: true, code: 202, result: result.result, recibos: (result.recibos || []).map((r) => ({ ...r, body: { ...r.body, of: env.id, op: body.op, op_sha256: ctx.opHash, from: env.from } })) };
-    this.tx.op = { id: env.id, result: out };
-    try { await this._commit(); }
-    catch (e) {
-      // Conflicto de concurrencia (asiento u op duplicados en D1): la op ya corrió en paralelo.
-      const cached = await this.store.libroGetOp(env.id);
-      if (cached) return { ...cached, duplicate: true };
-      throw e;
-    }
-    return out;
+    return this._serial(async () => {
+      this._begin();
+      let result;
+      try { result = await op(ctx); }
+      catch (e) {
+        this._abort();
+        if (e instanceof LibroError) return { ok: false, code: e.code, reason: e.message };
+        throw e;
+      }
+      const out = { ok: true, code: 202, result: result.result, recibos: (result.recibos || []).map((r) => ({ ...r, body: { ...r.body, of: env.id, op: body.op, op_sha256: ctx.opHash, from: env.from } })) };
+      this.tx.op = { id: env.id, result: out };
+      try { await this._commit(); }
+      catch (e) {
+        // Conflicto de concurrencia (asiento u op duplicados en D1): la op ya corrió en paralelo.
+        const cached = await this.store.libroGetOp(env.id);
+        if (cached) return { ...cached, duplicate: true };
+        throw e;
+      }
+      return out;
+    });
   }
 
   // Estampilla: un sobre con `stamp` hacia un buzón con política `stamp` paga al llegar.
@@ -190,6 +196,7 @@ export class Libro {
   async stamp(env, recipient, price) {
     const s = env.stamp;
     if (!s || s.house !== this.domain || !Number.isInteger(s.amount) || s.amount < price) throw new LibroError(402, `este buzón exige estampilla de ${price} tok en la casa ${this.domain} (campo stamp: {house, amount})`);
+    return this._serial(async () => {
     this._begin();
     try {
       const asiento = await this.transfer(env.from, recipient, s.amount, `estampilla ${env.from} -> ${recipient}`, { kind: 'stamp' }, { envelope: env.id, envelope_sha256: sha256hex(canonical(env)) });
@@ -197,5 +204,6 @@ export class Libro {
       this.tx = null;
       return { asiento, bundle };
     } catch (e) { this._abort(); throw e; }
+    });
   }
 }

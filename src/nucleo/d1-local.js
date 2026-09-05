@@ -44,20 +44,25 @@ function normalize(v) {
 export function openLocalD1(path = ':memory:') {
   const raw = new DatabaseSync(path);
   raw.exec('PRAGMA foreign_keys = ON');
+  let lock = Promise.resolve(); // D1 real serializa los batch; el emulador tambien
   return {
     prepare: (sql) => new D1PreparedLocal(raw, sql),
     async batch(statements) {
-      // D1 aplica el batch de forma atomica; aqui igual: una transaccion.
-      raw.exec('BEGIN');
-      try {
-        const out = [];
-        for (const s of statements) out.push(await s.run());
-        raw.exec('COMMIT');
-        return out;
-      } catch (e) {
-        raw.exec('ROLLBACK');
-        throw e;
-      }
+      // D1 aplica el batch de forma atomica y serializada; aqui igual: una transaccion a la vez.
+      const run = lock.then(async () => {
+        raw.exec('BEGIN');
+        try {
+          const out = [];
+          for (const s of statements) out.push(await s.run());
+          raw.exec('COMMIT');
+          return out;
+        } catch (e) {
+          raw.exec('ROLLBACK');
+          throw e;
+        }
+      });
+      lock = run.catch(() => {});
+      return run;
     },
     async exec(sql) {
       raw.exec(sql);

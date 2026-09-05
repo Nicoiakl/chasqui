@@ -141,7 +141,7 @@ export class Estafeta {
     const card = signObject({
       chasqui: '1', domain: this.domain, estafeta: this.publicUrl,
       keys: rec.keys.map((k) => ({ sig: k.sig, created: k.created })),
-      policy: { inbound: this.policy.inbound, max_bytes: this.policy.max_bytes, registration: this.policy.registration },
+      policy: { inbound: this.policy.inbound, max_bytes: this.policy.max_bytes, registration: this.policy.registration, ...(this.policy.outbound ? { outbound: this.policy.outbound } : {}) },
       extensions: this.extensions,
       issued: iso(),
     }, this.keys);

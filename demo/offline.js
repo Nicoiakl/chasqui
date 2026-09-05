@@ -31,7 +31,7 @@ step(3, 'nicolas envía igual: su estafeta acepta el sobre y lo encola');
 const sent = await nicolas.send({ to: 'asistente@beta.local', body: 'Hola, te escribo mientras estás apagado.' });
 await sleep(1500);
 for (const s of await nicolas.outbox()) console.log(`    ${s.id.slice(0, 8)} : ${s.status}, ${s.attempts} intento/s, próximo ${s.next_attempt.slice(11, 19)}`);
-console.log('    trabajos en cola de alfa:', alfa.store.listQueue().length);
+console.log('    trabajos en cola de alfa:', await alfa.store.listQueue().length);
 
 step(4, 'beta.local vuelve a la vida');
 beta = await mk('beta.local', 4002, 'b').start();
@@ -40,7 +40,7 @@ step(5, 'La estafeta de alfa reintenta y entrega');
 const m = await asistente.waitFor((e) => e.id === sent.id, { timeoutMs: 15_000 });
 console.log('    recibido en beta:', (await asistente.open(m.envelope)).content.body);
 for (const s of await nicolas.outbox()) console.log(`    ${s.id.slice(0, 8)} : ${s.status}, ${s.attempts} intento/s`);
-console.log('    trabajos en cola de alfa:', alfa.store.listQueue().length);
+console.log('    trabajos en cola de alfa:', await alfa.store.listQueue().length);
 
 await alfa.stop(); await beta.stop();
 console.log('\nListo.');

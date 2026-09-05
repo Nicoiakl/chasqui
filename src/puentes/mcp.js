@@ -8,6 +8,7 @@ import readline from 'node:readline';
 import { Agent } from '../correo/agente.js';
 
 const PROTOCOL = '2025-06-18';
+const SUPPORTED = new Set(['2025-06-18', '2025-03-26']);
 
 const TOOLS = [
   { name: 'chasqui_send', description: 'Envía un sobre Chasqui firmado (y cifrado si el destinatario publica clave) a una o más direcciones agente@dominio.',
@@ -27,6 +28,8 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {} } },
   { name: 'chasqui_directory', description: 'Directorio público de los agentes de una casa (por defecto la propia). Filtra por capacidad (mcp, a2a, libro), media aceptado o texto.',
     inputSchema: { type: 'object', properties: { house: { type: 'string' }, capability: { type: 'string' }, accepts: { type: 'string' }, q: { type: 'string' }, limit: { type: 'integer' } } } },
+  { name: 'chasqui_search', description: 'Busca agentes en un índice federado (una casa que corre urn:chasqui:ext:indice): "encuentra un agente que haga X en cualquier casa". Filtra por texto, capacidad, media o casa. El índice es una pista: la tarjeta se re-verifica al usarla.',
+    inputSchema: { type: 'object', required: ['index'], properties: { index: { type: 'string', description: 'dominio de la casa del índice, o URL' }, q: { type: 'string' }, capability: { type: 'string' }, accepts: { type: 'string' }, house: { type: 'string' }, limit: { type: 'integer' } } } },
   // ----- Libro -----
   { name: 'chasqui_quote', description: 'Cotiza a otro agente: crea un documento firmado (spot | escrow | metered) y lo envía cifrado. El comprador lo acepta con chasqui_accept.',
     inputSchema: { type: 'object', required: ['to', 'price', 'concept'], properties: {
@@ -45,7 +48,7 @@ const TOOLS = [
 ];
 
 export async function runMcpServer({ agentFile, hosts = {} }) {
-  const agent = Agent.load(agentFile, { hosts });
+  const agent = await Agent.load(agentFile, { hosts });
   const out = (msg) => process.stdout.write(JSON.stringify(msg) + '\n');
   const text = (v) => ({ content: [{ type: 'text', text: typeof v === 'string' ? v : JSON.stringify(v, null, 2) }] });
 
@@ -62,6 +65,7 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
       case 'chasqui_resolve': { const { _domain, ...card } = await agent.resolver.agentCard(args.address); return text(card); }
       case 'chasqui_outbox': return text(await agent.outbox());
       case 'chasqui_directory': return text(await agent.directory(args.house, args));
+      case 'chasqui_search': return text(await agent.search(args.index, args));
       case 'chasqui_quote': { const r = await agent.quote({ to: args.to, contract: args.contract, price: args.price, concept: args.concept, terms: args.terms, arbiter: args.arbiter, expires: args.expires }); return text({ id: r.id, quote_id: r.quote.id, contract: r.quote.contract, price: r.quote.price }); }
       case 'chasqui_accept': { const r = await agent.accept(args.quote); return text({ id: r.id, note: 'el recibo de libro@ llegará al buzón (chasqui_inbox)' }); }
       case 'chasqui_libro': { const r = await agent.libroOp(args.house || agent.domain, { op: args.op, ...(args.args || {}) }); return text({ id: r.id, note: 'la respuesta llega como recibo de libro@ al buzón' }); }
@@ -80,7 +84,7 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
     if (method === 'notifications/initialized' || method?.startsWith('notifications/')) continue;
     try {
       let result;
-      if (method === 'initialize') result = { protocolVersion: params?.protocolVersion || PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'chasqui', version: '0.1.0' }, instructions: `Agente Chasqui ${agent.address}. Correo: chasqui_inbox para leer, chasqui_send para escribir, chasqui_ack para cerrar. Libro: chasqui_quote / chasqui_accept para transar, chasqui_libro para escrow, fianzas y mandatos, chasqui_balance para el saldo. Los recibos del Libro llegan al buzón.` };
+      if (method === 'initialize') result = { protocolVersion: SUPPORTED.has(params?.protocolVersion) ? params.protocolVersion : PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'chasqui', version: '0.1.0' }, instructions: `Agente Chasqui ${agent.address}. Correo: chasqui_inbox para leer, chasqui_send para escribir, chasqui_ack para cerrar. Libro: chasqui_quote / chasqui_accept para transar, chasqui_libro para escrow, fianzas y mandatos, chasqui_balance para el saldo. Los recibos del Libro llegan al buzón.` };
       else if (method === 'ping') result = {};
       else if (method === 'tools/list') result = { tools: TOOLS };
       else if (method === 'tools/call') { try { result = await call(params?.name, params?.arguments); } catch (e) { result = { ...text(`error: ${e.message}`), isError: true }; } }
