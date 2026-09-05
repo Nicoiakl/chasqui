@@ -15,7 +15,8 @@ export function validateEnvelope(env, { maxBytes = 1_048_576 } = {}) {
   const fail = (reason) => ({ ok: false, code: 400, reason });
   if (!env || typeof env !== 'object') return fail('sobre no es un objeto');
   if (env.chasqui !== '1') return fail('versión no soportada (se espera chasqui="1")');
-  if (typeof env.id !== 'string' || env.id.length < 8 || env.id.length > 128) return fail('id inválido');
+  // Charset acotado: el id viaja como clave al almacenamiento (dedupe, buzones); nada de traversal.
+  if (typeof env.id !== 'string' || !/^[A-Za-z0-9._:-]{8,128}$/.test(env.id)) return fail('id inválido (se espera [A-Za-z0-9._:-]{8,128})');
   try { parseAddress(env.from); } catch { return fail('from inválido'); }
   if (!Array.isArray(env.to) || env.to.length < 1 || env.to.length > 50) return fail('to debe ser una lista de 1 a 50 direcciones');
   for (const t of env.to) { try { parseAddress(t); } catch { return fail(`destinatario inválido: ${t}`); } }
@@ -54,6 +55,11 @@ export function applyInboxPolicy(env, agentRecord, senderDomain) {
   const permanent = (reason) => ({ ok: false, code: 403, reason });
 
   if (inbox.blocklist?.some((x) => x === env.from || x === fromDomain)) return permanent('remitente bloqueado');
+  // La promesa "sealed" del dominio emisor se hace cumplir ANTES de cualquier política:
+  // si fuera después, la rama stamp (que retorna temprano) la saltaría — y justo en los buzones pagados.
+  // Única excepción: sobres a libro@ (operaciones del Libro), que exigen claro por diseño (la casa debe leerlos).
+  const esLibro = String(agentRecord.address || '').startsWith('libro@');
+  if (!esLibro && senderDomain?.policy?.outbound === 'sealed' && !env.encrypted) return permanent('el dominio emisor exige cifrado y el sobre viene en claro');
 
   switch (inbox.policy) {
     case 'open':
@@ -81,6 +87,5 @@ export function applyInboxPolicy(env, agentRecord, senderDomain) {
     default:
       return permanent(`política de buzón desconocida: ${inbox.policy}`);
   }
-  if (senderDomain?.policy?.outbound === 'sealed' && !env.encrypted) return permanent('el dominio emisor exige cifrado y el sobre viene en claro');
   return { ok: true };
 }

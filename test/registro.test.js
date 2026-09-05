@@ -70,20 +70,20 @@ test('casa por invitación: código de la casa, con usos y vencimiento; regalo d
   const sin = Agent.create('sin@invitada.test', hosts['invitada.test'].url, { hosts });
   await assert.rejects(() => sin.register(), /invitación inexistente/);
   await assert.rejects(() => sin.register({ invite: 'nope' }), /invitación inexistente/);
-  const inv = invitada.createInvite({ uses: 2, note: 'para el equipo', welcome: 500 });
+  const inv = await invitada.createInvite({ uses: 2, note: 'para el equipo', welcome: 500 });
   const a = Agent.create('uno@invitada.test', hosts['invitada.test'].url, { hosts });
   assert.equal((await a.register({ invite: inv.code })).registered_via, `invite:${inv.code}`);
-  assert.equal(invitada.libro.balance('uno@invitada.test'), 500);
+  assert.equal(await invitada.libro.balance('uno@invitada.test'), 500);
   const b = Agent.create('dos@invitada.test', hosts['invitada.test'].url, { hosts });
   await b.register({ invite: inv.code });
   const c = Agent.create('tres@invitada.test', hosts['invitada.test'].url, { hosts });
   await assert.rejects(() => c.register({ invite: inv.code }), /agotada/);
-  const vencida = invitada.createInvite({ expires: new Date(Date.now() - 1000).toISOString() });
+  const vencida = await invitada.createInvite({ expires: new Date(Date.now() - 1000).toISOString() });
   await assert.rejects(() => c.register({ invite: vencida.code }), /vencida/);
-  const normal = invitada.createInvite({});
+  const normal = await invitada.createInvite({});
   await c.register({ invite: normal.code });
-  assert.equal(invitada.libro.balance('tres@invitada.test'), 50, 'sin welcome en la invitación aplica el de la casa');
-  assert.equal(invitada.store.listInvites().find((i) => i.code === inv.code).used, 2);
+  assert.equal(await invitada.libro.balance('tres@invitada.test'), 50, 'sin welcome en la invitación aplica el de la casa');
+  assert.equal((await invitada.store.listInvites()).find((i) => i.code === inv.code).used, 2);
 });
 
 test('directorio: público, sin datos privados, con filtros', async () => {

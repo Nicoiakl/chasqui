@@ -99,22 +99,23 @@ test('store-and-forward: destino apagado, reintento, entrega y rebote por remite
   await beta.stop();
   const s = await nicolas.send({ to: 'asistente@beta.test', body: 'mientras estabas apagado' });
   await new Promise((r) => setTimeout(r, 700));
-  assert.equal(alfa.store.listQueue().length, 1);
+  assert.equal((await alfa.store.listQueue()).length, 1);
   assert.equal((await nicolas.outbox()).find((x) => x.id === s.id).status, 'retrying');
   beta = await mk('beta.test', P2, 'b').start();
   const m = await asistente.waitFor((e) => e.id === s.id, { timeoutMs: 8000 });
   assert.equal((await asistente.open(m.envelope)).content.body, 'mientras estabas apagado');
-  assert.equal(alfa.store.listQueue().length, 0);
+  assert.equal((await alfa.store.listQueue()).length, 0);
   await asistente.ack(s.id);
   // rebote: destinatario inexistente -> receipt failed del postmaster en el buzón del remitente
-  const bad = await nicolas.send({ to: 'asistente@beta.test', body: 'x' }).then(async (ok) => ok);
-  await nicolas.waitFor((e) => e.type === 'receipt' && e.from === 'postmaster@alfa.test' && e.in_reply_to === bad.id, { timeoutMs: 100 }).catch(() => null);
+  const bad = await nicolas.send({ to: 'asistente@beta.test', body: 'x' });
+  await asistente.waitFor((e) => e.id === bad.id); await asistente.ack(bad.id);
   const s2 = signObject({ ...bad.envelope, id: uuid(), to: ['inexistente@beta.test'] }, nicolas.keys);
   const r = await fetch(`http://127.0.0.1:${P1}/outbound`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: nicolas._auth('POST', '/outbound') }, body: JSON.stringify(s2) });
   assert.equal(r.status, 202);
   const bounce = await nicolas.waitFor((e) => e.type === 'receipt' && e.in_reply_to === s2.id, { timeoutMs: 5000 });
   const opened = await nicolas.open(bounce.envelope);
   assert.equal(opened.content.body.status, 'failed'); assert.match(opened.content.body.reason, /404/);
+  assert.equal(opened.content.body.sha256.length, 64, 'el rebote lleva el hash del sobre original');
 });
 
 test('rotación de claves: la clave anterior sigue válida en el período de gracia', async () => {

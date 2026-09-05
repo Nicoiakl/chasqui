@@ -1,0 +1,196 @@
+// Chasqui/1 — D1Store: la misma interfaz que FileStore, sobre Cloudflare D1 (o el emulador
+// d1-local.js en tests). Async real, y la atomicidad que FileStore le debe al proceso único
+// aquí la dan las transacciones (db.batch) y las constraints del esquema (0002_chasqui.sql):
+//   - un asiento concurrente con el mismo n -> el batch entero falla cerrado (PK diario.n)
+//   - una op reentregada -> INSERT choca con PK ops.id y el Libro responde el resultado cacheado
+//   - una cotización re-aceptada -> UNIQUE contratos.quote_id
+// Los documentos se guardan como JSON íntegro (columna doc): los campos desconocidos sobreviven
+// el roundtrip y las firmas siguen verificando (invariante 7).
+
+import { LibroError } from '../libro/errores.js';
+
+const j = (v) => JSON.stringify(v);
+const p = (row, col = 'doc') => (row ? JSON.parse(row[col]) : null);
+const iso = () => new Date().toISOString();
+
+export class D1Store {
+  constructor(db) { this.db = db; }
+
+  // --- dominio ---
+  async getDomain() { return p(await this.db.prepare('SELECT doc FROM chasqui_domain WHERE id = 1').first()); }
+  async putDomain(v) { await this.db.prepare('INSERT INTO chasqui_domain (id, doc) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(j(v)).run(); }
+  async putDomainIfAbsent(v) {
+    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_domain (id, doc) VALUES (1, ?)').bind(j(v)).run();
+    return r.meta.changes === 1;
+  }
+
+  // --- agentes ---
+  async getAgent(local) { return p(await this.db.prepare('SELECT doc FROM chasqui_agents WHERE local = ?').bind(local).first()); }
+  async putAgent(local, v) { await this.db.prepare('INSERT INTO chasqui_agents (local, doc, updated) VALUES (?, ?, ?) ON CONFLICT(local) DO UPDATE SET doc = excluded.doc, updated = excluded.updated').bind(local, j(v), iso()).run(); }
+  async listAgents() { return (await this.db.prepare('SELECT local FROM chasqui_agents ORDER BY local').all()).results.map((r) => r.local); }
+
+  // --- invitaciones ---
+  async getInvite(code) { return p(await this.db.prepare('SELECT doc FROM chasqui_invitations WHERE code = ?').bind(code).first()); }
+  async putInvite(inv) { await this.db.prepare('INSERT INTO chasqui_invitations (code, doc) VALUES (?, ?) ON CONFLICT(code) DO UPDATE SET doc = excluded.doc').bind(inv.code, j(inv)).run(); }
+  async listInvites() { return (await this.db.prepare('SELECT doc FROM chasqui_invitations').all()).results.map((r) => JSON.parse(r.doc)); }
+
+  // --- deduplicación ---
+  async getSeen(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_seen WHERE id = ?').bind(id).first()); }
+  async putSeen(id, rec) { await this.db.prepare('INSERT INTO chasqui_seen (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(id, j({ id, at: iso(), ...rec })).run(); }
+  async markSeenIfNew(id, meta = {}) {
+    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_seen (id, doc) VALUES (?, ?)').bind(id, j({ id, at: iso(), ...meta })).run();
+    return r.meta.changes === 1;
+  }
+
+  // --- buzones ---
+  async putMail(local, envelope, meta = {}) {
+    const received = iso();
+    await this.db.prepare('INSERT INTO chasqui_mailbox (local, id, doc, received) VALUES (?, ?, ?, ?) ON CONFLICT(local, id) DO NOTHING')
+      .bind(local, envelope.id, j({ ...meta, received, envelope }), received).run();
+  }
+  async listMail(local) {
+    return (await this.db.prepare('SELECT doc FROM chasqui_mailbox WHERE local = ? AND acked IS NULL ORDER BY received, id').bind(local).all()).results.map((r) => JSON.parse(r.doc));
+  }
+  async ackMail(local, id) {
+    const r = await this.db.prepare('UPDATE chasqui_mailbox SET acked = ? WHERE local = ? AND id = ? AND acked IS NULL').bind(iso(), local, id).run();
+    return r.meta.changes === 1;
+  }
+
+  // --- cola de salida ---
+  _jobRow(job) { return [job.id, j(job), job.next_attempt, job.status, job.claimed_until || 0]; }
+  async enqueue(job) {
+    await this.db.prepare('INSERT INTO chasqui_queue (id, doc, next_attempt, status, claimed_until) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc, next_attempt = excluded.next_attempt, status = excluded.status, claimed_until = excluded.claimed_until')
+      .bind(...this._jobRow(job)).run();
+  }
+  async listQueue() { return (await this.db.prepare('SELECT doc FROM chasqui_queue').all()).results.map((r) => JSON.parse(r.doc)); }
+  async updateJob(job) { await this.enqueue(job); }
+  async removeJob(id) { await this.db.prepare('DELETE FROM chasqui_queue WHERE id = ?').bind(id).run(); }
+  async claimDueJobs(nowMs, max = 20) {
+    const nowIso = new Date(nowMs).toISOString();
+    const until = nowMs + 60_000;
+    // Reclamo atómico: un solo UPDATE marca y devuelve; dos ticks concurrentes no comparten trabajo.
+    const r = await this.db.prepare(`
+      UPDATE chasqui_queue SET status = 'inflight', claimed_until = ?
+      WHERE id IN (
+        SELECT id FROM chasqui_queue
+        WHERE next_attempt <= ? AND (status IN ('queued','retrying') OR (status = 'inflight' AND claimed_until < ?))
+        LIMIT ?
+      ) RETURNING doc`).bind(until, nowIso, nowMs, max).all();
+    return r.results.map((row) => { const job = JSON.parse(row.doc); job.status = 'inflight'; job.claimed_until = until; return job; });
+  }
+
+  // --- outbox ---
+  async putOutbox(local, entry) {
+    await this.db.prepare('INSERT INTO chasqui_outbox (local, job, doc) VALUES (?, ?, ?) ON CONFLICT(local, job) DO UPDATE SET doc = excluded.doc').bind(local, entry.job, j(entry)).run();
+  }
+  async listOutbox(local) { return (await this.db.prepare('SELECT doc FROM chasqui_outbox WHERE local = ?').bind(local).all()).results.map((r) => JSON.parse(r.doc)); }
+
+  // --- nonces ---
+  async useNonce(key, tsMs) {
+    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_nonces (key, ts) VALUES (?, ?)').bind(key, tsMs).run();
+    return r.meta.changes === 1;
+  }
+  async pruneNonces(beforeMs) { await this.db.prepare('DELETE FROM chasqui_nonces WHERE ts < ?').bind(beforeMs).run(); }
+
+  // --- pins ---
+  async getPins() { return p(await this.db.prepare('SELECT doc FROM chasqui_pins WHERE id = 1').first()) || {}; }
+  async putPins(v) { await this.db.prepare('INSERT INTO chasqui_pins (id, doc) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(j(v)).run(); }
+
+  // ===== Libro =====
+  async libroState() {
+    const row = await this.db.prepare('SELECT seq, balances FROM chasqui_libro_state WHERE id = 1').first();
+    return row ? { seq: row.seq, balances: JSON.parse(row.balances) } : { seq: 0, balances: {} };
+  }
+  async libroPutState(v) { await this.db.prepare('UPDATE chasqui_libro_state SET seq = ?, balances = ? WHERE id = 1').bind(v.seq, j(v.balances)).run(); }
+  async libroAppend(asiento) { await this.db.batch(this._asientoStmts(asiento)); }
+  _asientoStmts(asiento) {
+    return [
+      this.db.prepare('INSERT INTO chasqui_libro_diario (n, id, doc) VALUES (?, ?, ?)').bind(asiento.n, asiento.id, j(asiento)),
+      ...asiento.lines.map((l) => this.db.prepare('INSERT INTO chasqui_libro_lineas (n, account, delta) VALUES (?, ?, ?)').bind(asiento.n, l.account, l.delta)),
+    ];
+  }
+  async libroJournal() { return (await this.db.prepare('SELECT doc FROM chasqui_libro_diario ORDER BY n').all()).results.map((r) => JSON.parse(r.doc)); }
+  async libroGetContract(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_libro_contratos WHERE id = ?').bind(id).first()); }
+  _contractStmt(c) {
+    return this.db.prepare('INSERT INTO chasqui_libro_contratos (id, quote_id, doc) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc, quote_id = excluded.quote_id').bind(c.id, c.quote_id || null, j(c));
+  }
+  async libroPutContract(c) { await this._contractStmt(c).run(); }
+  async libroListContracts() { return (await this.db.prepare('SELECT doc FROM chasqui_libro_contratos').all()).results.map((r) => JSON.parse(r.doc)); }
+  async libroFindContractByQuote(quoteId) { return p(await this.db.prepare('SELECT doc FROM chasqui_libro_contratos WHERE quote_id = ?').bind(quoteId).first()); }
+  async libroGetMandate(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_libro_mandatos WHERE id = ?').bind(id).first()); }
+  _mandateStmt(m) { return this.db.prepare('INSERT INTO chasqui_libro_mandatos (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(m.id, j(m)); }
+  async libroPutMandate(m) { await this._mandateStmt(m).run(); }
+  async libroListMandates() { return (await this.db.prepare('SELECT doc FROM chasqui_libro_mandatos').all()).results.map((r) => JSON.parse(r.doc)); }
+  async libroGetOp(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_libro_ops WHERE id = ?').bind(id).first()); }
+  async libroPutOp(id, v) { await this.db.prepare('INSERT INTO chasqui_libro_ops (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(id, j(v)).run(); }
+  async libroStatement(account, limit) {
+    const r = await this.db.prepare(`
+      SELECT doc FROM chasqui_libro_diario WHERE n IN (SELECT DISTINCT n FROM chasqui_libro_lineas WHERE account = ?)
+      ORDER BY n DESC LIMIT ?`).bind(account, limit).all();
+    return r.results.map((row) => JSON.parse(row.doc)).reverse();
+  }
+
+  // Un movimiento del Libro, atómico. El orden importa: el diario va primero (PK n = candado
+  // optimista del ledger entero) para que un conflicto aborte el batch antes de tocar nada más.
+  _libroCommitStmts(bundle) {
+    const stmts = [];
+    for (const a of bundle.asientos || []) stmts.push(...this._asientoStmts(a));
+    if (bundle.state) stmts.push(this.db.prepare('UPDATE chasqui_libro_state SET seq = ?, balances = ? WHERE id = 1').bind(bundle.state.seq, j(bundle.state.balances)));
+    for (const c of bundle.contracts || []) stmts.push(this._contractStmt(c));
+    for (const m of bundle.mandates || []) stmts.push(this._mandateStmt(m));
+    if (bundle.op) stmts.push(this.db.prepare('INSERT INTO chasqui_libro_ops (id, doc) VALUES (?, ?)').bind(bundle.op.id, j(bundle.op.result)));
+    return stmts;
+  }
+  async libroCommit(bundle) {
+    const stmts = this._libroCommitStmts(bundle);
+    if (!stmts.length) return;
+    try { await this.db.batch(stmts); }
+    catch (e) { throw this._traducirConflicto(e); }
+  }
+
+  // La entrega de un sobre entera, en un batch: dedupe + buzones + estampillas.
+  async inboundCommit(bundle) {
+    const stmts = [];
+    for (const lb of bundle.libro || []) stmts.push(...this._libroCommitStmts(lb));
+    for (const m of bundle.mails || []) {
+      const received = iso();
+      stmts.push(this.db.prepare('INSERT INTO chasqui_mailbox (local, id, doc, received) VALUES (?, ?, ?, ?) ON CONFLICT(local, id) DO NOTHING')
+        .bind(m.local, m.envelope.id, j({ ...m.meta, received, envelope: m.envelope }), received));
+    }
+    if (bundle.seen) stmts.push(this.db.prepare('INSERT INTO chasqui_seen (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc')
+      .bind(bundle.seen.id, j({ id: bundle.seen.id, at: iso(), ...bundle.seen.rec })));
+    if (!stmts.length) return;
+    try { await this.db.batch(stmts); }
+    catch (e) { throw this._traducirConflicto(e); }
+  }
+
+  _traducirConflicto(e) {
+    // Un choque de constraint es concurrencia legítima: transitorio (421/409), no un 500 opaco.
+    if (/UNIQUE|PRIMARY KEY|constraint/i.test(String(e?.message))) {
+      return Object.assign(new LibroError(409, `conflicto de concurrencia en el ledger: ${e.message}`), { transient: true });
+    }
+    return e;
+  }
+
+  // ===== Índice federado =====
+  async indexGetHouse(domain) { return p(await this.db.prepare('SELECT doc FROM chasqui_indice_casas WHERE domain = ?').bind(domain).first()); }
+  async indexPutHouse(h) { await this.db.prepare('INSERT INTO chasqui_indice_casas (domain, doc) VALUES (?, ?) ON CONFLICT(domain) DO UPDATE SET doc = excluded.doc').bind(h.domain, j(h)).run(); }
+  async indexListHouses() { return (await this.db.prepare('SELECT doc FROM chasqui_indice_casas').all()).results.map((r) => JSON.parse(r.doc)); }
+  async indexReplaceAgents(domain, cards) {
+    await this.db.batch([
+      this.db.prepare('DELETE FROM chasqui_indice_agentes WHERE house = ?').bind(domain),
+      ...cards.map((c) => this.db.prepare('INSERT INTO chasqui_indice_agentes (house, address, doc) VALUES (?, ?, ?)').bind(domain, c.address, j(c))),
+    ]);
+  }
+  async indexSearch({ q, capability, accepts, house, limit = 50, offset = 0 } = {}) {
+    const where = []; const binds = [];
+    if (house) { where.push('house = ?'); binds.push(house); }
+    if (capability) { where.push("json_extract(doc, '$.capabilities.' || ?) IS NOT NULL"); binds.push(capability); }
+    if (accepts) { where.push("EXISTS (SELECT 1 FROM json_each(doc, '$.capabilities.accepts') WHERE value = ?)"); binds.push(accepts); }
+    if (q) { where.push('lower(doc) LIKE ?'); binds.push(`%${String(q).toLowerCase()}%`); }
+    const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = (await this.db.prepare(`SELECT COUNT(*) AS c FROM chasqui_indice_agentes ${w}`).bind(...binds).first()).c;
+    const rows = await this.db.prepare(`SELECT doc FROM chasqui_indice_agentes ${w} ORDER BY house, address LIMIT ? OFFSET ?`).bind(...binds, limit, offset).all();
+    return { total, offset, agents: rows.results.map((r) => JSON.parse(r.doc)) };
+  }
+}

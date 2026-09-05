@@ -27,12 +27,13 @@ export function parseTxtRecord(txt) {
 }
 
 export class Resolver {
-  constructor({ hosts = {}, fetchImpl = globalThis.fetch, cacheTtlMs = 5 * 60 * 1000, pins = {}, timeoutMs = 5000 } = {}) {
+  constructor({ hosts = {}, fetchImpl = globalThis.fetch, cacheTtlMs = 5 * 60 * 1000, pins = {}, timeoutMs = 5000, onPin = null } = {}) {
     this.hosts = { ...hosts };          // { "beta.local": { url: "http://localhost:4002", sig?: "<pub>" } }
     this.fetch = fetchImpl;
     this.cacheTtlMs = cacheTtlMs;
     this.pins = { ...pins };            // dominio -> clave pública pineada (TOFU o DNS)
     this.timeoutMs = timeoutMs;
+    this.onPin = onPin;                 // callback(pins) para PERSISTIR un pin nuevo: un pin solo en memoria no protege entre procesos/isolates
     this.cache = new Map();
   }
 
@@ -62,7 +63,14 @@ export class Resolver {
         const rec = parseTxtRecord(chunks.join(''));
         if (rec.v === 'chasqui1' && rec.url) return { source: 'dns', url: rec.url, sig: rec.sig };
       }
-    } catch { /* sin registro DNS: seguimos al fallback */ }
+    } catch (e) {
+      // "No existe el registro" (NXDOMAIN/sin datos) es el fallback legítimo a well-known.
+      // Cualquier OTRA falla de DNS (red, timeout, servfail) NO degrada el ancla en silencio:
+      // un atacante que bloquee la respuesta DNS no puede empujarnos a well-known + TOFU.
+      if (e.code !== 'ENOTFOUND' && e.code !== 'ENODATA') {
+        throw Object.assign(new Error(`DNS no disponible para ${domain}: ${e.message}`), { permanent: false });
+      }
+    }
     return { source: 'well-known', url: `https://${domain}` };
   }
 
@@ -82,7 +90,10 @@ export class Resolver {
     // Ancla: DNS/override dice qué clave debe tener el dominio. Si no hay ancla, TOFU (pin en primer uso).
     const anchor = loc.sig || this.pins[domain];
     if (anchor && !keyIds.includes(anchor)) throw Object.assign(new Error(`la clave del dominio ${domain} no coincide con la anclada`), { permanent: true });
-    if (!anchor) this.pins[domain] = card.signature.kid;
+    if (!anchor) {
+      this.pins[domain] = card.signature.kid;
+      try { await this.onPin?.({ ...this.pins }); } catch { /* persistir el pin es mejor-esfuerzo; el pin en memoria ya rige */ }
+    }
 
     const value = { ...card, _estafeta: loc.url.replace(/\/$/, ''), _source: loc.source };
     this._remember(`domain:${domain}`, value);
@@ -120,8 +131,9 @@ export class Resolver {
   }
 
   // Claves aceptables de una tarjeta: la vigente más las anteriores dentro del período de gracia.
+  // Una clave previa SIN vencimiento no cuenta: la gracia es acotada o no es gracia (falla cerrado).
   static acceptedKids(card) {
-    return [card.sig, ...(card.previous || []).filter((p) => !p.until || Date.parse(p.until) > Date.now()).map((p) => p.sig)];
+    return [card.sig, ...(card.previous || []).filter((p) => p.until && Date.parse(p.until) > Date.now()).map((p) => p.sig)];
   }
 
   // Igual que agentCard, pero si el sobre viene firmado con una clave que la tarjeta en caché no

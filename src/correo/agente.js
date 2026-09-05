@@ -2,7 +2,6 @@
 // Correo: firma, cifra, envía, lee, confirma. Libro: cotiza, acepta, entrega, libera, afianza, manda, cobra.
 // Las operaciones del Libro son sobres firmados a libro@<casa>; las respuestas vuelven como recibos al buzón.
 
-import fs from 'node:fs';
 import { Resolver, parseAddress } from './resolver.js';
 import { generateKeys, signObject, verifyObject, signBytes, canonical, b64u, uuid, encryptContent, decryptContent, mintPow, sha256hex } from '../nucleo/crypto.js';
 import { Libro, MEDIA } from '../libro/libro.js';
@@ -20,12 +19,14 @@ export class Agent {
   }
 
   static create(address, estafeta, opts = {}) { return new Agent({ address, estafeta, keys: generateKeys(), ...opts }); }
-  static load(file, opts = {}) { const j = JSON.parse(fs.readFileSync(file, 'utf8')); return new Agent({ ...j, ...opts }); }
-  save(file) { fs.mkdirSync(require_dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify({ address: this.address, estafeta: this.estafeta, keys: this.keys }, null, 2)); }
+  // load/save usan node:fs por import dinámico: el módulo carga limpio en Workers (donde no se usan).
+  static async load(file, opts = {}) { const fs = await import('node:fs'); const j = JSON.parse(fs.readFileSync(file, 'utf8')); return new Agent({ ...j, ...opts }); }
+  async save(file) { const fs = await import('node:fs'); fs.mkdirSync(require_dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify({ address: this.address, estafeta: this.estafeta, keys: this.keys }, null, 2), { mode: 0o600 }); }
 
   // ---------- auth ante la propia estafeta ----------
-  _auth(method, path, keys = this.keys) {
-    const claims = { address: this.address, ts: iso(), nonce: uuid(), method, path };
+  _auth(method, path, keys = this.keys, base = this.estafeta) {
+    // `host` amarra el token a la casa destino: capturado, no sirve contra otra estafeta.
+    const claims = { address: this.address, ts: iso(), nonce: uuid(), method, path, host: new URL(base).host };
     const token = b64u(canonical(claims));
     return `Chasqui ${token}.${signBytes(canonical(claims), keys)}`;
   }
@@ -62,9 +63,12 @@ export class Agent {
   // Rotación: el cuerpo lleva las claves nuevas; la autenticación se firma con las viejas (o usa adminToken).
   async rotateKeys({ adminToken } = {}) {
     const old = this.keys;
-    this.keys = { ...this.keys, ...generateKeys() };
-    const body = { local: this.local, sig: this.keys.sig, enc: this.keys.enc, capabilities: this.card?.capabilities, inbox: this.card?.inbox };
+    const fresh = { ...this.keys, ...generateKeys() };
+    const body = { local: this.local, sig: fresh.sig, enc: fresh.enc, capabilities: this.card?.capabilities, inbox: this.card?.inbox };
+    // Las claves nuevas se adoptan DESPUÉS de que la estafeta confirma: si el POST falla,
+    // este agente sigue firmando con las viejas y no queda inutilizable.
     this.card = await this._call('POST', '/agents', body, adminToken ? { admin: adminToken } : { authKeys: old });
+    this.keys = fresh;
     this.resolver.invalidate(`agent:${this.address}`);
     return this.card;
   }
@@ -150,7 +154,7 @@ export class Agent {
   async _callAt(house, method, path) {
     if (!house || house === this.domain) return this._call(method, path);
     const dc = await this.resolver.domainCard(house);
-    const res = await this.fetch(`${dc._estafeta}${path}`, { method, headers: { authorization: this._auth(method, path.split('?')[0]) }, signal: AbortSignal.timeout(10_000) });
+    const res = await this.fetch(`${dc._estafeta}${path}`, { method, headers: { authorization: this._auth(method, path.split('?')[0], this.keys, dc._estafeta) }, signal: AbortSignal.timeout(10_000) });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(json.reason || `HTTP ${res.status}`), { status: res.status });
     return json;
@@ -163,6 +167,17 @@ export class Agent {
     return { ...opened, receipt: opened.content.body, envelope: m.envelope };
   }
 
+  // Búsqueda en un índice federado (urn:chasqui:ext:indice): por casa que lo opera o URL directa.
+  // El índice es una pista: cada tarjeta se re-verifica por la cadena normal al usarla.
+  async search(index, { q, capability, accepts, house, limit, offset } = {}) {
+    const params = new URLSearchParams(Object.entries({ q, capability, accepts, house, limit, offset }).filter(([, v]) => v != null));
+    const base = index.startsWith('http') ? index.replace(/\/$/, '') : (await this.resolver.domainCard(index))._estafeta;
+    const res = await this.fetch(`${base}/index/agents?${params}`, { signal: AbortSignal.timeout(10_000) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(json.reason || `HTTP ${res.status}`), { status: res.status });
+    return json;
+  }
+
   // ---------- lectura ----------
   async inbox({ limit = 50 } = {}) { return (await this._call('GET', `/mailbox/${this.local}?limit=${limit}`)).messages; }
   async ack(ids) { return (await this._call('POST', `/mailbox/${this.local}/ack`, { ids: Array.isArray(ids) ? ids : [ids] })).acked; }
@@ -173,6 +188,8 @@ export class Agent {
     const card = await this.resolver.agentCardForKid(envelope.from, envelope.signature?.kid);
     const verified = Resolver.acceptedKids(card).includes(envelope.signature?.kid) && verifyObject(envelope, envelope.signature.kid);
     if (!verified) throw new Error(`firma inválida en sobre ${envelope.id} de ${envelope.from}`);
+    if (envelope.expires && Date.parse(envelope.expires) < Date.now()) throw new Error(`sobre vencido: ${envelope.id}`);
+    if (!envelope.encrypted && !envelope.to.includes(this.address)) throw new Error(`sobre ${envelope.id} no dirigido a ${this.address}`);
     const content = envelope.encrypted ? decryptContent(envelope.encrypted, this.address, this.keys, aad(envelope)) : envelope.content;
     return { id: envelope.id, from: envelope.from, to: envelope.to, type: envelope.type, thread: envelope.thread, in_reply_to: envelope.in_reply_to, created: envelope.created, encrypted: !!envelope.encrypted, sender: card, content };
   }
@@ -181,7 +198,7 @@ export class Agent {
   async waitFor(predicate = () => true, { timeoutMs = 10_000, everyMs = 250 } = {}) {
     const until = Date.now() + timeoutMs;
     while (Date.now() < until) {
-      for (const m of await this.inbox()) if (predicate(m.envelope, m)) return m;
+      for (const m of await this.inbox({ limit: 200 })) if (predicate(m.envelope, m)) return m;
       await new Promise((r) => setTimeout(r, everyMs));
     }
     throw new Error(`timeout esperando sobre en ${this.address}`);
