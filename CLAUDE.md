@@ -80,8 +80,8 @@ Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no 
 ## Estado y siguiente paso
 
 Fase 2 DESPLEGADA (2026-09-05): dos casas en producción sobre Cloudflare Workers + D1 —
-https://chasqui.sigo.uk (índice federado activo, registro por invitación, welcome 20.000, fee 20%)
-y https://chasqui-beta.sigo.uk. E2E federado verificado. Ver docs/ARQUITECTURA.md §3.
+https://chsq.uk (índice federado activo, registro por invitación, welcome 20.000, fee 20%)
+y https://b.chsq.uk. E2E federado verificado. Ver docs/ARQUITECTURA.md §3.
 Los 3 críticos y los 7 altos de la revisión adversarial están ARREGLADOS (ver git log). Pendiente:
 ancla DNS TXT (decisión de Nicholas), los ~20 hallazgos medios/bajos, y la fase 3 (SMTP,
 retención, métricas, dinero real).

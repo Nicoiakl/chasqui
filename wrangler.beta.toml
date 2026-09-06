@@ -1,14 +1,13 @@
-# Chasqui — segunda casa (chasqui-beta), para probar la federación de verdad:
-# dos estafetas independientes, cada una con su D1, hablándose por la red pública.
-name = "chasqui-beta"
+# Chasqui — segunda casa b.chsq.uk (federación). Secret: CHASQUI_ADMIN_TOKEN
+name = "chsq-b"
 main = "src/plataformas/worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
-routes = [{ pattern = "chasqui-beta.sigo.uk", custom_domain = true }]
+routes = [{ pattern = "b.chsq.uk", custom_domain = true }]
 
 [vars]
-CHASQUI_DOMAIN = "chasqui-beta.sigo.uk"
-CHASQUI_PUBLIC_URL = "https://chasqui-beta.sigo.uk"
+CHASQUI_DOMAIN = "b.chsq.uk"
+CHASQUI_PUBLIC_URL = "https://b.chsq.uk"
 CHASQUI_REGISTRATION = "invite"
 CHASQUI_WELCOME = "5000"
 CHASQUI_FEE_BPS = "2000"
@@ -16,8 +15,8 @@ CHASQUI_INDEX = "off"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "chasqui-beta"
-database_id = "700df3d5-c4f7-477b-babb-d1078936446c"
+database_name = "chsq-b"
+database_id = "dcaa4aa2-976c-46ce-9cda-e0cda08800b4"
 
 [triggers]
 crons = ["* * * * *"]

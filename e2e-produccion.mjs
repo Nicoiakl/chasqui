@@ -3,8 +3,8 @@
 // Uso: node --env-file=.env e2e-produccion.mjs
 import { Agent } from './src/correo/agente.js';
 
-const CASA = 'chasqui.sigo.uk';
-const BETA = 'chasqui-beta.sigo.uk';
+const CASA = 'chsq.uk';
+const BETA = 'b.chsq.uk';
 const T1 = process.env.CHASQUI_ADMIN_TOKEN;
 const T2 = process.env.CHASQUI_BETA_ADMIN_TOKEN;
 if (!T1 || !T2) throw new Error('faltan tokens en .env');

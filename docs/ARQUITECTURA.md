@@ -5,7 +5,7 @@ Un sistema, dos componentes en el mismo proceso: **Correo** (`src/correo`) y **L
 ## 1. Componentes
 
 ```
-                DNS (_chasqui.sigo.uk TXT)          DNS (_chasqui.beta.example TXT)
+                DNS (_chsq.uk TXT)          DNS (_chasqui.beta.example TXT)
                         |                                     |
    +--------------------v---------------+   HTTPS   +---------v--------------------+
    |  Estafeta sigo.uk                  |<--------->|  Estafeta beta.example       |
@@ -76,8 +76,8 @@ Si la operación falla (saldo, parte, estado), `/inbound` responde 4xx y el remi
 
 | Pieza | Dónde | Detalle |
 |---|---|---|
-| Estafeta principal | https://chasqui.sigo.uk | Worker `chasqui`, D1 `token-wallet` (ad5a85b0…), registro `invite`, welcome 20.000, fee 20%, índice federado ACTIVO |
-| Segunda casa | https://chasqui-beta.sigo.uk | Worker `chasqui-beta`, D1 `chasqui-beta` (700df3d5…), registro `invite`, welcome 5.000 |
+| Estafeta principal | https://chsq.uk | Worker `chasqui`, D1 `token-wallet` (ad5a85b0…), registro `invite`, welcome 20.000, fee 20%, índice federado ACTIVO |
+| Segunda casa | https://b.chsq.uk | Worker `chasqui-beta`, D1 `chasqui-beta` (700df3d5…), registro `invite`, welcome 5.000 |
 | Cron | cada 1 min en ambas | reintentos de cola + rastreo del índice |
 | Secrets | `CHASQUI_ADMIN_TOKEN` en cada worker | valores en `.env` local (gitignored) |
 
@@ -166,7 +166,7 @@ Tu Token Wallet v0 (D1) ya tiene ledger de doble entrada y cotización→confirm
 Para `sigo.uk`, en Cloudflare (con DNSSEC activado):
 
 ```
-_chasqui.sigo.uk  TXT  "v=chasqui1; url=https://mail.sigo.uk; sig=<clave pública del dominio>"
+_chsq.uk  TXT  "v=chasqui1; url=https://mail.sigo.uk; sig=<clave pública del dominio>"
 mail.sigo.uk      A/CNAME -> la estafeta
 ```
 
@@ -198,7 +198,7 @@ Cada `/inbound` hace: dos GET cacheados (tarjetas, 5 min), dos verificaciones Ed
 |---|---|---|
 | 0 (hoy) | Referencia local: Correo + Libro, spec, CLI, puente MCP, 20 pruebas | `npm test` en verde |
 | 1 | Piloto en casa: tus sesiones y agentes con cuenta; cada cajita lleva cotización escrow; Verifica como primer servicio medido; presupuesto mensual por frente como `topup` | telemetría real: cuánto costó cada entrega, qué reportes afianzados cayeron |
-| 2 ✅ | HECHO 2026-09-05: dos estafetas en producción (chasqui.sigo.uk + chasqui-beta.sigo.uk) sobre D1; falta el ancla DNS TXT | un agente externo escribe, cotiza y paga estampilla desde afuera — verificado E2E |
+| 2 ✅ | HECHO 2026-09-05: dos estafetas en producción (chsq.uk + b.chsq.uk) sobre D1; falta el ancla DNS TXT | un agente externo escribe, cotiza y paga estampilla desde afuera — verificado E2E |
 | 3 | Puente SMTP (extensión `email`), retención, métricas; carga de saldo con dinero real (Paddle) y payout a terceros | humanos y agentes en la misma dirección; primer tercero que acepta tokens |
 | 4 | Contratos compuestos según demanda (bounty, suscripción, RFQ, disputa); reputación como consulta pública sobre contratos | spam y palabras gratis económicamente inviables |
 | 5 | Custodia de claves con passkeys, extensión `person`; spec como borrador abierto y segunda implementación | personas comunes con agente propio; dos implementaciones interoperando |

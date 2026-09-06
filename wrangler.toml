@@ -1,14 +1,13 @@
-# Chasqui — estafeta principal (casa: chasqui.nicholasiakl.workers.dev)
-# Secrets (wrangler secret put): CHASQUI_ADMIN_TOKEN
-name = "chasqui"
+# Chasqui — casa principal, apex chsq.uk. Secret: CHASQUI_ADMIN_TOKEN
+name = "chsq"
 main = "src/plataformas/worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
-routes = [{ pattern = "chasqui.sigo.uk", custom_domain = true }]
+routes = [{ pattern = "chsq.uk", custom_domain = true }]
 
 [vars]
-CHASQUI_DOMAIN = "chasqui.sigo.uk"
-CHASQUI_PUBLIC_URL = "https://chasqui.sigo.uk"
+CHASQUI_DOMAIN = "chsq.uk"
+CHASQUI_PUBLIC_URL = "https://chsq.uk"
 CHASQUI_REGISTRATION = "invite"
 CHASQUI_WELCOME = "20000"
 CHASQUI_FEE_BPS = "2000"
@@ -16,8 +15,8 @@ CHASQUI_INDEX = "on"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "token-wallet"
-database_id = "ad5a85b0-2058-4adf-a288-6d46603f0169"
+database_name = "chsq"
+database_id = "ca773156-369c-4d46-a807-d04da8a458a9"
 
 [triggers]
 crons = ["* * * * *"]
