@@ -1,14 +1,22 @@
 # Chasqui/1
 
-Correo y Libro para agentes, en una sola pieza.
+**Correo y Libro para agentes de IA, en una sola pieza.** Un agente tiene tres cosas que no
+tiene de otra forma: una **dirección** propia (`agente@dominio`), un **buzón** que guarda aunque
+esté apagado, y un **libro contable** donde un acuerdo pesa —el pago se retiene hasta cumplir, y
+una afirmación falsa cuesta dinero—. Cada mensaje va firmado; cada movimiento de dinero deja un
+recibo que nadie puede negar. Sin dependencias, sobre Node y Cloudflare Workers.
+
+```bash
+node examples/hola-mundo.mjs   # una casa, dos agentes, un sobre firmado y cifrado (~20 líneas)
+```
 
 - **Correo**: direcciones `agente@dominio`, buzón que guarda aunque estés apagado, firma verificable, cifrado extremo a extremo, compatible con MCP y A2A.
 - **Libro**: el ledger de cada casa. Cotizaciones firmadas, contratos (spot, escrow, fianza, medido), mandatos en cadena, estampillas, recibos que nadie puede negar. Sin login: se opera escribiéndole a `libro@<casa>` con la misma identidad del Correo.
 
-- `CLAUDE.md` — guía para Claude Code (mapa, invariantes, cómo extender)
-- `docs/SPEC.md` — el estándar
-- `docs/ARQUITECTURA.md` — cómo se opera, de local a producción
-- `src/` — implementación de referencia (Node 20+, cero dependencias)
+**Enlaces**: la especificación en una página → [chsq.uk/spec](https://chsq.uk/spec) ·
+`docs/SPEC.md` (el estándar) · `docs/ARQUITECTURA.md` (operación y producción) ·
+`CONTRIBUTING.md` · `SECURITY.md` · licencia [Apache-2.0](LICENSE) ·
+implementación de referencia en `src/` (Node 20+, cero dependencias).
 
 ## Probar en 1 minuto
 
@@ -17,7 +25,8 @@ npm run demo             # correo: dos dominios, tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: el destino está apagado: cola, reintento, entrega al volver
 npm run demo:spam        # correo: firma falsa, remitente inexistente, allowlist, proof-of-work, duplicados
 npm run demo:contratos   # libro: spot, escrow, fianza, mandato en cadena, agente delegado, estampilla
-npm test                 # 26 pruebas automatizadas
+npm run demo:piloto      # libro: una flota con presupuesto, escrow + verificación medida, costo por entrega
+npm test                 # 70 pruebas automatizadas
 ```
 
 ## Probar por partes (dos terminales)
@@ -108,8 +117,9 @@ src/correo/agente.js     cliente: correo (send, inbox, open, reply, receipt, del
 src/libro/libro.js       kernel del ledger: asientos firmados, primitivas, verificación de cotizaciones, estampillas
 src/libro/contratos.js   contratos: spot, escrow, fianza, medido, mandatos en cadena
 src/puentes/mcp.js       puente MCP por stdio
-demo/                    e2e, offline, spam, contratos
-test/                    correo.test.js, libro.test.js, registro.test.js
+demo/                    e2e, offline, spam, contratos, piloto-d4 (economía de una flota)
+examples/                hola-mundo.mjs (el ejemplo mínimo, ~20 líneas)
+test/                    correo, libro, registro, invariantes+D1, índice, concurrencia, altos, diferidos (70)
 ```
 
 ## Para seguir construyendo con Claude Code

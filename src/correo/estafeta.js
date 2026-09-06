@@ -24,6 +24,7 @@ import { validateEnvelope, applyInboxPolicy, RateLimiter } from './politica.js';
 import { generateSigningKeys, signObject, verifyObject, signBytes, verifyBytes, canonical, uuid, unb64u, sha256hex } from '../nucleo/crypto.js';
 import { Libro, MEDIA, LibroError } from '../libro/libro.js';
 import { APP_HTML } from '../plataformas/app-html.js';
+import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
 
 const now = () => Date.now();
 const iso = (t = now()) => new Date(t).toISOString();
@@ -568,6 +569,9 @@ export class Estafeta {
       // Cliente web para personas: se sirve desde la propia casa (mismo origen, sin CORS).
       // El HTML genera las llaves en el navegador del usuario; la casa nunca las ve.
       if (rx.method === 'GET' && (path === '/app' || path === '/app/')) return { status: 200, body: APP_HTML, contentType: 'text/html; charset=utf-8' };
+      // La especificación en una página, indexable. Se genera desde docs/SPEC.md (build:spec).
+      if (rx.method === 'GET' && (path === '/spec' || path === '/spec/')) return { status: 200, body: SPEC_HTML, contentType: 'text/html; charset=utf-8' };
+      if (rx.method === 'GET' && path === '/llms.txt') return { status: 200, body: LLMS_TXT, contentType: 'text/plain; charset=utf-8' };
       if (rx.method === 'GET' && path === '/.well-known/chasqui.json') return send(200, await this.domainCard());
       let m;
       if (rx.method === 'GET' && (m = /^\/agents\/([^/]+)$/.exec(path))) {
