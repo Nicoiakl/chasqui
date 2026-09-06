@@ -96,6 +96,12 @@ presupuesto cargado por topup, trabajo delegado como escrow, verificación como 
 reporte de costo por entrega leído del diario (con cuadre de doble entrada). El costo por entrega no es
 estimación: es lo que el asiento dice que salió de la cuenta del frente.
 
+**Marca Nyx5 + repo (2026-09-06)**: la casa pública es **https://nyx5.com** (marca Nyx5; el protocolo
+sigue siendo Chasqui/1 — su identificador va firmado en cada sobre). El worker sirve `/` (home), `/spec`
+y `/llms.txt` en nyx5.com; chsq.uk sigue mientras se migra la identidad de las casas. Repo público:
+**github.com/Nicoiakl/chasqui**, CI verde (Node 20 y 24; el emulador D1 usa node:sqlite, que no está en
+Node 20 → esas suites saltan, ver `sqliteAvailable`). `docs/SPEC.en.md`: traducción al inglés (borrador §5).
+
 **D2 hecho (2026-09-06)**: presencia pública. LICENSE Apache-2.0, package.json publicable
 (`npm pack` verificado, whitelist sin secretos), CONTRIBUTING/SECURITY, `examples/hola-mundo.mjs`,
 CI (Node 20/22), y el sitio de la spec generado desde `docs/SPEC.md` por `scripts/build-spec-site.mjs`
