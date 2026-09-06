@@ -175,3 +175,27 @@ test('ALTO · la CLI pasa --arbiter y --expires a la cotización (los documentab
     }
   }
 });
+
+test('BUG BUZÓN · con muchos mensajes sin leer, el más reciente SÍ aparece (no queda escondido)', async () => {
+  const { e, url, dom } = await casa({ policy: { registration: 'admin' } });
+  try {
+    const dest = generateKeys();
+    await e.registerAgent({ local: 'busy', sig: dest.sig, enc: dest.enc });
+    // 60 mensajes viejos + 1 nuevo distinguible, todos sin ackear
+    const { signObject, uuid } = await import('../src/nucleo/crypto.js');
+    const emisor = generateKeys();
+    await e.registerAgent({ local: 'emi', sig: emisor.sig, enc: emisor.enc });
+    for (let i = 0; i < 60; i++) {
+      const s = signObject({ chasqui:'1', id:uuid(), from:`emi@${dom}`, to:[`busy@${dom}`], created:new Date(Date.now()-100000+i).toISOString(), type:'message', content:{media:'text/plain', body:`viejo ${i}`} }, emisor);
+      await e.handleRequest({ method:'POST', path:'/inbound', query:new URLSearchParams(), headers:{}, body:s, ip:null });
+    }
+    const nuevo = signObject({ chasqui:'1', id:uuid(), from:`emi@${dom}`, to:[`busy@${dom}`], created:new Date().toISOString(), type:'message', content:{media:'text/plain', body:'EL MÁS NUEVO'} }, emisor);
+    await e.handleRequest({ method:'POST', path:'/inbound', query:new URLSearchParams(), headers:{}, body:nuevo, ip:null });
+    // el destinatario lee su buzón con el límite por defecto de la app (50)
+    const auth = (m,p) => 'Chasqui ' + Buffer.from(JSON.stringify({address:`busy@${dom}`})).toString('base64url'); // placeholder, usamos el cliente real
+    const { Agent } = await import('../src/correo/agente.js');
+    const cli = new Agent({ address:`busy@${dom}`, keys:dest, estafeta:url, hosts:{[dom]:{url}} });
+    const buzon = await cli.inbox({ limit: 50 });
+    assert.ok(buzon.some(m => m.envelope.content.body === 'EL MÁS NUEVO'), 'el mensaje más reciente debe estar entre los devueltos');
+  } finally { await e.stop(); }
+});

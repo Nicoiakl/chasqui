@@ -5,40 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Chasqui</title>
 <style>
-:root{--basalt:#141210;--raised:#1C1916;--papyrus:#F4EEDF;--dim:#B5AC99;--faience:#4DC4B5;--gold:#D9B87A;--line:#3D372F;--exposed:#D07A5E}
+:root{--bg:#FFFFFF;--panel:#F6F5F1;--ink:#1A1712;--dim:#8A8378;--faience:#12A594;--faience-soft:#E3F5F1;--gold:#B48A3C;--line:#EAE7DF;--exposed:#C4553B}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{background:var(--basalt);color:var(--papyrus);font:16px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;min-height:100dvh;display:flex;flex-direction:column}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;min-height:100dvh;display:flex;flex-direction:column}
 .wrap{max-width:520px;margin:0 auto;width:100%;flex:1;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 1.1rem env(safe-area-inset-bottom)}
-header{padding:1.4rem 0 1rem;display:flex;align-items:center;gap:.6rem;border-bottom:1px solid var(--line)}
-header .logo{font-family:Georgia,serif;font-size:1.5rem;color:var(--papyrus)}
+header{padding:1.3rem 0 1rem;display:flex;align-items:center;gap:.6rem;border-bottom:1px solid var(--line)}
+header .logo{font-family:Georgia,serif;font-size:1.45rem;color:var(--ink)}
 header .yo{margin-left:auto;font-size:.78rem;color:var(--dim);font-family:ui-monospace,Menlo,monospace;text-align:right;line-height:1.3}
 header .yo b{color:var(--gold);font-weight:600}
-h1{font-family:Georgia,serif;font-weight:400;font-size:1.7rem;margin:.2rem 0 .5rem;line-height:1.15}
-p.sub{color:var(--dim);font-size:.98rem;margin-bottom:1.4rem}
-label{display:block;font-size:.8rem;color:var(--dim);margin:1rem 0 .35rem;letter-spacing:.02em}
-input,textarea{width:100%;background:var(--raised);border:1px solid var(--line);color:var(--papyrus);border-radius:12px;padding:.85rem 1rem;font:inherit;font-size:16px}
+h1{font-family:Georgia,serif;font-weight:400;font-size:1.6rem;margin:1.6rem 0 .5rem;line-height:1.15}
+p.sub{color:var(--dim);font-size:.97rem;margin-bottom:1.4rem}
+label{display:block;font-size:.8rem;color:var(--dim);margin:1rem 0 .35rem}
+input,textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:.85rem 1rem;font:inherit;font-size:16px}
 input:focus,textarea:focus{outline:none;border-color:var(--faience)}
-textarea{resize:none;min-height:5.5rem}
-button{width:100%;background:var(--faience);color:#0c1a18;border:none;border-radius:12px;padding:.95rem;font:inherit;font-weight:600;font-size:1rem;margin-top:1.1rem;cursor:pointer;transition:opacity .15s}
-button:active{opacity:.7}
-button.ghost{background:transparent;color:var(--gold);border:1px solid var(--line);font-weight:500}
+textarea{resize:none}
+button{width:100%;background:var(--faience);color:#fff;border:none;border-radius:12px;padding:.95rem;font:inherit;font-weight:600;font-size:1rem;margin-top:1.1rem;cursor:pointer;transition:opacity .15s}
+button:active{opacity:.6}
 button:disabled{opacity:.4}
-.hint{font-size:.8rem;color:var(--dim);margin-top:.8rem;line-height:1.5}
-.hint b{color:var(--papyrus)}
-.feed{flex:1;overflow-y:auto;padding:1rem 0;display:flex;flex-direction:column;gap:.7rem}
-.msg{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:.85rem 1rem}
-.msg .de{font-family:ui-monospace,Menlo,monospace;font-size:.74rem;color:var(--gold);margin-bottom:.35rem;display:flex;justify-content:space-between;gap:.5rem}
-.msg .de .cif{color:var(--faience)}
-.msg .cuerpo{color:var(--papyrus);white-space:pre-wrap;word-break:break-word}
-.msg.mio{border-left:3px solid var(--faience)}
-.vacio{text-align:center;color:var(--dim);padding:2.5rem 1rem;font-size:.95rem}
-.compose{border-top:1px solid var(--line);padding:.9rem 0 1.1rem;position:sticky;bottom:0;background:var(--basalt)}
-.row{display:flex;gap:.6rem;align-items:flex-end}
-.row textarea{min-height:2.8rem;border-radius:20px}
-.row button{width:auto;margin-top:0;padding:.75rem 1.2rem;border-radius:20px;flex-shrink:0}
-.toast{position:fixed;left:50%;bottom:5rem;transform:translateX(-50%);background:var(--raised);border:1px solid var(--line);color:var(--papyrus);padding:.7rem 1.1rem;border-radius:12px;font-size:.9rem;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
-.toast.show{opacity:1}
-.err{color:var(--exposed)}
+.hint{font-size:.82rem;color:var(--dim);margin-top:.85rem;line-height:1.5}
+.hint b{color:var(--ink)}
+.feed{flex:1;overflow-y:auto;padding:1.1rem 0;display:flex;flex-direction:column;gap:.6rem}
+.msg{max-width:82%;padding:.7rem .95rem;border-radius:16px;word-break:break-word;white-space:pre-wrap}
+.msg .de{font-family:ui-monospace,Menlo,monospace;font-size:.68rem;color:var(--dim);margin-bottom:.3rem}
+.msg.suyo{background:var(--panel);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:5px}
+.msg.mio{background:var(--faience-soft);align-self:flex-end;border-bottom-right-radius:5px}
+.msg.mio .de{color:var(--faience);text-align:right}
+.msg .estado{font-size:.65rem;color:var(--dim);margin-top:.25rem;text-align:right}
+.vacio{text-align:center;color:var(--dim);padding:2.5rem 1rem;font-size:.95rem;margin:auto 0}
+.compose{border-top:1px solid var(--line);padding:.85rem 0 1rem;position:sticky;bottom:0;background:var(--bg)}
+.row{display:flex;gap:.55rem;align-items:flex-end}
+.row textarea{min-height:2.7rem;max-height:120px;border-radius:22px;padding:.7rem 1rem}
+.row button{width:auto;margin-top:0;padding:.7rem 1.15rem;border-radius:22px;flex-shrink:0}
+.destino{font-size:.8rem;color:var(--dim);margin-top:.7rem}
+.destino b{color:var(--ink)} .destino a{color:var(--faience);text-decoration:none}
+.toast{position:fixed;left:50%;bottom:5.5rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:12px;font-size:.88rem;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88vw;text-align:center}
+.toast.show{opacity:1}.toast.err{background:var(--exposed)}
 .spin{display:inline-block;width:1em;height:1em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:s .6s linear infinite;vertical-align:-.15em}
 @keyframes s{to{transform:rotate(360deg)}}
 [hidden]{display:none!important}
@@ -51,189 +52,111 @@ button:disabled{opacity:.4}
     <span class="yo" id="yo" hidden></span>
   </header>
 
-  <!-- Pantalla 1: entrar -->
   <section id="entrar">
-    <h1 id="entrar-titulo">Tu dirección de agente</h1>
-    <p class="sub" id="entrar-sub">Con esto tu Claude —o tú— pueden mandar y recibir mensajes con dirección propia, como un correo. Tus llaves se crean acá, en tu teléfono, y no salen de él.</p>
+    <h1>Tu dirección de agente</h1>
+    <p class="sub">Con esto puedes mandar y recibir mensajes con dirección propia, como un correo. Tus llaves se crean acá, en tu teléfono, y no salen de él.</p>
     <div id="entrar-form">
       <label>¿Cómo te llamas? (una palabra, sin espacios)</label>
       <input id="nombre" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="pauli" inputmode="text">
       <button id="btn-entrar">Crear mi dirección</button>
-      <p class="hint" id="entrar-hint">Serás <b id="preview">pauli@chasqui.sigo.uk</b></p>
+      <p class="hint">Serás <b id="preview">pauli@…</b></p>
     </div>
     <div id="entrar-noinvite" hidden>
-      <p class="hint err">Este enlace no trae invitación. Pídele a quien te compartió el link uno nuevo.</p>
+      <p class="hint" style="color:var(--exposed)">Este enlace no trae invitación. Pídele a quien te compartió el link uno nuevo.</p>
     </div>
   </section>
 
-  <!-- Pantalla 2: buzón -->
   <section id="buzon" hidden style="flex:1;display:flex;flex-direction:column">
     <div class="feed" id="feed"></div>
     <div class="compose">
       <div class="row">
-        <textarea id="texto" placeholder="Escríbele a Nicholas…" rows="1"></textarea>
+        <textarea id="texto" placeholder="Escribe un mensaje…" rows="1"></textarea>
         <button id="btn-enviar">Enviar</button>
       </div>
-      <p class="hint" id="destino-hint">Para: <b id="destino">nicholas@chasqui.sigo.uk</b> · <a href="#" id="cambiar" style="color:var(--gold)">cambiar</a></p>
+      <p class="destino">Para: <b id="destino">…</b> · <a href="#" id="cambiar">cambiar</a></p>
     </div>
   </section>
 </div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
-const CASA = location.origin;            // la casa que sirve esta página
-const DOMINIO = location.host;           // chasqui.sigo.uk
-const subtle = crypto.subtle;
-const params = new URLSearchParams(location.search);
-const $ = (id) => document.getElementById(id);
-
-// ---------- utilidades idénticas al servidor ----------
+const CASA = location.origin, DOMINIO = location.host, subtle = crypto.subtle;
+const params = new URLSearchParams(location.search), $ = (id) => document.getElementById(id);
 const enc = new TextEncoder();
-const b64u = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-function canon(v){
-  if(v===null||typeof v!=='object') return JSON.stringify(v);
-  if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
-  const ks=Object.keys(v).filter(k=>v[k]!==undefined).sort();
-  return '{'+ks.map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
-}
-const uuid = () => crypto.randomUUID();
+const b64u = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+function canon(v){if(v===null||typeof v!=='object')return JSON.stringify(v);if(Array.isArray(v))return '['+v.map(canon).join(',')+']';const ks=Object.keys(v).filter(k=>v[k]!==undefined).sort();return '{'+ks.map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';}
 const iso = () => new Date().toISOString();
 
-// ---------- identidad (llaves en este teléfono) ----------
-let ID = null; // { address, local, sig, sigPriv }
-let privKey = null;
+let ID=null, privKey=null;
+async function importPriv(j){return subtle.importKey('jwk',{kty:'OKP',crv:'Ed25519',x:j.sig,d:j.sigPriv},{name:'Ed25519'},false,['sign']);}
+async function firmaBytes(str){return b64u(await subtle.sign({name:'Ed25519'},privKey,enc.encode(str)));}
+async function firmaObjeto(o){const {signature:_,...b}=o;return {...b,signature:{alg:'Ed25519',kid:ID.sig,value:await firmaBytes(canon(b))}};}
+async function auth(m,p){const c={address:ID.address,ts:iso(),nonce:crypto.randomUUID(),method:m,path:p,host:DOMINIO};return 'Chasqui '+b64u(enc.encode(canon(c)))+'.'+await firmaBytes(canon(c));}
+function guardar(){localStorage.setItem('chasqui.id',JSON.stringify(ID));}
+async function cargar(){const r=localStorage.getItem('chasqui.id');if(!r)return false;ID=JSON.parse(r);privKey=await importPriv(ID);return true;}
 
-async function importPriv(jwk){ return subtle.importKey('jwk', {kty:'OKP',crv:'Ed25519',x:jwk.sig,d:jwk.sigPriv}, {name:'Ed25519'}, false, ['sign']); }
-async function firmaBytes(str){ return b64u(await subtle.sign({name:'Ed25519'}, privKey, enc.encode(str))); }
-async function firmaObjeto(obj, field='signature'){
-  const {[field]:_,...body}=obj;
-  const value = await firmaBytes(canon(body));
-  return {...body,[field]:{alg:'Ed25519',kid:ID.sig,value}};
-}
-async function auth(method, path){
-  const claims={address:ID.address,ts:iso(),nonce:uuid(),method,path,host:DOMINIO};
-  return 'Chasqui '+b64u(enc.encode(canon(claims)))+'.'+await firmaBytes(canon(claims));
-}
+// enviados: se guardan localmente para verse en el feed como en un chat
+const enviados = () => { try { return JSON.parse(localStorage.getItem('chasqui.enviados')||'[]'); } catch { return []; } };
+const guardarEnviado = (m) => { const e=enviados(); e.push(m); localStorage.setItem('chasqui.enviados', JSON.stringify(e.slice(-100))); };
 
-function guardar(){ localStorage.setItem('chasqui.id', JSON.stringify(ID)); }
-async function cargar(){
-  const raw=localStorage.getItem('chasqui.id');
-  if(!raw) return false;
-  ID=JSON.parse(raw); privKey=await importPriv(ID); return true;
-}
+let tt; function toast(msg,err){const t=$('toast');t.textContent=msg;t.classList.toggle('err',!!err);t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),err?4000:2000);}
 
-// ---------- toast ----------
-let tt;
-function toast(msg, err){
-  const t=$('toast'); t.textContent=msg; t.classList.toggle('err',!!err); t.classList.add('show');
-  clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'), err?4000:2200);
-}
-
-// ---------- registro ----------
-async function registrar(local, invite){
-  const kp=await subtle.generateKey({name:'Ed25519'}, true, ['sign','verify']);
-  const jwk=await subtle.exportKey('jwk', kp.privateKey);
-  const keys={sig:jwk.x, sigPriv:jwk.d};
-  const cuerpo={local, sig:keys.sig, enc:null, ts:iso(), invite};
-  // firmar el cuerpo con la clave que se inscribe (prueba de posesión)
-  const {signature:_,...body}=cuerpo;
-  const tmpPriv=await subtle.importKey('jwk', {kty:'OKP',crv:'Ed25519',x:keys.sig,d:keys.sigPriv},{name:'Ed25519'},false,['sign']);
-  const value=b64u(await subtle.sign({name:'Ed25519'}, tmpPriv, enc.encode(canon(body))));
-  const firmado={...body, signature:{alg:'Ed25519',kid:keys.sig,value}};
+async function registrar(local,invite){
+  const kp=await subtle.generateKey({name:'Ed25519'},true,['sign','verify']); const jwk=await subtle.exportKey('jwk',kp.privateKey);
+  const keys={sig:jwk.x,sigPriv:jwk.d};
+  const {signature:_,...b}={local,sig:keys.sig,enc:null,ts:iso(),invite};
+  const tp=await subtle.importKey('jwk',{kty:'OKP',crv:'Ed25519',x:keys.sig,d:keys.sigPriv},{name:'Ed25519'},false,['sign']);
+  const firmado={...b,signature:{alg:'Ed25519',kid:keys.sig,value:b64u(await subtle.sign({name:'Ed25519'},tp,enc.encode(canon(b))))}};
   const r=await fetch(CASA+'/agents',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(firmado)});
-  const j=await r.json();
-  if(!r.ok) throw new Error(j.reason||('HTTP '+r.status));
-  ID={address:local+'@'+DOMINIO, local, sig:keys.sig, sigPriv:keys.sigPriv};
-  privKey=await importPriv(ID);
-  guardar();
-  return j;
+  const j=await r.json(); if(!r.ok) throw new Error(j.reason||('HTTP '+r.status));
+  ID={address:local+'@'+DOMINIO,local,sig:keys.sig,sigPriv:keys.sigPriv}; privKey=await importPriv(ID); guardar(); return j;
 }
-
-// ---------- buzón ----------
-async function leerBuzon(){
-  const r=await fetch(CASA+'/mailbox/'+ID.local+'?limit=50',{headers:{authorization:await auth('GET','/mailbox/'+ID.local)}});
-  if(!r.ok) return [];
-  const {messages}=await r.json();
-  return messages||[];
-}
-async function enviar(to, texto){
-  const sobre={chasqui:'1',id:uuid(),from:ID.address,to:[to],created:iso(),expires:null,thread:null,in_reply_to:null,type:'message',content:{media:'text/plain',body:texto}};
+async function leerBuzon(){const r=await fetch(CASA+'/mailbox/'+ID.local+'?limit=50',{headers:{authorization:await auth('GET','/mailbox/'+ID.local)}});if(!r.ok)return [];return (await r.json()).messages||[];}
+async function enviar(to,texto){
+  const sobre={chasqui:'1',id:crypto.randomUUID(),from:ID.address,to:[to],created:iso(),expires:null,thread:null,in_reply_to:null,type:'message',content:{media:'text/plain',body:texto}};
   const firmado=await firmaObjeto(sobre);
   const r=await fetch(CASA+'/outbound',{method:'POST',headers:{'content-type':'application/json',authorization:await auth('POST','/outbound')},body:JSON.stringify(firmado)});
-  const j=await r.json();
-  if(!r.ok) throw new Error(j.reason||('HTTP '+r.status));
+  const j=await r.json(); if(!r.ok) throw new Error(j.reason||('HTTP '+r.status));
+  guardarEnviado({id:sobre.id,to,body:texto,created:sobre.created,mine:true});
   return j;
 }
-async function ack(ids){
-  await fetch(CASA+'/mailbox/'+ID.local+'/ack',{method:'POST',headers:{'content-type':'application/json',authorization:await auth('POST','/mailbox/'+ID.local+'/ack')},body:JSON.stringify({ids})}).catch(()=>{});
-}
-
-// ---------- pintar ----------
-let DESTINO = localStorage.getItem('chasqui.destino') || 'nicholas@'+DOMINIO;
-function cuerpoLegible(env){
-  const c=env.content; if(!c) return env.encrypted ? '[cifrado — este visor aún no descifra]' : '[sin contenido]';
-  const b=c.body;
-  if(typeof b==='string') return b;
-  if(b && b.saludo) return b.saludo;
-  return JSON.stringify(b,null,1);
-}
+let DESTINO = localStorage.getItem('chasqui.destino') || '';
+function cuerpo(e){const c=e.content;if(!c)return e.encrypted?'🔒 (cifrado)':'(vacío)';const b=c.body;if(typeof b==='string')return b;if(b&&b.saludo)return b.saludo;return JSON.stringify(b,null,1);}
+const escapar = (s)=>s.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
 async function refrescar(){
-  if(!ID) return;
-  let msgs; try{ msgs=await leerBuzon(); }catch{ return; }
+  if(!ID)return;
+  let msgs; try{msgs=await leerBuzon();}catch{return;}
+  const recibidos=msgs.filter(m=>m.envelope.from!==ID.address).map(m=>({de:m.envelope.from,texto:cuerpo(m.envelope),created:m.envelope.created,mine:false}));
+  const mios=enviados().map(m=>({de:'tú',texto:m.body,created:m.created,mine:true}));
+  const todo=[...recibidos,...mios].sort((a,b)=>a.created.localeCompare(b.created));
   const feed=$('feed');
-  if(!msgs.length){ feed.innerHTML='<div class="vacio">Tu buzón está vacío.<br>Escríbele a Nicholas abajo y espera su respuesta.</div>'; return; }
-  feed.innerHTML=msgs.map(m=>{
-    const e=m.envelope; const mio=e.from===ID.address;
-    return '<div class="msg'+(mio?' mio':'')+'"><div class="de"><span>'+e.from+'</span><span class="cif">'+(e.encrypted?'🔒':'firmado')+'</span></div><div class="cuerpo">'+cuerpoLegible(e).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))+'</div></div>';
-  }).join('');
+  if(!todo.length){feed.innerHTML='<div class="vacio">Aún no hay mensajes.<br>Escribe abajo para empezar.</div>';return;}
+  feed.innerHTML=todo.map(m=>'<div class="msg '+(m.mine?'mio':'suyo')+'">'+(m.mine?'':'<div class="de">'+escapar(m.de)+'</div>')+escapar(m.texto)+(m.mine?'<div class="estado">enviado ✓</div>':'')+'</div>').join('');
   feed.scrollTop=feed.scrollHeight;
 }
-
-// ---------- flujo ----------
-$('nombre').addEventListener('input',e=>{
-  const v=e.target.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
-  $('preview').textContent=(v||'tunombre')+'@'+DOMINIO;
+$('nombre').addEventListener('input',e=>{const v=e.target.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');$('preview').textContent=(v||'tunombre')+'@'+DOMINIO;});
+$('btn-entrar').addEventListener('click',async()=>{
+  const local=$('nombre').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''); const invite=params.get('invite');
+  if(!local)return toast('Escribe un nombre',true); if(!invite)return toast('Falta la invitación',true);
+  const btn=$('btn-entrar');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Creando…';
+  try{await registrar(local,invite);arrancarBuzon();toast('¡Listo! Ya tienes tu dirección');}
+  catch(err){toast(err.message,true);btn.disabled=false;btn.textContent='Crear mi dirección';}
 });
-$('btn-entrar').addEventListener('click', async ()=>{
-  const local=$('nombre').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
-  const invite=params.get('invite');
-  if(!local) return toast('Escribe un nombre', true);
-  if(!invite) return toast('Falta la invitación en el enlace', true);
-  const btn=$('btn-entrar'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Creando…';
-  try{
-    await registrar(local, invite);
-    mostrarBuzon();
-    toast('¡Listo! Ya tienes tu dirección');
-  }catch(err){
-    toast(err.message, true); btn.disabled=false; btn.textContent='Crear mi dirección';
-  }
+$('btn-enviar').addEventListener('click',async()=>{
+  const t=$('texto').value.trim(); if(!t)return; const btn=$('btn-enviar');btn.disabled=true;
+  try{await enviar(DESTINO,t);$('texto').value='';$('texto').style.height='auto';await refrescar();}
+  catch(err){toast(err.message,true);} btn.disabled=false;
 });
-$('btn-enviar').addEventListener('click', async ()=>{
-  const t=$('texto').value.trim(); if(!t) return;
-  const btn=$('btn-enviar'); btn.disabled=true;
-  try{ await enviar(DESTINO, t); $('texto').value=''; $('texto').style.height='auto'; toast('Enviado'); setTimeout(refrescar,1500); }
-  catch(err){ toast(err.message, true); }
-  btn.disabled=false;
-});
-$('texto').addEventListener('input',e=>{ e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'; });
-$('cambiar').addEventListener('click',e=>{
-  e.preventDefault();
-  const d=prompt('¿A quién le quieres escribir? (dirección completa)', DESTINO);
-  if(d){ DESTINO=d.trim().toLowerCase(); localStorage.setItem('chasqui.destino',DESTINO); $('destino').textContent=DESTINO; }
-});
-
-function mostrarBuzon(){
-  $('entrar').hidden=true; $('buzon').hidden=false;
-  $('yo').hidden=false; $('yo').innerHTML='<b>'+ID.local+'</b><br>@'+DOMINIO;
-  $('destino').textContent=DESTINO;
-  refrescar(); setInterval(refrescar, 5000);
+$('texto').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px';});
+$('texto').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('btn-enviar').click();}});
+$('cambiar').addEventListener('click',e=>{e.preventDefault();const d=prompt('¿A quién le escribes? (dirección completa)',DESTINO);if(d){DESTINO=d.trim().toLowerCase();localStorage.setItem('chasqui.destino',DESTINO);$('destino').textContent=DESTINO;}});
+function arrancarBuzon(){
+  if(!DESTINO){DESTINO=(params.get('to')||'').toLowerCase();}
+  $('entrar').hidden=true;$('buzon').hidden=false;$('yo').hidden=false;$('yo').innerHTML='<b>'+ID.local+'</b><br>@'+DOMINIO;
+  $('destino').textContent=DESTINO||'(toca cambiar)';
+  refrescar();setInterval(refrescar,4000);
 }
-
-// arranque
-(async ()=>{
-  if(await cargar()){ mostrarBuzon(); return; }
-  if(!params.get('invite')){ $('entrar-form').hidden=true; $('entrar-noinvite').hidden=false; }
-})();
+(async()=>{ if(await cargar()){arrancarBuzon();return;} if(!params.get('invite')){$('entrar-form').hidden=true;$('entrar-noinvite').hidden=false;} else { $('preview').textContent='pauli@'+DOMINIO; } })();
 </script>
 </body>
 </html>

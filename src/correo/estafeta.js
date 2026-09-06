@@ -613,7 +613,9 @@ export class Estafeta {
         const who = await this._authenticate(rx, path);
         if (who.local !== decodeURIComponent(m[1]).toLowerCase()) return send(403, { reason: 'buzón ajeno' });
         const limit = Number(rx.query.get('limit') || 50);
-        return send(200, { messages: (await this.store.listMail(who.local)).slice(0, limit) });
+        // los N más recientes (listMail viene en orden cronológico): con muchos mensajes viejos
+        // sin ackear, slice(0,limit) escondía justo los nuevos. slice(-limit) muestra los últimos.
+        return send(200, { messages: (await this.store.listMail(who.local)).slice(-limit) });
       }
       if (rx.method === 'POST' && (m = /^\/mailbox\/([^/]+)\/ack$/.exec(path))) {
         const who = await this._authenticate(rx, path);
