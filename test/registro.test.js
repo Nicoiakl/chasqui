@@ -86,18 +86,27 @@ test('casa por invitación: código de la casa, con usos y vencimiento; regalo d
   assert.equal((await invitada.store.listInvites()).find((i) => i.code === inv.code).used, 2);
 });
 
-test('directorio: público, sin datos privados, con filtros', async () => {
+test('directorio: opt-in (listed), público, sin datos privados, con filtros', async () => {
   const a = Agent.create('mcpbot@abierta.test', hosts['abierta.test'].url, { hosts });
-  await a.register({ capabilities: { mcp: 'http://x/mcp', accepts: ['application/json', 'application/chasqui.cotizacion+json'] }, webhook: 'http://secreto' });
+  await a.register({ capabilities: { listed: true, mcp: 'http://x/mcp', accepts: ['application/json', 'application/chasqui.cotizacion+json'] }, webhook: 'http://secreto' });
   const b = Agent.create('simple@abierta.test', hosts['abierta.test'].url, { hosts });
-  await b.register();
+  await b.register({ capabilities: { listed: true } });
+  // Un agente que NO pidió figurar: default false, no aparece en el directorio ni en el índice.
+  const oculto = Agent.create('oculto@abierta.test', hosts['abierta.test'].url, { hosts });
+  await oculto.register();
   const all = await b.directory();
-  assert.ok(all.total >= 4); assert.ok(all.agents.every((c) => !('webhook' in c)));
+  const addrs = all.agents.map((c) => c.address);
+  assert.ok(addrs.includes('mcpbot@abierta.test') && addrs.includes('simple@abierta.test'), 'los que pidieron listed aparecen');
+  assert.ok(!addrs.includes('oculto@abierta.test'), 'quien no pidió listed NO aparece');
+  assert.ok(all.agents.every((c) => !('webhook' in c)), 'el directorio no filtra datos privados');
   assert.deepEqual((await b.directory('abierta.test', { capability: 'mcp' })).agents.map((c) => c.address), ['mcpbot@abierta.test']);
   assert.deepEqual((await b.directory('abierta.test', { accepts: 'application/chasqui.cotizacion+json' })).agents.map((c) => c.address), ['mcpbot@abierta.test']);
   assert.ok((await b.directory('abierta.test', { q: 'simple' })).agents.some((c) => c.address === 'simple@abierta.test'));
-  // desde otra casa se consulta igual (es público)
+  // No listar no es esconderse: el lookup directo por dirección sigue resolviendo al oculto.
+  assert.equal((await b.resolver.agentCard('oculto@abierta.test')).address, 'oculto@abierta.test');
+  // desde otra casa se consulta igual (es público), y ve exactamente a los listados
   const remoto = Agent.create('r@cerrada.test', hosts['cerrada.test'].url, { hosts });
   await remoto.register({ adminToken: 't' });
-  assert.ok((await remoto.directory('abierta.test')).total >= 4);
+  const desdeAfuera = (await remoto.directory('abierta.test')).agents.map((c) => c.address);
+  assert.ok(desdeAfuera.includes('mcpbot@abierta.test') && !desdeAfuera.includes('oculto@abierta.test'));
 });

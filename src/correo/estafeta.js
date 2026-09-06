@@ -137,7 +137,10 @@ export class Estafeta {
     const locals = (await this.store.listAgents()).sort();
     const cards = [];
     for (const l of locals) { const c = await this.agentCard(l); if (c) cards.push(c); }
-    let out = cards;
+    // Opt-in: nadie aparece en el directorio (ni, por lo tanto, en el índice federado que lo rastrea)
+    // sin haberlo pedido con `capabilities.listed: true`. El default es no figurar. El lookup directo
+    // por dirección (`/agents/:local`) sigue disponible: no listar no es esconder a quien ya te conoce.
+    let out = cards.filter((c) => c.capabilities?.listed === true);
     if (capability) out = out.filter((c) => c.capabilities?.[capability]);
     if (accepts) out = out.filter((c) => c.capabilities?.accepts?.includes(accepts));
     if (q) { const needle = String(q).toLowerCase(); out = out.filter((c) => c.address.includes(needle) || JSON.stringify(c.capabilities).toLowerCase().includes(needle)); }

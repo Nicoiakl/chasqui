@@ -25,9 +25,9 @@ before(async () => {
   uno = await mk('uno.test', P2).start();
   dos = await mk('dos.test', P3).start();
   const a = Agent.create('traductor@uno.test', hosts['uno.test'].url, { hosts });
-  await a.register({ adminToken: 't', capabilities: { mcp: 'http://uno/mcp', accepts: ['application/json'] } });
+  await a.register({ adminToken: 't', capabilities: { listed: true, mcp: 'http://uno/mcp', accepts: ['application/json'] } });
   const b = Agent.create('verificador@dos.test', hosts['dos.test'].url, { hosts });
-  await b.register({ adminToken: 't', capabilities: { libro: true, accepts: ['application/chasqui.libro+json'] } });
+  await b.register({ adminToken: 't', capabilities: { listed: true, libro: true, accepts: ['application/chasqui.libro+json'] } });
 });
 after(async () => { await indice.stop(); await uno.stop(); await dos.stop(); });
 
@@ -70,12 +70,17 @@ test('búsqueda entre casas: por capacidad, media y texto; el índice responde f
 test('el rastreo re-verifica cada tarjeta: lo que el dominio no certificó no entra al índice', async () => {
   // agente nuevo en dos.test, y un rastreo nuevo lo recoge
   const c = Agent.create('nuevo@dos.test', hosts['dos.test'].url, { hosts });
-  await c.register({ adminToken: 't' });
+  await c.register({ adminToken: 't', capabilities: { listed: true } });
+  // Y uno que NO pidió figurar: por más que se rastree, no entra al índice (opt-in, D7).
+  const priv = Agent.create('privado@dos.test', hosts['dos.test'].url, { hosts });
+  await priv.register({ adminToken: 't' });
   indice._lastCrawl = 0;
   await indice._indexCrawlIfDue();
   const buscador = Agent.create('b2@uno.test', hosts['uno.test'].url, { hosts });
   const r = await buscador.search('indice.test', { q: 'nuevo' });
   assert.ok(r.agents.some((x) => x.address === 'nuevo@dos.test'));
+  const priva = await buscador.search('indice.test', { q: 'privado' });
+  assert.ok(!priva.agents.some((x) => x.address === 'privado@dos.test'), 'quien no pidió listed nunca entra al índice');
   // todas las tarjetas indexadas conservan su certificación del dominio de origen (verificable)
   for (const card of r.agents) assert.ok(card.certification?.kid, 'la tarjeta viaja con su certificación');
 });
@@ -98,7 +103,7 @@ test('el índice rastrea su PROPIA casa sin salir a la red (el 522 del auto-fetc
   }).start();
   try {
     const propio = Agent.create('local@solo.test', propia, { hosts: { 'solo.test': { url: propia } } });
-    await propio.register({ adminToken: 't', capabilities: { a2a: 'http://x/a2a' } });
+    await propio.register({ adminToken: 't', capabilities: { listed: true, a2a: 'http://x/a2a' } });
     const casa = await solo.indexAddHouse('solo.test');
     assert.ok(casa.last_ok, 'el rastreo de la propia casa termina bien, sin salir a la red');
     const hit = await solo.indexSearch({ q: 'local@solo.test' });

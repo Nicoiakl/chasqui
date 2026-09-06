@@ -225,7 +225,7 @@ Cómo entra un agente a una casa lo decide la tarjeta del dominio (`policy.regis
 
 En `invite` y `open` el cuerpo va **firmado con la misma clave que se inscribe** (`signature.kid == sig`, con `ts` dentro de 5 minutos): prueba de posesión. Nadie puede registrar una clave que no controla. Un nombre ya tomado solo lo actualiza su dueño (autenticación firmada, incluso al rotar claves: el cuerpo lleva las nuevas, la autenticación se firma con las viejas) o la casa. Nombres reservados: `postmaster`, `libro`, `casa`, `admin`, `root`, `abuse`, `security`, `hostmaster`, `noreply`, `support`, `estafeta`, `chasqui`. Los subagentes se inscriben con la firma del padre (sección 4).
 
-El **directorio** (`GET /agents`) es la lista pública de las tarjetas de la casa: claves, capacidades, política de buzón, si es delegado y por quién. Sin webhooks ni datos privados. Sirve para encontrar quién ofrece qué dentro de una casa; entre casas, el descubrimiento sigue siendo por dirección (sección 2): no hay un registro global, y ese hueco está declarado en la sección 21.
+El **directorio** (`GET /agents`) es la lista pública de las tarjetas de la casa que **pidieron figurar** (`capabilities.listed: true`): claves, capacidades, política de buzón, si es delegado y por quién. Sin webhooks ni datos privados. El default es no aparecer: un agente no figura en el directorio ni en ningún índice sin haberlo pedido. El lookup directo por dirección (`GET /agents/<local>`) resuelve a cualquier agente que ya conoces, listado o no. Sirve para encontrar quién ofrece qué dentro de una casa; entre casas, el descubrimiento sigue siendo por dirección (sección 2): no hay un registro global, y ese hueco está declarado en la sección 21.
 
 Cada alta es un evento registrado (`registered_via`: admin, self, delegation, open, invite:<código>) y, si la casa da regalo de bienvenida, un asiento en el Libro.
 
@@ -280,9 +280,13 @@ protocolo: es un servicio que cualquiera monta, como un buscador sobre la web.
 
 - **Alta**: `POST /index/houses { domain }`. La verificación ES la puerta: el índice resuelve la
   tarjeta del dominio por la cadena normal (§2) y solo lista lo que firma como casa Chasqui.
-- **Rastreo**: el índice lee periódicamente `GET /agents` de cada casa listada, re-verifica la
-  tarjeta del dominio en cada pasada, y descarta toda tarjeta cuya certificación no firme el
-  dominio de origen. Lo que el dominio no certificó no entra al índice.
+- **Opt-in**: un agente aparece en el directorio (§8b) —y por lo tanto en cualquier índice que lo
+  rastree— **solo si su tarjeta declara `capabilities.listed: true`**. El default es no figurar: nadie
+  se lista sin pedirlo. No listar no es esconderse: el lookup directo por dirección (`GET /agents/<local>`)
+  sigue resolviendo a cualquier agente que ya conoces; lo opt-in es la *enumeración*, no el alcance.
+- **Rastreo**: el índice lee periódicamente `GET /agents` de cada casa listada (que ya devuelve solo
+  los agentes con `listed: true`), re-verifica la tarjeta del dominio en cada pasada, y descarta toda
+  tarjeta cuya certificación no firme el dominio de origen. Lo que el dominio no certificó no entra al índice.
 - **Búsqueda**: `GET /index/agents?q&capability&accepts&house&limit&offset`. La respuesta viaja
   firmada por la casa del índice, con cada tarjeta acompañada de su casa de origen (`_house`).
 - **Confianza**: el índice es una PISTA, no una autoridad. Quien usa un resultado re-verifica la
@@ -386,7 +390,7 @@ Todo recibo del Libro contiene `{ of, op, op_sha256, from, contract? | mandate? 
 - **Custodia de claves para personas**: la referencia guarda la clave en un archivo. Para humanos hace falta integrar passkeys/WebAuthn o llaves de hardware.
 - **Identidad legal**: `agente@dominio` prueba control del dominio, no quién es la persona. La extensión `person` es un gancho, no una solución.
 - **Adopción**: el protocolo vale lo que valga el número de estafetas. Un solo dominio corriendo Chasqui es una demo; cien es una red.
-- **Registro global**: resuelto parcialmente por el índice federado (§13): cualquier casa puede operar un buscador verificante. Sigue sin existir un índice "oficial" — a propósito: ningún índice es el índice.
+- **Registro global**: resuelto parcialmente por el índice federado (§13): cualquier casa puede operar un buscador verificante, y un agente entra a él solo si pide figurar (`listed`, opt-in). Sigue sin existir un índice "oficial" — a propósito: ningún índice es el índice.
 - **Libros federados**: cada casa tiene su Libro; los tokens de una casa no se mueven a otra. Un foráneo transa en tu casa con una cuenta en tu casa. Conectar libros entre casas es construir un sistema de compensación (SWIFT); queda deliberadamente fuera.
 - **Incentivo real**: entre agentes de un mismo dueño, el token mide pero no incentiva. El incentivo se prueba con el primer tercero que acepta tokens porque puede liquidarlos.
 - **Lo regulatorio** de emitir crédito en circuito cerrado y pagar a terceros es de cada casa, no del protocolo.
