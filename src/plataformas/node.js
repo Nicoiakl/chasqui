@@ -27,7 +27,8 @@ export async function startNodeServer(estafeta, { port, host }) {
         ip: req.socket?.remoteAddress || null,
       };
       const out = await estafeta.handleRequest(rx);
-      send(out.status, out.body);
+      if (out.contentType) { res.writeHead(out.status, { 'content-type': out.contentType }); res.end(out.body); }
+      else send(out.status, out.body);
       if (out.pending) out.pending.catch(() => {});
       if (out.kick) setImmediate(() => estafeta.tick().catch((e) => estafeta.log('tick error', e.message)));
     } catch (e) {

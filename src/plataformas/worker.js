@@ -53,6 +53,7 @@ export default {
     const out = await estafeta.handleRequest(rx);
     if (out.pending) ctx.waitUntil(out.pending);
     if (out.kick) ctx.waitUntil(estafeta.tick().catch((e) => console.log('tick error', e.message)));
+    if (out.contentType) return new Response(out.body, { status: out.status, headers: { 'content-type': out.contentType } });
     return Response.json(out.body, { status: out.status });
   },
 

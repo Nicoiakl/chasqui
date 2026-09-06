@@ -23,6 +23,7 @@ import { Resolver, parseAddress } from './resolver.js';
 import { validateEnvelope, applyInboxPolicy, RateLimiter } from './politica.js';
 import { generateSigningKeys, signObject, verifyObject, signBytes, verifyBytes, canonical, uuid, unb64u, sha256hex } from '../nucleo/crypto.js';
 import { Libro, MEDIA, LibroError } from '../libro/libro.js';
+import { APP_HTML } from '../plataformas/app-html.js';
 
 const now = () => Date.now();
 const iso = (t = now()) => new Date(t).toISOString();
@@ -548,6 +549,9 @@ export class Estafeta {
     const send = (status, body) => ({ status, body });
     try {
       if (rx.method === 'GET' && path === '/health') return send(200, { ok: true, domain: this.domain, agents: (await this.store.listAgents()).length, queue: (await this.store.listQueue()).length });
+      // Cliente web para personas: se sirve desde la propia casa (mismo origen, sin CORS).
+      // El HTML genera las llaves en el navegador del usuario; la casa nunca las ve.
+      if (rx.method === 'GET' && (path === '/app' || path === '/app/')) return { status: 200, body: APP_HTML, contentType: 'text/html; charset=utf-8' };
       if (rx.method === 'GET' && path === '/.well-known/chasqui.json') return send(200, await this.domainCard());
       let m;
       if (rx.method === 'GET' && (m = /^\/agents\/([^/]+)$/.exec(path))) {
