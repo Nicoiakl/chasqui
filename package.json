@@ -11,6 +11,7 @@
     "demo:offline": "node demo/offline.js",
     "demo:spam": "node demo/spam.js",
     "demo:contratos": "node demo/contratos.js",
+    "demo:piloto": "node demo/piloto-d4.mjs",
     "test": "node --test test/*.test.js",
     "estafeta": "node bin/chasqui.js estafeta"
   }

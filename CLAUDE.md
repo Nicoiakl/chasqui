@@ -33,7 +33,7 @@ src/plataformas/node.js  adaptador node:http (start() lo usa)
 src/plataformas/worker.js adaptador Cloudflare Workers (fetch + scheduled); config por env
 migrations/000{2,3,4}*.sql   esquema D1, candado del ledger y pins por fila
 bin/chasqui.js           CLI
-demo/                    e2e, offline, spam (correo) · contratos (libro)
+demo/                    e2e, offline, spam (correo) · contratos (libro) · piloto-d4 (economía de una flota + costo por entrega)
 test/                    correo (9) · libro (11) · registro (6) · invariantes+D1 (13) · indice (5) · concurrencia (5) · altos (9) · diferidos (6) -> `npm test` (70)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
@@ -47,6 +47,7 @@ npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
 npm run demo:contratos   # libro: spot, escrow, fianza, mandato en cadena, delegación, estampilla
+npm run demo:piloto      # D4: una flota con presupuesto, escrow + verificación medida, costo por entrega
 node bin/chasqui.js      # ayuda de la CLI
 ```
 
@@ -90,9 +91,14 @@ vence esperando en la cola rebota al remitente. Habilita `agente.recordar()` (au
 = memoria entre sesiones, tool MCP `chasqui_remind`) y los avisos de plazo del Libro (un contrato
 con `deadline` programa un aviso a las partes). Ver `test/diferidos.test.js` y SPEC §5/§7.
 
-Sigue el brief `docs/DISTRIBUCION.md` (análisis en `docs/ANALISIS-DISTRIBUCION.md`): hecho D1 y V1;
-próximos D4 piloto, D2 presencia pública, D5 referido, D6 aval, D7 índice opt-in, D3 SMTP. Pendiente
-además: ancla DNS TXT (decisión de Nicholas) y los ~20 hallazgos medios/bajos.
+**D4 hecho (2026-09-06)**: `demo/piloto-d4.mjs` — una flota (coordinador + worker + verificador) con
+presupuesto cargado por topup, trabajo delegado como escrow, verificación como servicio metered, y un
+reporte de costo por entrega leído del diario (con cuadre de doble entrada). El costo por entrega no es
+estimación: es lo que el asiento dice que salió de la cuenta del frente.
+
+Sigue el brief `docs/DISTRIBUCION.md` (análisis en `docs/ANALISIS-DISTRIBUCION.md`): hecho D1, V1, D4;
+próximos D2 presencia pública, D5 referido, D6 aval, D7 índice opt-in, D3 SMTP. Pendiente además:
+ancla DNS TXT (decisión de Nicholas) y los ~20 hallazgos medios/bajos.
 
 **Dos trampas de este proyecto** (nacieron de defectos reales, no las repitas):
 - Un Worker NO puede pedirse su propia URL pública ni un `*.workers.dev` (522 / 1042). Todo lo
