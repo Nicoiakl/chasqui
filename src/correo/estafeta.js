@@ -269,7 +269,10 @@ export class Estafeta {
     for (const to of env.to) { const { domain } = parseAddress(to); byDomain.set(domain, [...(byDomain.get(domain) || []), to]); }
     const jobs = [];
     for (const [domain, to] of byDomain) {
-      const job = { id: uuid(), envelope: env, domain, to, from_local: submitter.local, attempts: 0, next_attempt: iso(), created: iso(), status: 'queued', log: [] };
+      // Entrega diferida: si el sobre trae deliver_after futuro, el job espera en la cola hasta esa
+      // fecha (claimDueJobs no lo reclama antes). En el pasado o ausente, se entrega de inmediato.
+      const first = (env.deliver_after && Date.parse(env.deliver_after) > now()) ? iso(Date.parse(env.deliver_after)) : iso();
+      const job = { id: uuid(), envelope: env, domain, to, from_local: submitter.local, attempts: 0, next_attempt: first, created: iso(), status: 'queued', log: [] };
       await this.store.enqueue(job);
       await this._outbox(job);
       jobs.push({ job: job.id, domain, to });
@@ -292,6 +295,11 @@ export class Estafeta {
     await this.flushPushes();
   }
   async _deliver(job) {
+    // Un sobre diferido pudo vencer mientras esperaba: no desaparece en silencio, rebota al remitente.
+    if (job.envelope.expires && Date.parse(job.envelope.expires) < now()) {
+      for (const to of job.to) await this._bounce(job, to, 'el sobre venció esperando en la cola');
+      job.status = 'failed'; await this.store.removeJob(job.id); await this._outbox(job); return;
+    }
     job.attempts += 1;
     let outcome;
     if (job.domain === this.domain) {
@@ -359,17 +367,20 @@ export class Estafeta {
 
   // Sobres emitidos por los agentes de sistema (postmaster@, libro@), firmados con la clave del dominio.
   // Destinatarios locales: directo al buzón. Remotos: por la cola, como cualquier envío.
-  async _systemSend(fromLocal, to, { type = 'receipt', content, thread = null, in_reply_to = null }) {
-    const env = signObject({ chasqui: '1', id: uuid(), from: `${fromLocal}@${this.domain}`, to, created: iso(), expires: null, thread, in_reply_to, type, content }, this.keys);
+  async _systemSend(fromLocal, to, { type = 'receipt', content, thread = null, in_reply_to = null, deliverAfter = null }) {
+    const env = signObject({ chasqui: '1', id: uuid(), from: `${fromLocal}@${this.domain}`, to, created: iso(), expires: null, deliver_after: deliverAfter ?? undefined, thread, in_reply_to, type, content }, this.keys);
+    // Un aviso diferido (deliver_after futuro) SIEMPRE va por la cola, aunque el destino sea local:
+    // la cola es lo único que respeta la fecha. Sin fecha, el destinatario local recibe al instante.
+    const diferido = deliverAfter && Date.parse(deliverAfter) > now();
     const byDomain = new Map();
     for (const t of to) {
       const { local, domain } = parseAddress(t);
-      if (domain === this.domain) {
+      if (domain === this.domain && !diferido) {
         if (await this.store.getAgent(local)) { await this.store.putMail(local, env, { via: fromLocal, from_verified: true }); this._push(local, env); }
         else this.log(`recibo de ${fromLocal}@ a ${t} descartado: agente inexistente`);
       } else byDomain.set(domain, [...(byDomain.get(domain) || []), t]);
     }
-    for (const [domain, dest] of byDomain) await this.store.enqueue({ id: uuid(), envelope: env, domain, to: dest, from_local: fromLocal, attempts: 0, next_attempt: iso(), created: iso(), status: 'queued', log: [] });
+    for (const [domain, dest] of byDomain) await this.store.enqueue({ id: uuid(), envelope: env, domain, to: dest, from_local: fromLocal, attempts: 0, next_attempt: diferido ? iso(Date.parse(deliverAfter)) : iso(), created: iso(), status: 'queued', log: [] });
     return env;
   }
 
@@ -419,6 +430,7 @@ export class Estafeta {
     const accepted = [], rejected = [], results = {};
     const mails = [], libroBundles = [];
     const recibosPendientes = [];
+    const avisosPendientes = [];
     let stampUsed = false;
     for (const to of pendientes) {
       const { local } = parseAddress(to);
@@ -433,6 +445,7 @@ export class Estafeta {
           const r = await this.libro.handle(env, senderCard);
           if (!r.ok) { rejected.push({ to, code: r.code, reason: r.reason }); continue; }
           for (const rc of r.recibos || []) recibosPendientes.push(rc);
+          for (const av of r.avisos || []) avisosPendientes.push(av);
           results[to] = r.result;
         } else if (p.stamp) {
           // Una estampilla paga UN buzón: el sobre declara un monto, no un monto por destinatario.
@@ -462,6 +475,9 @@ export class Estafeta {
       for (const m of mails) this._push(m.local, env);
     }
     for (const rc of recibosPendientes) await this._systemSend('libro', rc.to, { in_reply_to: env.id, thread: rc.thread || env.thread || null, content: { media: MEDIA.recibo, body: rc.body } });
+    // Avisos de plazo: sobres del Libro programados para el futuro (un escrow que llega a su
+    // deadline, una fianza que vence). No desaparecen mudos: llegan a las partes en la fecha.
+    for (const av of avisosPendientes) await this._systemSend('libro', av.to, { thread: av.thread || null, content: { media: MEDIA.recibo, body: av.body }, deliverAfter: av.deliver_after });
 
     if (!union.length) return { ok: false, code: rejected[0].code, reason: rejected[0].reason, rejected, accepted: [] };
     return { ok: true, code: 202, accepted: union, rejected, results, ...(seen ? { duplicate: true } : {}) };

@@ -54,8 +54,16 @@ const ops = {
     const refs = { contract: c.id, quote: q.id, quote_sha256: c.quote_sha256, op: ctx.env.id, op_sha256: ctx.opHash };
     const out = await kind.onAccept({ libro, c, q, refs });
     record(libro, c, 'accept', from, { asiento: out.asiento?.id, mandate: out.mandate?.id });
+    // Aviso de plazo: si el trato tiene fecha límite, el Libro se programa un sobre a las partes
+    // para ese día. Un escrow que llegó a su deadline sin liberarse deja de quedar mudo.
+    const plazo = c.terms?.deadline;
+    const avisos = plazo && !Number.isNaN(Date.parse(plazo)) ? [{
+      to: parties(c), thread: c.id, deliver_after: new Date(Date.parse(plazo)).toISOString(),
+      body: { aviso: 'plazo', contract: c.id, kind: c.kind, deadline: plazo, mensaje: `El plazo del contrato ${c.id} (${c.concept}) llegó. Estado al programarse: ${c.state}.` },
+    }] : [];
     return { result: { contract: c, asiento: out.asiento, mandate: out.mandate },
-      recibos: [{ to: [c.buyer, c.seller], thread: c.id, body: { contract: c, asiento: out.asiento, mandate: out.mandate, cotizacion_sha256: c.quote_sha256 } }] };
+      recibos: [{ to: [c.buyer, c.seller], thread: c.id, body: { contract: c, asiento: out.asiento, mandate: out.mandate, cotizacion_sha256: c.quote_sha256 } }],
+      avisos };
   },
 
   // --- escrow: el vendedor declara entregado, con hash de la evidencia ---

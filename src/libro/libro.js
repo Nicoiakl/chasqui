@@ -198,7 +198,7 @@ export class Libro {
         if (e instanceof LibroError) return { ok: false, code: e.code, reason: e.message };
         throw e;
       }
-      const out = { ok: true, code: 202, result: result.result, recibos: (result.recibos || []).map((r) => ({ ...r, body: { ...r.body, of: env.id, op: body.op, op_sha256: ctx.opHash, from: env.from } })) };
+      const out = { ok: true, code: 202, result: result.result, recibos: (result.recibos || []).map((r) => ({ ...r, body: { ...r.body, of: env.id, op: body.op, op_sha256: ctx.opHash, from: env.from } })), avisos: result.avisos || [] };
       this.tx.op = { id: env.id, result: out };
       try { await this._commit(); }
       catch (e) {

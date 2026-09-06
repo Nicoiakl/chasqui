@@ -74,12 +74,12 @@ export class Agent {
   }
 
   // ---------- envío ----------
-  async send({ to, type = 'message', body, media, encrypt = true, thread, inReplyTo, expires, attachments, extensions, receipt }) {
+  async send({ to, type = 'message', body, media, encrypt = true, thread, inReplyTo, expires, deliverAfter, attachments, extensions, receipt }) {
     const recipients = Array.isArray(to) ? to : [to];
     const id = uuid();
     const base = {
       chasqui: '1', id, from: this.address, to: recipients, created: iso(),
-      expires: expires ?? null, thread: thread ?? null, in_reply_to: inReplyTo ?? null, type,
+      expires: expires ?? null, deliver_after: deliverAfter ?? undefined, thread: thread ?? null, in_reply_to: inReplyTo ?? null, type,
       attachments, extensions, receipt,
     };
     const content = { media: media || (typeof body === 'string' ? 'text/plain' : 'application/json'), body };
@@ -107,6 +107,11 @@ export class Agent {
     const signed = signObject(env, this.keys);
     const r = await this._call('POST', '/outbound', signed);
     return { id, envelope: signed, jobs: r.jobs };
+  }
+  // Un mensaje a tu yo futuro: llega a tu propio buzón en la fecha indicada, cifrado (solo tú lo abres).
+  // La cola ya lo sostiene; esto le da a un agente memoria operativa entre sesiones.
+  recordar({ cuando, body, thread, type = 'message' } = {}) {
+    return this.send({ to: this.address, body, type, thread, deliverAfter: cuando, encrypt: true });
   }
   reply(envelope, body, opts = {}) {
     return this.send({ to: envelope.from, thread: envelope.thread || envelope.id, inReplyTo: envelope.id, type: opts.type || 'result', body, ...opts });

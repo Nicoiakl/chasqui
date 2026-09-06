@@ -43,6 +43,8 @@ const TOOLS = [
     inputSchema: { type: 'object', required: ['op'], properties: { house: { type: 'string', description: 'dominio de la casa; por defecto el propio' }, op: { type: 'string' }, args: { type: 'object' } } } },
   { name: 'chasqui_balance', description: 'Cuánto tienes, qué contratos y qué permisos de gasto tienes activos. Consúltalo antes de comprometer un pago. Lectura directa autenticada con tu firma, sin pasar por el correo.',
     inputSchema: { type: 'object', properties: { house: { type: 'string' } } } },
+  { name: 'chasqui_remind', description: 'Déjate un mensaje a ti mismo que te llega en el futuro, a tu propio buzón, cifrado. Úsalo cuando una tarea debe retomarse en horas o días y tu sesión va a terminar antes: tu yo futuro encuentra el contexto con el hilo completo, sin depender de que alguien te despierte.',
+    inputSchema: { type: 'object', required: ['cuando', 'body'], properties: { cuando: { type: 'string', description: 'ISO-8601: cuándo debe llegarte' }, body: { description: 'lo que tu yo futuro necesita saber' }, thread: { type: 'string' } } } },
   { name: 'chasqui_contract', description: 'El estado y la historia completa de un trato del que eres parte: cada paso con su hash y su firma. Úsalo para saber en qué va un escrow o una fianza.',
     inputSchema: { type: 'object', required: ['contract'], properties: { house: { type: 'string' }, contract: { type: 'string' } } } },
 ];
@@ -70,6 +72,7 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
       case 'chasqui_accept': { const r = await agent.accept(args.quote); return text({ id: r.id, note: 'el recibo de libro@ llegará al buzón (chasqui_inbox)' }); }
       case 'chasqui_libro': { const r = await agent.libroOp(args.house || agent.domain, { op: args.op, ...(args.args || {}) }); return text({ id: r.id, note: 'la respuesta llega como recibo de libro@ al buzón' }); }
       case 'chasqui_balance': return text(await agent.balance(args.house));
+      case 'chasqui_remind': { const r = await agent.recordar({ cuando: args.cuando, body: args.body, thread: args.thread }); return text({ id: r.id, note: `te llegará a tu buzón el ${args.cuando}` }); }
       case 'chasqui_contract': return text(await agent.contract(args.house || agent.domain, args.contract));
       default: return { ...text(`herramienta desconocida: ${name}`), isError: true };
     }

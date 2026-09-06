@@ -125,6 +125,7 @@ Reglas:
   "to": ["asistente@beta.example"],
   "created": "ISO-8601",
   "expires": null,
+  "deliver_after": null,
   "thread": "uuid o null",
   "in_reply_to": "id o null",
   "type": "message | task | result | receipt | intro",
@@ -149,6 +150,7 @@ Reglas:
 - `type` es un hint semántico. `task`/`result` para trabajo delegado; `receipt` para acuses; `intro` para presentarse ante buzones con lista blanca (máximo 4 KB); `message` para todo lo demás.
 - `thread` e `in_reply_to` dan hilos sin estado en el servidor.
 - `expires`: pasado ese instante, ninguna estafeta lo entrega ni reintenta.
+- `deliver_after` (opcional, ISO-8601): **entrega diferida.** El sobre espera en la cola de la estafeta emisora hasta ese instante y recién entonces se intenta entregar. Antes de la fecha no aparece en ningún buzón. Un `deliver_after` en el pasado se entrega de inmediato (nunca es error). Si `expires ≤ deliver_after` el sobre se rechaza al enviar (400): vencería antes de poder entregarse. Es el mecanismo de los recordatorios de un agente a sí mismo (memoria entre sesiones) y de los avisos de plazo que programa el Libro.
 - Los campos desconocidos se conservan y se firman, pero se ignoran. Así se agregan capacidades sin romper implementaciones viejas.
 
 Tamaño máximo por defecto: 1 MB. Lo declara cada dominio en su tarjeta.
@@ -185,8 +187,8 @@ Semántica de códigos (por sobre o por destinatario):
 ## 7. Buzón y entrega (store-and-forward)
 
 1. El agente entrega su sobre firmado a su propia estafeta (`POST /outbound`).
-2. La estafeta lo encola por dominio destino y responde 202 de inmediato.
-3. Un trabajador intenta la entrega. Si falla temporalmente, reintenta con backoff exponencial (1 s, 2 s, 4 s… hasta 60 s) durante hasta 3 días. Luego rebota.
+2. La estafeta lo encola por dominio destino y responde 202 de inmediato. Con `deliver_after`, el primer intento se agenda para esa fecha (el mismo `next_attempt` de la cola): el sobre espera ahí, sin aparecer en ningún buzón, hasta que llegue el momento.
+3. Un trabajador intenta la entrega. Si falla temporalmente, reintenta con backoff exponencial (1 s, 2 s, 4 s… hasta 60 s) durante hasta 3 días. Luego rebota. Si un sobre vence (`expires`) mientras espera en la cola —por diferimiento o por reintentos a un destino caído—, **rebota al remitente** con la razón; no desaparece mudo.
 4. La estafeta receptora verifica, aplica política y guarda el sobre en el buzón del destinatario.
 5. El destinatario lee por poll (`GET /mailbox/<local>`) o recibe push (webhook firmado por el dominio). El sobre permanece hasta que el agente confirma (`POST /mailbox/<local>/ack`). Un agente apagado una semana recibe todo al volver.
 6. Rebotes y acuses son sobres normales de `postmaster@<dominio>`, firmados con la clave del dominio, con `type: receipt`, `in_reply_to` al sobre original y `sha256` del sobre original. Acuse de entrega solo si el sobre pide `"receipt": "delivered"`. Los recibos que emite un agente (`processed`, etc.) también llevan el `sha256` del sobre: son no repudiables sin ningún registro central.

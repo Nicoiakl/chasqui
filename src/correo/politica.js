@@ -23,6 +23,12 @@ export function validateEnvelope(env, { maxBytes = 1_048_576 } = {}) {
   if (!TYPES.has(env.type)) return fail(`type inválido: ${env.type}`);
   if (Number.isNaN(Date.parse(env.created))) return fail('created debe ser ISO-8601');
   if (env.expires != null && Number.isNaN(Date.parse(env.expires))) return fail('expires debe ser ISO-8601');
+  // Entrega diferida: el sobre espera en la cola hasta esta fecha (la cola ya programa por next_attempt).
+  if (env.deliver_after != null) {
+    if (Number.isNaN(Date.parse(env.deliver_after))) return fail('deliver_after debe ser ISO-8601');
+    // Un sobre que vence antes de la fecha en que debe entregarse jamás llegaría: se rechaza al enviar.
+    if (env.expires != null && Date.parse(env.expires) <= Date.parse(env.deliver_after)) return fail('deliver_after es posterior a expires: el sobre vencería antes de entregarse');
+  }
   const hasPlain = env.content && typeof env.content === 'object' && typeof env.content.media === 'string';
   const hasEnc = env.encrypted && typeof env.encrypted === 'object' && typeof env.encrypted.ct === 'string';
   if (!hasPlain && !hasEnc) return fail('el sobre necesita content o encrypted');

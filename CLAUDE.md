@@ -34,7 +34,7 @@ src/plataformas/worker.js adaptador Cloudflare Workers (fetch + scheduled); conf
 migrations/000{2,3,4}*.sql   esquema D1, candado del ledger y pins por fila
 bin/chasqui.js           CLI
 demo/                    e2e, offline, spam (correo) · contratos (libro)
-test/                    correo (9) · libro (11) · registro (6) · invariantes+D1 (13) · indice (5) · concurrencia (5) · altos (9) -> `npm test` (58)
+test/                    correo (9) · libro (11) · registro (6) · invariantes+D1 (13) · indice (5) · concurrencia (5) · altos (9) · diferidos (6) -> `npm test` (70)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -42,7 +42,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 58 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 70 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
