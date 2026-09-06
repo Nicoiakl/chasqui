@@ -79,3 +79,30 @@ test('el rastreo re-verifica cada tarjeta: lo que el dominio no certificó no en
   // todas las tarjetas indexadas conservan su certificación del dominio de origen (verificable)
   for (const card of r.agents) assert.ok(card.certification?.kid, 'la tarjeta viaja con su certificación');
 });
+
+test('el índice rastrea su PROPIA casa sin salir a la red (el 522 del auto-fetch en Workers)', async () => {
+  // En Node una estafeta puede llamarse a sí misma por HTTP, así que un test ingenuo pasa en
+  // verde con el defecto vivo. Aquí el fetch REPRODUCE lo que hace Cloudflare: cortar cualquier
+  // llamada del Worker a su propia URL pública. Sólo pasa si el rastreo del índice resuelve local.
+  const propia = `http://127.0.0.1:${P1 + 10}`;
+  const fetchComoCloudflare = async (url, opts) => {
+    if (String(url).startsWith(propia)) throw new Error('522 connection timed out (el Worker no puede pedirse a sí mismo)');
+    return globalThis.fetch(url, opts);
+  };
+  const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-idx-self-'));
+  const solo = await new Estafeta({
+    domain: 'solo.test', port: P1 + 10, dataDir: path.join(tmp2, 'solo'), adminToken: 't',
+    publicUrl: propia, hosts: { ...hosts, 'solo.test': { url: propia } },
+    fetchImpl: fetchComoCloudflare, index: { enabled: true, crawlMinutes: 999 },
+    workerIntervalMs: 999_999, log: () => {},
+  }).start();
+  try {
+    const propio = Agent.create('local@solo.test', propia, { hosts: { 'solo.test': { url: propia } } });
+    await propio.register({ adminToken: 't', capabilities: { a2a: 'http://x/a2a' } });
+    const casa = await solo.indexAddHouse('solo.test');
+    assert.ok(casa.last_ok, 'el rastreo de la propia casa termina bien, sin salir a la red');
+    const hit = await solo.indexSearch({ q: 'local@solo.test' });
+    assert.equal(hit.total, 1, 'sus propios agentes quedan buscables');
+    assert.equal(hit.agents[0]._house, 'solo.test');
+  } finally { await solo.stop(); }
+});

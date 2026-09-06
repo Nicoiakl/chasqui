@@ -464,10 +464,18 @@ export class Estafeta {
     try {
       const dc = await this.resolver.domainCard(h.domain); // re-verifica firma y ancla en cada pasada
       const cards = [];
+      // La casa del índice también es una casa: su directorio se lee local. Pedírselo por su
+      // propia URL pública no funciona (el Worker no puede llamarse a sí mismo) y además sobra.
+      const propia = h.domain === this.domain;
       for (let offset = 0; offset < 2000;) {
-        const res = await this.fetch(`${dc._estafeta}/agents?limit=200&offset=${offset}`, { signal: AbortSignal.timeout(10_000) });
-        if (!res.ok) throw new Error(`GET /agents -> ${res.status}`);
-        const page = await res.json();
+        let page;
+        if (propia) {
+          page = await this.directory({ limit: 200, offset });
+        } else {
+          const res = await this.fetch(`${dc._estafeta}/agents?limit=200&offset=${offset}`, { signal: AbortSignal.timeout(10_000) });
+          if (!res.ok) throw new Error(`GET /agents -> ${res.status}`);
+          page = await res.json();
+        }
         const batch = page.agents || [];
         // Solo tarjetas cuya certificación firma el dominio: el índice no ingiere lo que no verifica.
         const domainKeys = dc.keys.map((k) => k.sig);
