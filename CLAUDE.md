@@ -96,9 +96,16 @@ presupuesto cargado por topup, trabajo delegado como escrow, verificación como 
 reporte de costo por entrega leído del diario (con cuadre de doble entrada). El costo por entrega no es
 estimación: es lo que el asiento dice que salió de la cuenta del frente.
 
-Sigue el brief `docs/DISTRIBUCION.md` (análisis en `docs/ANALISIS-DISTRIBUCION.md`): hecho D1, V1, D4;
-próximos D2 presencia pública, D5 referido, D6 aval, D7 índice opt-in, D3 SMTP. Pendiente además:
-ancla DNS TXT (decisión de Nicholas) y los ~20 hallazgos medios/bajos.
+**D2 hecho (2026-09-06)**: presencia pública. LICENSE Apache-2.0, package.json publicable
+(`npm pack` verificado, whitelist sin secretos), CONTRIBUTING/SECURITY, `examples/hola-mundo.mjs`,
+CI (Node 20/22), y el sitio de la spec generado desde `docs/SPEC.md` por `scripts/build-spec-site.mjs`
+(§6: el documento no pasa por ninguna mano) y servido en **https://chsq.uk/spec** + `/llms.txt`
+(meta + JSON-LD para indexación LLM). Falta lo que requiere credenciales de Nicholas: `npm publish`
+(npm no autenticado aquí; nombre "chasqui" figura unpublished-2023, reclamable) y el repo GitHub público.
+
+Sigue el brief `docs/DISTRIBUCION.md` (análisis en `docs/ANALISIS-DISTRIBUCION.md`): hecho D1, V1, D4, D2;
+próximos D5 referido, D6 aval, D7 índice opt-in, D3 SMTP. Pendiente además: ancla DNS TXT (decisión
+de Nicholas) y los ~20 hallazgos medios/bajos.
 
 **Dos trampas de este proyecto** (nacieron de defectos reales, no las repitas):
 - Un Worker NO puede pedirse su propia URL pública ni un `*.workers.dev` (522 / 1042). Todo lo
