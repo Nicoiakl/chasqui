@@ -1,7 +1,7 @@
 // node --test test/
 // Invariantes del CLAUDE.md que no tenían prueba, defectos reales cerrados en esta fase,
 // y el contrato de la D1Store (la misma Estafeta sobre D1 emulado con node:sqlite).
-import { test, before, after } from 'node:test';
+import { test as _test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,7 +10,9 @@ import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 import { Libro } from '../src/libro/libro.js';
 import { D1Store } from '../src/nucleo/almacen-d1.js';
-import { openLocalD1 } from '../src/nucleo/d1-local.js';
+import { openLocalD1, sqliteAvailable } from '../src/nucleo/d1-local.js';
+// Si node:sqlite no está (Node <22 sin flag), toda la suite D1 salta limpio en vez de reventar.
+const test = (name, ...rest) => { const fn = rest.pop(); const opts = (rest[0] && typeof rest[0] === 'object') ? rest[0] : {}; return _test(name, sqliteAvailable ? opts : { ...opts, skip: 'node:sqlite no disponible (Node 22+)' }, fn); };
 import { generateKeys, signObject, uuid, canonical, verifyObject } from '../src/nucleo/crypto.js';
 import { MIGRACIONES } from './_migraciones.js';
 
@@ -27,6 +29,7 @@ const env = (from, to, keys, extra = {}) => signObject({ chasqui: '1', id: uuid(
 const inbound = async (port, e, headers = {}) => { const r = await fetch(`http://127.0.0.1:${port}/inbound`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(e) }); return { status: r.status, ...(await r.json()) }; };
 
 before(async () => {
+  if (!sqliteAvailable) return; // sin node:sqlite la suite entera salta; no montamos nada
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-inv-'));
   // gamma corre sobre D1 (emulado): toda esta suite ejerce la D1Store de punta a punta
   gamma = await new Estafeta({ domain: 'gamma.test', port: P1, store: d1store(), adminToken: 'g', hosts, workerIntervalMs: 120, retry: { baseMs: 120, maxMs: 500 }, libro: { welcome: 0 }, log: () => {} }).start();
@@ -38,7 +41,7 @@ before(async () => {
   await ayudante.register({ adminToken: 'd' });
   await gamma.libro.topup(nico.address, 1000, 'carga');
 });
-after(async () => { await gamma.stop(); await delta.stop(); await sellada.stop(); });
+after(async () => { if (!sqliteAvailable) return; await gamma.stop(); await delta.stop(); await sellada.stop(); });
 
 // ---------- invariante 2: el Libro jamás por endpoint sin firma ----------
 test('D1 · /libro/* sin autenticación responde 401, siempre', async () => {

@@ -1,7 +1,7 @@
 // node --test test/
 // Los hallazgos de severidad alta de la revisión adversarial, cada uno escrito contra el
 // defecto REAL (con su escenario reproducido), no contra un ejemplo inventado.
-import { test } from 'node:test';
+import { test as _test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -9,7 +9,9 @@ import path from 'node:path';
 import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 import { D1Store } from '../src/nucleo/almacen-d1.js';
-import { openLocalD1 } from '../src/nucleo/d1-local.js';
+import { openLocalD1, sqliteAvailable } from '../src/nucleo/d1-local.js';
+// Si node:sqlite no está (Node <22 sin flag), toda la suite D1 salta limpio en vez de reventar.
+const test = (name, ...rest) => { const fn = rest.pop(); const opts = (rest[0] && typeof rest[0] === 'object') ? rest[0] : {}; return _test(name, sqliteAvailable ? opts : { ...opts, skip: 'node:sqlite no disponible (Node 22+)' }, fn); };
 import { generateKeys, signObject, uuid } from '../src/nucleo/crypto.js';
 import { MIGRACIONES } from './_migraciones.js';
 

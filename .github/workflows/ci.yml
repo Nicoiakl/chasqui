@@ -10,7 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [20, 22]
+        # 20: el runtime corre (FileStore/D1 real); las suites del emulador D1 saltan (node:sqlite es 22+).
+        # 24: node:sqlite nativo, se ejercen TODAS las suites incluida la D1Store.
+        node: [20, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -2,7 +2,11 @@
 // Para tests y desarrollo: la misma D1Store corre aquí y en el edge sin cambiar una línea.
 // Cubre el subconjunto que usa la D1Store: prepare().bind().first()/all()/run()/raw(), batch(), exec().
 
-import { DatabaseSync } from 'node:sqlite';
+// Carga perezosa de node:sqlite: no existe en Node 20 y necesita --experimental-sqlite en 22.
+// Así, importar este módulo nunca rompe; las suites D1 comprueban `sqliteAvailable` y saltan si falta.
+let DatabaseSync = null;
+try { ({ DatabaseSync } = await import('node:sqlite')); } catch { /* Node <22 o sin el flag: openLocalD1 avisa al usarse */ }
+export const sqliteAvailable = !!DatabaseSync;
 
 class D1PreparedLocal {
   constructor(raw, sql, params = []) {
@@ -42,6 +46,7 @@ function normalize(v) {
 }
 
 export function openLocalD1(path = ':memory:') {
+  if (!DatabaseSync) throw new Error('node:sqlite no disponible: se necesita Node 22+ (con --experimental-sqlite) o 24+ nativo');
   const raw = new DatabaseSync(path);
   raw.exec('PRAGMA foreign_keys = ON');
   let lock = Promise.resolve(); // D1 real serializa los batch; el emulador tambien
