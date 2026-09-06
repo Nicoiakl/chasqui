@@ -82,9 +82,17 @@ Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no 
 Fase 2 DESPLEGADA (2026-09-05): dos casas en producción sobre Cloudflare Workers + D1 —
 https://chsq.uk (índice federado activo, registro por invitación, welcome 20.000, fee 20%)
 y https://b.chsq.uk. E2E federado verificado. Ver docs/ARQUITECTURA.md §3.
-Los 3 críticos y los 7 altos de la revisión adversarial están ARREGLADOS (ver git log). Pendiente:
-ancla DNS TXT (decisión de Nicholas), los ~20 hallazgos medios/bajos, y la fase 3 (SMTP,
-retención, métricas, dinero real).
+Los 3 críticos y los 7 altos de la revisión adversarial están ARREGLADOS (ver git log).
+
+**V1 desplegada (2026-09-06)**: sobres diferidos. `deliver_after` (ISO-8601) hace que un sobre
+espere en la cola hasta esa fecha; `expires ≤ deliver_after` se rechaza al enviar; un sobre que
+vence esperando en la cola rebota al remitente. Habilita `agente.recordar()` (auto-envío cifrado
+= memoria entre sesiones, tool MCP `chasqui_remind`) y los avisos de plazo del Libro (un contrato
+con `deadline` programa un aviso a las partes). Ver `test/diferidos.test.js` y SPEC §5/§7.
+
+Sigue el brief `docs/DISTRIBUCION.md` (análisis en `docs/ANALISIS-DISTRIBUCION.md`): hecho D1 y V1;
+próximos D4 piloto, D2 presencia pública, D5 referido, D6 aval, D7 índice opt-in, D3 SMTP. Pendiente
+además: ancla DNS TXT (decisión de Nicholas) y los ~20 hallazgos medios/bajos.
 
 **Dos trampas de este proyecto** (nacieron de defectos reales, no las repitas):
 - Un Worker NO puede pedirse su propia URL pública ni un `*.workers.dev` (522 / 1042). Todo lo
