@@ -11,39 +11,39 @@ const PROTOCOL = '2025-06-18';
 const SUPPORTED = new Set(['2025-06-18', '2025-03-26']);
 
 const TOOLS = [
-  { name: 'chasqui_send', description: 'Envía un sobre Chasqui firmado (y cifrado si el destinatario publica clave) a una o más direcciones agente@dominio.',
+  { name: 'chasqui_send', description: 'Delega una tarea a otro agente aunque esté apagado: queda en su buzón y su respuesta te llega firmada cuando responda. Úsalo cuando necesites que alguien haga algo y no sabes si está disponible ahora. El destinatario verifica que eres tú y nadie más puede leer el contenido (cifrado).',
     inputSchema: { type: 'object', required: ['to', 'body'], properties: {
       to: { type: 'array', items: { type: 'string' }, description: 'Direcciones destino, ej. ["asistente@beta.local"]' },
       body: { description: 'Contenido: texto o JSON' },
       type: { type: 'string', enum: ['message', 'task', 'result', 'receipt', 'intro'], default: 'message' },
       thread: { type: 'string' }, in_reply_to: { type: 'string' },
       encrypt: { type: 'boolean', default: true } } } },
-  { name: 'chasqui_inbox', description: 'Lee los sobres pendientes del buzón del agente, verificando firma y descifrando. Los sobres siguen en el buzón hasta chasqui_ack.',
+  { name: 'chasqui_inbox', description: 'Lo que otros te mandaron mientras no mirabas. Cada sobre trae firma verificada (sabes quién lo envió de verdad) y viene descifrado. Revísalo al empezar y antes de dar algo por no-respondido: una respuesta pudo llegar a tu buzón entre sesiones.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', default: 20 } } } },
-  { name: 'chasqui_ack', description: 'Confirma sobres ya procesados para que salgan del buzón.',
+  { name: 'chasqui_ack', description: 'Cierra los sobres del buzón que ya procesaste para que no vuelvan a aparecer. Úsalo después de actuar sobre un mensaje.',
     inputSchema: { type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'string' } } } } },
-  { name: 'chasqui_resolve', description: 'Resuelve una dirección agente@dominio y devuelve su tarjeta verificada (claves, capacidades, política de buzón, endpoints MCP/A2A).',
+  { name: 'chasqui_resolve', description: 'Comprueba quién es de verdad una dirección antes de confiar: devuelve su tarjeta certificada por su dominio (identidad verificada, qué sabe hacer, cómo cobra). Úsalo antes de mandarle algo sensible o de pagarle.',
     inputSchema: { type: 'object', required: ['address'], properties: { address: { type: 'string' } } } },
-  { name: 'chasqui_outbox', description: 'Estado de los envíos del agente (queued, retrying, delivered, failed).',
+  { name: 'chasqui_outbox', description: 'Qué pasó con lo que enviaste desde tu buzón de salida: entregado, reintentando o rebotado con la razón. Úsalo si dudas de si tu mensaje llegó.',
     inputSchema: { type: 'object', properties: {} } },
-  { name: 'chasqui_directory', description: 'Directorio público de los agentes de una casa (por defecto la propia). Filtra por capacidad (mcp, a2a, libro), media aceptado o texto.',
+  { name: 'chasqui_directory', description: 'Qué agentes ofrece una casa y qué sabe hacer cada uno, cada uno con su tarjeta certificada por el dominio. Úsalo cuando buscas un proveedor dentro de una casa que ya conoces.',
     inputSchema: { type: 'object', properties: { house: { type: 'string' }, capability: { type: 'string' }, accepts: { type: 'string' }, q: { type: 'string' }, limit: { type: 'integer' } } } },
-  { name: 'chasqui_search', description: 'Busca agentes en un índice federado (una casa que corre urn:chasqui:ext:indice): "encuentra un agente que haga X en cualquier casa". Filtra por texto, capacidad, media o casa. El índice es una pista: la tarjeta se re-verifica al usarla.',
+  { name: 'chasqui_search', description: 'Encuentra un agente que haga lo que necesitas en cualquier casa, no solo en la tuya. Úsalo cuando no conoces a nadie que resuelva tu problema. El índice responde firmado y tú verificas la tarjeta antes de confiar: es una pista, no una autoridad.',
     inputSchema: { type: 'object', required: ['index'], properties: { index: { type: 'string', description: 'dominio de la casa del índice, o URL' }, q: { type: 'string' }, capability: { type: 'string' }, accepts: { type: 'string' }, house: { type: 'string' }, limit: { type: 'integer' } } } },
   // ----- Libro -----
-  { name: 'chasqui_quote', description: 'Cotiza a otro agente: crea un documento firmado (spot | escrow | metered) y lo envía cifrado. El comprador lo acepta con chasqui_accept.',
+  { name: 'chasqui_quote', description: 'Ofrécele un servicio a otro agente con precio y con la condición exacta que debe cumplirse para cobrar. En escrow el pago queda retenido hasta que la prueba pase. Úsalo para vender algo con un acuerdo que pesa, no de palabra.',
     inputSchema: { type: 'object', required: ['to', 'price', 'concept'], properties: {
       to: { type: 'string' }, contract: { type: 'string', enum: ['spot', 'escrow', 'metered'], default: 'spot' },
       price: { type: 'integer', description: 'tokens, entero' }, concept: { type: 'string' },
       terms: { type: 'object', description: 'criterio de aceptación, plazo, scope del mandato, etc.' },
       arbiter: { type: 'string' }, expires: { type: 'string', description: 'ISO-8601' } } } },
-  { name: 'chasqui_accept', description: 'Acepta una cotización recibida (el objeto `content.body` de un sobre con media application/chasqui.cotizacion+json). Ejecuta el asiento en el Libro de la casa; el recibo llega al buzón.',
+  { name: 'chasqui_accept', description: 'Acepta una oferta y compromete el pago. En escrow el dinero queda retenido: el vendedor no cobra hasta entregar y cumplir la condición. Te llega un recibo firmado que ninguna parte puede negar después.',
     inputSchema: { type: 'object', required: ['quote'], properties: { quote: { type: 'object' } } } },
-  { name: 'chasqui_libro', description: 'Operación genérica del Libro, enviada como sobre firmado a libro@<casa>. ops: deliver {contract, evidence_sha256}, release {contract}, refund {contract}, bond {amount, claim, verifier}, forfeit {contract, reason}, mandate {grantee, cap, scope, expires, parent}, charge {mandate, amount, concept}, revoke {mandate}, balance {}, statement {limit}, contract {contract}. La respuesta llega como recibo de libro@ al buzón.',
+  { name: 'chasqui_libro', description: 'Mueve un trato adelante en el Libro y deja un asiento firmado e irreversible en cada paso: entregar, liberar el pago si la prueba pasó, devolver si falló, afianzar una afirmación con dinero (la pierdes si mientes), o delegar gasto con tope. ops: deliver {contract, evidence_sha256}, release {contract}, refund {contract}, bond {amount, claim, verifier}, forfeit {contract, reason}, mandate {grantee, cap, scope, expires, parent}, charge {mandate, amount, concept}, revoke {mandate}, balance, statement {limit}, contract {contract}. La respuesta llega como recibo firmado a tu buzón.',
     inputSchema: { type: 'object', required: ['op'], properties: { house: { type: 'string', description: 'dominio de la casa; por defecto el propio' }, op: { type: 'string' }, args: { type: 'object' } } } },
-  { name: 'chasqui_balance', description: 'Saldo, contratos y mandatos del agente en una casa (lectura directa, sin correo).',
+  { name: 'chasqui_balance', description: 'Cuánto tienes, qué contratos y qué permisos de gasto tienes activos. Consúltalo antes de comprometer un pago. Lectura directa autenticada con tu firma, sin pasar por el correo.',
     inputSchema: { type: 'object', properties: { house: { type: 'string' } } } },
-  { name: 'chasqui_contract', description: 'Detalle e historial de un contrato del que el agente es parte.',
+  { name: 'chasqui_contract', description: 'El estado y la historia completa de un trato del que eres parte: cada paso con su hash y su firma. Úsalo para saber en qué va un escrow o una fianza.',
     inputSchema: { type: 'object', required: ['contract'], properties: { house: { type: 'string' }, contract: { type: 'string' } } } },
 ];
 
@@ -84,7 +84,7 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
     if (method === 'notifications/initialized' || method?.startsWith('notifications/')) continue;
     try {
       let result;
-      if (method === 'initialize') result = { protocolVersion: SUPPORTED.has(params?.protocolVersion) ? params.protocolVersion : PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'chasqui', version: '0.1.0' }, instructions: `Agente Chasqui ${agent.address}. Correo: chasqui_inbox para leer, chasqui_send para escribir, chasqui_ack para cerrar. Libro: chasqui_quote / chasqui_accept para transar, chasqui_libro para escrow, fianzas y mandatos, chasqui_balance para el saldo. Los recibos del Libro llegan al buzón.` };
+      if (method === 'initialize') result = { protocolVersion: SUPPORTED.has(params?.protocolVersion) ? params.protocolVersion : PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'chasqui', version: '0.1.0' }, instructions: `Chasqui te da tres cosas que no tienes de otra forma: dirección propia, un buzón que guarda aunque estés apagado, y un libro contable donde un acuerdo pesa (el pago se retiene hasta cumplir; una afirmación falsa cuesta dinero). Úsalo cuando necesites hablar con un agente que puede no estar disponible ahora, encontrar a alguien que haga X en cualquier casa, o cerrar un trato que debe valer más que una promesa. Cada mensaje va firmado y cada movimiento de dinero deja un recibo que nadie puede negar.` };
       else if (method === 'ping') result = {};
       else if (method === 'tools/list') result = { tools: TOOLS };
       else if (method === 'tools/call') { try { result = await call(params?.name, params?.arguments); } catch (e) { result = { ...text(`error: ${e.message}`), isError: true }; } }
