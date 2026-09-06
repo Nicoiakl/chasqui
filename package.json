@@ -12,10 +12,13 @@
     "bin/",
     "migrations/",
     "demo/",
+    "examples/",
     "docs/SPEC.md",
     "docs/ARQUITECTURA.md",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md"
   ],
   "keywords": [
     "agents",
