@@ -72,11 +72,21 @@ export function applyInboxPolicy(env, agentRecord, senderDomain) {
       break;
     case 'allowlist': {
       const ok = inbox.allowlist?.some((x) => x === env.from || x === fromDomain);
-      // Con allowlist, un desconocido solo puede presentarse con un "intro" pequeño.
-      if (!ok && !(env.type === 'intro' && Buffer.byteLength(JSON.stringify(env)) <= 4096)) {
-        return permanent('remitente no está en la allowlist (solo se aceptan sobres type=intro de hasta 4 KB)');
+      if (ok) break;
+      // Un desconocido puede presentarse con un "intro" pequeño.
+      if (env.type === 'intro' && Buffer.byteLength(JSON.stringify(env)) <= 4096) break;
+      // O con un AVAL: un tercero de la allowlist lo respalda con una fianza en la casa del receptor.
+      // Aquí solo comprobamos que el avalador esté en la allowlist; la estafeta verifica la fianza
+      // contra su Libro (existe, activa, avala a este remitente, con el receptor como beneficiario).
+      const aval = env.extensions?.['urn:chasqui:ext:aval'];
+      if (aval && aval.voucher && aval.bond) {
+        let voucherDomain; try { voucherDomain = parseAddress(aval.voucher).domain; } catch { voucherDomain = null; }
+        if (inbox.allowlist?.some((x) => x === aval.voucher || x === voucherDomain)) {
+          return { ok: true, vouch: { voucher: aval.voucher, bond: aval.bond, vouchee: env.from, beneficiary: agentRecord.address } };
+        }
+        return permanent('el avalador de la presentación no está en la allowlist');
       }
-      break;
+      return permanent('remitente no está en la allowlist (se acepta un intro ≤4 KB o un aval con fianza de un avalador de la allowlist)');
     }
     case 'pow': {
       const bits = inbox.pow_bits ?? 16;

@@ -234,7 +234,7 @@ Cada alta es un evento registrado (`registered_via`: admin, self, delegation, op
 La estafeta receptora rechaza sin excepción sobres sin firma verificable. Sobre eso, cada agente elige:
 
 - `open`: acepta cualquier remitente verificado. Límite de tasa por dominio emisor (120/min por defecto).
-- `allowlist`: solo direcciones o dominios listados. Un desconocido solo puede enviar un `intro` de hasta 4 KB; el agente decide si lo agrega a la lista.
+- `allowlist`: solo direcciones o dominios listados. Un desconocido tiene dos formas de entrar: un `intro` de hasta 4 KB (el agente decide si lo agrega a la lista), o un **aval con fianza** (`urn:chasqui:ext:aval`): un tercero **de la allowlist** lo respalda con una fianza en la casa del receptor. El sobre lleva `extensions["urn:chasqui:ext:aval"] = { voucher, bond }`; la estafeta comprueba que la fianza exista y esté activa, que la puso el avalador (que debe estar en la allowlist), que avala a este remitente (`vouchee`), y que tiene al receptor como beneficiario y verificador. Si la presentación resulta basura, el receptor ejecuta la fianza (`forfeit`, §16): avalar deja de ser gratis.
 - `pow`: exige proof-of-work (hashcash, `pow_bits` bits de ceros iniciales en SHA-256 de `id:nonce`). Los de la allowlist quedan exentos. Con 16 bits, un envío cuesta ~65k hashes: gratis para uno, caro para un millón.
 - `stamp`: exige estampilla pagada en el Libro. La tarjeta publica `{ policy: "stamp", price: 5, house?: "sigo.uk" }`; el sobre lleva `stamp: { house, amount }` firmado como parte del sobre; la estafeta receptora cobra en su Libro al aceptar (sección 19). Sin saldo, 402 y rebote.
 - `blocklist`: siempre se aplica antes que lo demás.
@@ -248,6 +248,7 @@ Una extensión es una URI. El dominio y el agente declaran las que soportan; un 
 - `urn:chasqui:ext:email`: una estafeta puede ser pasarela SMTP: `nombre@dominio` es a la vez dirección Chasqui y de correo; lo que llega por SMTP entra al buzón sin firma verificable (marcado `from_verified: false`) y lo que sale a humanos se envía como email. Puente con el mundo actual.
 - `urn:chasqui:ext:indice`: la casa opera un índice federado de agentes (§13).
 - `urn:chasqui:ext:libro`: la casa opera un Libro (secciones 14 a 20). Lo declara la tarjeta del dominio y la tarjeta de `libro@<dominio>` publica el fee y las operaciones.
+- `urn:chasqui:ext:aval`: un sobre de un desconocido a un buzón con lista blanca lo lleva para presentar su aval: `{ voucher, bond }`. El avalador respalda con una fianza (op `bond` con `vouchee`) en la casa del receptor; la política de entrada (§9) la exige válida antes de aceptar.
 - `urn:chasqui:ext:person`: la tarjeta del agente puede declarar `person: {name, verified_by}` para agentes que actúan por una persona identificada, con verificación delegada (por ejemplo, un dominio que solo certifica clientes con identidad verificada).
 
 ## 11. Versionado

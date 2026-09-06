@@ -17,6 +17,7 @@ const TOOLS = [
       body: { description: 'Contenido: texto o JSON' },
       type: { type: 'string', enum: ['message', 'task', 'result', 'receipt', 'intro'], default: 'message' },
       thread: { type: 'string' }, in_reply_to: { type: 'string' },
+      aval: { type: 'object', description: 'para entrar a un buzón con lista blanca sin estar en ella: { voucher, bond } de un tercero de la allowlist que te respaldó con una fianza', properties: { voucher: { type: 'string' }, bond: { type: 'string' } } },
       encrypt: { type: 'boolean', default: true } } } },
   { name: 'chasqui_inbox', description: 'Lo que otros te mandaron mientras no mirabas. Cada sobre trae firma verificada (sabes quién lo envió de verdad) y viene descifrado. Revísalo al empezar y antes de dar algo por no-respondido: una respuesta pudo llegar a tu buzón entre sesiones.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', default: 20 } } } },
@@ -57,7 +58,7 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
 
   async function call(name, args = {}) {
     switch (name) {
-      case 'chasqui_send': { const r = await agent.send({ to: args.to, body: args.body, type: args.type, thread: args.thread, inReplyTo: args.in_reply_to, encrypt: args.encrypt ?? true }); return text({ id: r.id, jobs: r.jobs }); }
+      case 'chasqui_send': { const r = await agent.send({ to: args.to, body: args.body, type: args.type, thread: args.thread, inReplyTo: args.in_reply_to, encrypt: args.encrypt ?? true, extensions: args.aval ? { 'urn:chasqui:ext:aval': args.aval } : undefined }); return text({ id: r.id, jobs: r.jobs }); }
       case 'chasqui_inbox': {
         const msgs = await agent.inbox({ limit: args.limit ?? 20 });
         const opened = [];

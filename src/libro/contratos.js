@@ -120,10 +120,13 @@ const ops = {
     // beneficiary y arbiter entran a cuentas del ledger: direcciones válidas o nada.
     if (body.beneficiary) { try { parseAddress(body.beneficiary); } catch { fail(400, 'beneficiary debe ser una dirección de agente válida'); } }
     if (body.arbiter) { try { parseAddress(body.arbiter); } catch { fail(400, 'arbiter debe ser una dirección de agente válida'); } }
+    // vouchee (avalado): si esta fianza avala a un tercero para presentarse ante un buzón con lista
+    // blanca, nombra a quién avala. La política de entrada exige que coincida con el remitente.
+    if (body.vouchee) { try { parseAddress(body.vouchee); } catch { fail(400, 'vouchee debe ser una dirección de agente válida'); } }
     scopeCap(ctx, body.amount, 'afianzar');
     const c = {
       id: uuid(), kind: 'bond', house: libro.domain, seller: from, verifier: body.verifier, arbiter: body.arbiter || null,
-      beneficiary: body.beneficiary || libro.casa, amount: body.amount, claim: body.claim, evidence_sha256: body.evidence_sha256 || null,
+      beneficiary: body.beneficiary || libro.casa, vouchee: body.vouchee || null, amount: body.amount, claim: body.claim, evidence_sha256: body.evidence_sha256 || null,
       expires: body.expires || null, claim_sha256: ctx.opHash, state: 'posted', created: iso(), history: [],
     };
     const asiento = await libro.hold(from, c.id, c.amount, `fianza ${c.id}: ${c.claim}`, { contract: c.id, kind: 'bond' }, { op: ctx.env.id, op_sha256: ctx.opHash });

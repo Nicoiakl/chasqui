@@ -456,6 +456,21 @@ export class Estafeta {
           stampUsed = true;
           libroBundles.push(bundle);
           mails.push({ local, envelope: env, meta: { from_verified: true, relay_verified: relayVerified, sender_kid: env.signature.kid, stamp: asiento.id } });
+        } else if (p.vouch) {
+          // Aval con fianza: la política vio un avalador de la allowlist; aquí se comprueba la fianza
+          // contra el Libro de ESTA casa. Sin fianza válida (activa, para este remitente, con el
+          // receptor como beneficiario y verificador), no entra. Avalar no es gratis.
+          const b = await this.libro.getContract(p.vouch.bond);
+          const malo = !b ? 'la fianza del aval no existe'
+            : b.kind !== 'bond' ? 'el contrato del aval no es una fianza'
+            : b.state !== 'posted' ? `la fianza del aval está ${b.state}, no activa`
+            : b.seller !== p.vouch.voucher ? 'la fianza no la puso el avalador declarado'
+            : b.vouchee !== p.vouch.vouchee ? 'la fianza no avala a este remitente'
+            : b.beneficiary !== p.vouch.beneficiary ? 'la fianza no tiene al receptor como beneficiario'
+            : b.verifier !== p.vouch.beneficiary ? 'el receptor no puede ejecutar la fianza (no es su verificador)'
+            : null;
+          if (malo) { rejected.push({ to, code: 403, reason: `aval inválido: ${malo}` }); continue; }
+          mails.push({ local, envelope: env, meta: { from_verified: true, relay_verified: relayVerified, sender_kid: env.signature.kid, vouched_by: b.seller, vouch_bond: b.id } });
         } else {
           mails.push({ local, envelope: env, meta: { from_verified: true, relay_verified: relayVerified, sender_kid: env.signature.kid } });
         }

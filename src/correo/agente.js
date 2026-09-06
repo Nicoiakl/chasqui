@@ -147,7 +147,12 @@ export class Agent {
   deliver(house, contract, { evidence_sha256, note } = {}) { return this.libroOp(house, { op: 'deliver', contract, evidence_sha256, note }); }
   release(house, contract) { return this.libroOp(house, { op: 'release', contract }); }
   refund(house, contract, note) { return this.libroOp(house, { op: 'refund', contract, note }); }
-  bond(house, { amount, claim, verifier, beneficiary, arbiter, evidence_sha256, expires }) { return this.libroOp(house, { op: 'bond', amount, claim, verifier, beneficiary, arbiter, evidence_sha256, expires }); }
+  bond(house, { amount, claim, verifier, beneficiary, arbiter, evidence_sha256, expires, vouchee }) { return this.libroOp(house, { op: 'bond', amount, claim, verifier, beneficiary, arbiter, evidence_sha256, expires, vouchee }); }
+  // Avalar a un desconocido para que entre a un buzón con lista blanca: una fianza en la casa del
+  // receptor, con el receptor como verificador y beneficiario. Si la presentación es basura, la ejecuta.
+  vouch(house, { forAddress, receiver, amount, claim, expires }) {
+    return this.bond(house, { amount, claim: claim || `avalo a ${forAddress} ante ${receiver}`, verifier: receiver, beneficiary: receiver, vouchee: forAddress, expires });
+  }
   forfeit(house, contract, reason) { return this.libroOp(house, { op: 'forfeit', contract, reason }); }
   mandate(house, { grantee, cap, scope, expires, parent }) { return this.libroOp(house, { op: 'mandate', grantee, cap, scope, expires, parent }); }
   charge(house, { mandate, amount, concept }) { return this.libroOp(house, { op: 'charge', mandate, amount, concept }); }
