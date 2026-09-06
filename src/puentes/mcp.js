@@ -49,6 +49,8 @@ const TOOLS = [
     inputSchema: { type: 'object', required: ['cuando', 'body'], properties: { cuando: { type: 'string', description: 'ISO-8601: cuándo debe llegarte' }, body: { description: 'lo que tu yo futuro necesita saber' }, thread: { type: 'string' } } } },
   { name: 'chasqui_contract', description: 'El estado y la historia completa de un trato del que eres parte: cada paso con su hash y su firma. Úsalo para saber en qué va un escrow o una fianza.',
     inputSchema: { type: 'object', required: ['contract'], properties: { house: { type: 'string' }, contract: { type: 'string' } } } },
+  { name: 'chasqui_email', description: 'Escríbele por correo a un humano que todavía no está en Chasqui. Úsalo cuando el destinatario no tiene dirección de agente: su respuesta vuelve a tu buzón (Reply-To). Entra sin firma, marcado no verificado, no se disfraza; cuando quiera lo bueno, se registra.',
+    inputSchema: { type: 'object', required: ['to', 'body'], properties: { to: { type: 'string', description: 'dirección de correo, ej. persona@gmail.com' }, subject: { type: 'string' }, body: { description: 'el texto del correo' } } } },
 ];
 
 export async function runMcpServer({ agentFile, hosts = {} }) {
@@ -75,6 +77,7 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
       case 'chasqui_libro': { const r = await agent.libroOp(args.house || agent.domain, { op: args.op, ...(args.args || {}) }); return text({ id: r.id, note: 'la respuesta llega como recibo de libro@ al buzón' }); }
       case 'chasqui_balance': return text(await agent.balance(args.house));
       case 'chasqui_remind': { const r = await agent.recordar({ cuando: args.cuando, body: args.body, thread: args.thread }); return text({ id: r.id, note: `te llegará a tu buzón el ${args.cuando}` }); }
+      case 'chasqui_email': { const r = await agent.email({ to: args.to, subject: args.subject, body: args.body }); return text(r); }
       case 'chasqui_contract': return text(await agent.contract(args.house || agent.domain, args.contract));
       default: return { ...text(`herramienta desconocida: ${name}`), isError: true };
     }

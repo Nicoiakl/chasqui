@@ -15,10 +15,13 @@
 
 import { Estafeta } from '../correo/estafeta.js';
 import { D1Store } from '../nucleo/almacen-d1.js';
+import { extractText, resendProvider } from '../puentes/email.js';
 
 let instancia = null;
 function estafetaDesde(env) {
   if (instancia) return instancia;
+  // Salida de correo: solo si hay proveedor + remitente verificado. Sin eso, la salida queda pendiente.
+  const provider = resendProvider({ apiKey: env.RESEND_KEY, sender: env.EMAIL_SENDER });
   instancia = new Estafeta({
     domain: env.CHASQUI_DOMAIN,
     publicUrl: env.CHASQUI_PUBLIC_URL || `https://${env.CHASQUI_DOMAIN}`,
@@ -27,6 +30,7 @@ function estafetaDesde(env) {
     policy: { registration: env.CHASQUI_REGISTRATION || 'invite' },
     libro: { welcome: Number(env.CHASQUI_WELCOME || 0), feeBps: Number(env.CHASQUI_FEE_BPS || 1000) },
     index: { enabled: env.CHASQUI_INDEX === 'on' },
+    email: { enabled: env.CHASQUI_EMAIL === 'on' || !!provider, provider },
     log: (...a) => console.log(...a),
   });
   return instancia;
@@ -60,5 +64,22 @@ export default {
   async scheduled(_event, env, ctx) {
     const estafeta = estafetaDesde(env);
     ctx.waitUntil(estafeta.tick().catch((e) => console.log('tick error', e.message)));
+  },
+
+  // ENTRADA del puente de correo (Cloudflare Email Workers): un email real a agente@casa entra al
+  // buzón como sobre sin firma, marcado from_verified:false. Se activa cuando la casa enruta su
+  // dominio a este Worker en Email Routing; hasta entonces, este handler no se invoca.
+  async email(message, env, ctx) {
+    const estafeta = estafetaDesde(env);
+    let raw = '';
+    try { raw = await new Response(message.raw).text(); } catch { /* sin cuerpo legible */ }
+    const r = await estafeta.receiveEmail({
+      from: message.from,
+      to: message.to,
+      subject: message.headers.get('subject') || '',
+      text: extractText(raw),
+      messageId: (message.headers.get('message-id') || '').replace(/[<>]/g, '').slice(0, 128) || undefined,
+    });
+    if (!r.ok && !r.duplicate) message.setReject(r.reason || 'no aceptado');
   },
 };

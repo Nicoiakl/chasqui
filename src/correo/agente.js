@@ -113,6 +113,13 @@ export class Agent {
   recordar({ cuando, body, thread, type = 'message' } = {}) {
     return this.send({ to: this.address, body, type, thread, deliverAfter: cuando, encrypt: true });
   }
+  // Escribirle a una dirección de correo del mundo real por el puente de la casa. Si el humano
+  // responde, su respuesta vuelve a tu buzón (Reply-To = tu dirección). Sin proveedor de salida
+  // configurado, devuelve { pending: true } en vez de fallar: el canal aún no existe.
+  async email({ to, subject, body }) {
+    try { return await this._call('POST', '/email/out', { to, subject, body }); }
+    catch (e) { if (e.status === 503 && e.body?.pending) return e.body; throw e; }
+  }
   reply(envelope, body, opts = {}) {
     return this.send({ to: envelope.from, thread: envelope.thread || envelope.id, inReplyTo: envelope.id, type: opts.type || 'result', body, ...opts });
   }
@@ -195,6 +202,12 @@ export class Agent {
 
   // Verifica la cadena de confianza del remitente y descifra si corresponde.
   async open(envelope) {
+    // Correo entrante por el puente (urn:chasqui:ext:email): sin firma, en claro, marcado como NO
+    // verificado. No se disfraza de sobre firmado: se abre explícitamente como lo que es.
+    const em = envelope.extensions?.['urn:chasqui:ext:email'];
+    if (em && !envelope.signature) {
+      return { id: envelope.id, from: em.from, to: envelope.to, type: envelope.type, created: envelope.created, verified: false, via: 'email', subject: em.subject || null, content: envelope.content };
+    }
     const card = await this.resolver.agentCardForKid(envelope.from, envelope.signature?.kid);
     const verified = Resolver.acceptedKids(card).includes(envelope.signature?.kid) && verifyObject(envelope, envelope.signature.kid);
     if (!verified) throw new Error(`firma inválida en sobre ${envelope.id} de ${envelope.from}`);

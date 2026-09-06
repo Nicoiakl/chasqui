@@ -26,6 +26,7 @@ import { Libro, MEDIA, LibroError } from '../libro/libro.js';
 import { APP_HTML } from '../plataformas/app-html.js';
 import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
 import { HOME_HTML } from '../plataformas/home-html.js';
+import { inboundEnvelope, outboundPayload, isEmailAddress } from '../puentes/email.js';
 
 const now = () => Date.now();
 const iso = (t = now()) => new Date(t).toISOString();
@@ -37,7 +38,7 @@ export class Estafeta {
     port = 4000, host = '127.0.0.1', publicUrl,
     hosts = {}, fetchImpl = globalThis.fetch,
     policy = {}, retry = {}, workerIntervalMs = 1000, libro = {},
-    index = {},
+    index = {}, email = {},
     extensions = null,
     log = (...a) => console.log(`[estafeta ${domain}]`, ...a),
   }) {
@@ -54,9 +55,13 @@ export class Estafeta {
     this.retry = { baseMs: 1000, maxMs: 60_000, giveUpMs: 3 * 24 * 3600 * 1000, ...retry };
     this.workerIntervalMs = workerIntervalMs;
     this.index = { enabled: false, crawlMinutes: 15, maxHouses: 500, ...index };
+    // Puente de correo: entrada siempre disponible si la casa la enciende; salida solo si hay proveedor.
+    // `email.provider` es una función async(payload) (ver src/puentes/email.js); sin ella, la salida queda pendiente.
+    this.email = { enabled: !!(email.enabled || email.provider), provider: email.provider || null };
     this.extensions = extensions || [
       'urn:chasqui:ext:mcp', 'urn:chasqui:ext:a2a', 'urn:chasqui:ext:libro',
       ...(this.index.enabled ? ['urn:chasqui:ext:indice'] : []),
+      ...(this.email.enabled ? ['urn:chasqui:ext:email'] : []),
     ];
     this.libroOpts = libro;
     this.hostsOverride = hosts;
@@ -571,6 +576,35 @@ export class Estafeta {
       throw e;
     }
   }
+  // ---------- puente de correo (urn:chasqui:ext:email) ----------
+  // ENTRADA: un email real entra al buzón del destinatario como sobre SIN FIRMA, marcado
+  // from_verified:false y via:'email'. No pasa por /inbound ni finge estar firmado (invariante 1).
+  async receiveEmail({ from, to, subject, text, messageId } = {}) {
+    await this.init();
+    if (!isEmailAddress(from)) return { ok: false, code: 400, reason: 'remitente de correo inválido' };
+    let local, dom;
+    try { ({ local, domain: dom } = parseAddress(to)); } catch { return { ok: false, code: 400, reason: 'destinatario inválido' }; }
+    if (dom !== this.domain) return { ok: false, code: 400, reason: `el correo es para ${dom}, no ${this.domain}` };
+    const rec = await this.store.getAgent(local);
+    if (!rec) return { ok: false, code: 404, reason: 'agente inexistente' };
+    const env = inboundEnvelope({ from, to: `${local}@${this.domain}`, subject, text, messageId });
+    // dedupe por id (message-id del correo o uuid) igual que un sobre normal
+    const nuevo = await this.store.markSeenIfNew(env.id, { from: `email:${from}`, accepted: [to] });
+    if (!nuevo) return { ok: true, code: 200, duplicate: true };
+    await this.store.putMail(local, env, { from_verified: false, via: 'email', email_from: from });
+    this._push(local, env);
+    return { ok: true, code: 202, to: `${local}@${this.domain}` };
+  }
+  // SALIDA: un agente le escribe a una dirección de correo. Con proveedor, se envía (Reply-To = el
+  // agente, para que la respuesta vuelva por ENTRADA). Sin proveedor, queda pendiente: no se inventa canal.
+  async emailOut({ fromAgent, to, subject, text }) {
+    if (!isEmailAddress(to)) return { ok: false, code: 400, reason: 'destino de correo inválido' };
+    const payload = outboundPayload({ fromAgent, to, subject, text });
+    if (!this.email.provider) return { ok: false, code: 503, pending: true, reason: 'el puente de correo no tiene proveedor de salida configurado' };
+    try { const r = await this.email.provider(payload); return { ok: true, code: 202, provider: r?.id || null }; }
+    catch (e) { return { ok: false, code: 502, reason: `el proveedor de correo falló: ${e.message}` }; }
+  }
+
   async indexSearch(params) {
     const out = await this.store.indexSearch(params);
     // Respuesta firmada por la casa del índice: otro índice (u otra casa) puede ingerirla verificada.
@@ -642,6 +676,13 @@ export class Estafeta {
         const r = await this.outbound(rx.body, who);
         // kick: el adaptador dispara un tick tras responder (setImmediate en Node, waitUntil en Workers)
         return { ...send(r.code || 400, r), kick: true };
+      }
+      if (rx.method === 'POST' && path === '/email/out') {
+        // El agente autenticado le escribe a una dirección de correo del mundo real.
+        const who = await this._authenticate(rx, path);
+        const { to, subject, body } = rx.body || {};
+        const r = await this.emailOut({ fromAgent: who.address, to, subject, text: typeof body === 'string' ? body : JSON.stringify(body) });
+        return send(r.code || 400, r);
       }
       if (rx.method === 'POST' && path === '/inbound') {
         const r = await this.inbound(rx.body, rx.headers['x-chasqui-relay']);

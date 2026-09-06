@@ -17,6 +17,10 @@ CHASQUI_REGISTRATION = "invite"
 CHASQUI_WELCOME = "20000"
 CHASQUI_FEE_BPS = "2000"
 CHASQUI_INDEX = "on"
+# Puente de correo (D3). La ENTRADA se activa enrutando el dominio a este Worker en Cloudflare
+# Email Routing (Email Workers). La SALIDA necesita secrets (write-only): RESEND_KEY y EMAIL_SENDER
+# (un dominio verificado en el proveedor). Sin ellos, la salida queda pendiente y no se envía nada.
+CHASQUI_EMAIL = "off"
 
 [[d1_databases]]
 binding = "DB"
