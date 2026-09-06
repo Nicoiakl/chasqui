@@ -3,7 +3,12 @@ name = "chsq"
 main = "src/plataformas/worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
-routes = [{ pattern = "chsq.uk", custom_domain = true }]
+# nyx5.com es la casa/marca pública (home, spec, app). chsq.uk sigue sirviendo mientras se
+# migra la identidad de las casas (agentes) a nyx5.com en un paso limpio y aparte.
+routes = [
+  { pattern = "chsq.uk", custom_domain = true },
+  { pattern = "nyx5.com", custom_domain = true },
+]
 
 [vars]
 CHASQUI_DOMAIN = "chsq.uk"

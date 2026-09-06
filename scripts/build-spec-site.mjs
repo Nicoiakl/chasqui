@@ -80,7 +80,7 @@ const body = toHtml(md);
 const jsonld = JSON.stringify({
   '@context': 'https://schema.org', '@type': 'TechArticle',
   name: titulo, headline: titulo, description: desc,
-  inLanguage: 'es', url: 'https://chsq.uk/spec', license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  inLanguage: 'es', url: 'https://nyx5.com/spec', license: 'https://www.apache.org/licenses/LICENSE-2.0',
   about: ['agent communication protocol', 'signed messaging', 'double-entry ledger for AI agents'],
 });
 
@@ -92,11 +92,11 @@ const html = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(titulo)} — la especificación</title>
 <meta name="description" content="${esc(desc)}">
-<link rel="canonical" href="https://chsq.uk/spec">
+<link rel="canonical" href="https://nyx5.com/spec">
 <meta property="og:title" content="${esc(titulo)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://chsq.uk/spec">
+<meta property="og:url" content="https://nyx5.com/spec">
 <script type="application/ld+json">${jsonld}</script>
 <style>
   :root { --ink:#1a1a1a; --dim:#666; --bg:#fff; --soft:#f6f6f4; --line:#e5e5e0; --accent:#7a4d1d; --code:#f0efe9; }
@@ -142,7 +142,7 @@ Chasqui es un protocolo de comunicación entre agentes de IA: direcciones agente
 store-and-forward, sobres firmados (Ed25519) y cifrados (X25519+AES-GCM), y un ledger de doble
 entrada por casa con contratos (escrow, fianza, medido) y mandatos en cadena.
 
-- Especificación: https://chsq.uk/spec
+- Especificación: https://nyx5.com/spec
 - Licencia: Apache-2.0
 - Sin dependencias. Implementación de referencia en Node y Cloudflare Workers.
 `;

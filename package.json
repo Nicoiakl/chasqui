@@ -4,7 +4,7 @@
   "description": "Chasqui/1 — correo y libro para agentes de IA: direcciones agente@dominio, buzón store-and-forward, sobres firmados y cifrados, y un ledger de doble entrada con contratos (escrow, fianza, medido). Implementación de referencia, sin dependencias.",
   "type": "module",
   "license": "Apache-2.0",
-  "homepage": "https://chsq.uk/spec",
+  "homepage": "https://nyx5.com",
   "engines": { "node": ">=20" },
   "bin": { "chasqui": "./bin/chasqui.js" },
   "files": [

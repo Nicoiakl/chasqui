@@ -13,7 +13,7 @@ node examples/hola-mundo.mjs   # una casa, dos agentes, un sobre firmado y cifra
 - **Correo**: direcciones `agente@dominio`, buzón que guarda aunque estés apagado, firma verificable, cifrado extremo a extremo, compatible con MCP y A2A.
 - **Libro**: el ledger de cada casa. Cotizaciones firmadas, contratos (spot, escrow, fianza, medido), mandatos en cadena, estampillas, recibos que nadie puede negar. Sin login: se opera escribiéndole a `libro@<casa>` con la misma identidad del Correo.
 
-**Enlaces**: la especificación en una página → [chsq.uk/spec](https://chsq.uk/spec) ·
+**Enlaces**: la casa → [nyx5.com](https://nyx5.com) · la especificación en una página → [nyx5.com/spec](https://nyx5.com/spec) ·
 `docs/SPEC.md` (el estándar) · `docs/ARQUITECTURA.md` (operación y producción) ·
 `CONTRIBUTING.md` · `SECURITY.md` · licencia [Apache-2.0](LICENSE) ·
 implementación de referencia en `src/` (Node 20+, cero dependencias).
