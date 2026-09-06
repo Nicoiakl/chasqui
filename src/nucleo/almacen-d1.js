@@ -165,9 +165,12 @@ export class D1Store {
   }
 
   _traducirConflicto(e) {
-    // Un choque de constraint es concurrencia legítima: transitorio (421/409), no un 500 opaco.
+    // Un choque de constraint es concurrencia legítima, no un rechazo del contenido: se responde
+    // 421 (temporal, en la lista RETRYABLE de la estafeta) para que el correo lo reintente y la
+    // segunda pasada gane o vea el resultado ya cacheado. Con 409 el sobre se rebotaba como
+    // fallo permanente y la operación válida se perdía.
     if (/UNIQUE|PRIMARY KEY|constraint/i.test(String(e?.message))) {
-      return Object.assign(new LibroError(409, `conflicto de concurrencia en el ledger: ${e.message}`), { transient: true });
+      return Object.assign(new LibroError(421, `conflicto de concurrencia en el ledger, reintentable: ${e.message}`), { transient: true });
     }
     return e;
   }

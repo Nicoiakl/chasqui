@@ -1,0 +1,9 @@
+-- Chasqui/1 — candado del ledger.
+-- Toda mutación del Libro (aunque no mueva dinero: revocar, entregar, mandar) consume un número
+-- de asiento. Ese número es PRIMARY KEY, así que dos operaciones que leyeron el mismo estado no
+-- pueden cometer las dos: la segunda choca y falla cerrado. Sin esto, una op sin dinero comete
+-- sin chocar con nadie y pisa lo que otra decidió en paralelo (revocación borrada por un cobro).
+--
+-- No hay cambio de esquema: el mecanismo vive en el código (asientos de control con lines=[]).
+-- Esta migración existe para dejar constancia del contrato y para verificarlo:
+--   un asiento de control es un asiento normal con lines vacío -> sigue sumando cero.

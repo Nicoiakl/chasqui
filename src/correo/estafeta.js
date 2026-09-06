@@ -78,6 +78,10 @@ export class Estafeta {
       pins: await this.store.getPins(),
       fetchImpl: this.fetch,
       onPin: (pins) => this.store.putPins(pins),
+      // Resolución local de la propia casa: sin esto, verificar a un vendedor de casa exige un
+      // fetch del Worker a su propio dominio público, que Cloudflare corta (522) y deja la
+      // operación reintentando para siempre.
+      self: { domain: this.domain, estafeta: this.publicUrl, domainCard: () => this.domainCard(), agentCard: (local) => this.agentCard(local) },
     });
     this.libro = new Libro({ domain: this.domain, store: this.store, keys: this.keys, resolver: this.resolver, log: this.log, ...this.libroOpts });
     await this._ensureSystemAgents();

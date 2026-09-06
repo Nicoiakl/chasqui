@@ -138,6 +138,17 @@ export class FileStore {
   // y el PK de la op (id de sobre) hacen fallar cerrado la concurrencia y la reentrega.
   // bundle = { state, asientos: [], contracts: [], mandates: [], op: { id, result } | null }
   libroCommit(bundle) {
+    // Mismo candado que D1: si otra operación cometió desde que ésta leyó el estado, el número de
+    // asiento ya está tomado y esto falla cerrado en vez de pisar. Sin esto, FileStore sería más
+    // permisivo que producción y un defecto de concurrencia no se vería en las pruebas locales.
+    if (bundle.base) {
+      const actual = this.libroState();
+      if (actual.seq !== bundle.base.seq) {
+        const e = new Error(`conflicto de concurrencia en el ledger: el estado cambió (seq ${bundle.base.seq} -> ${actual.seq})`);
+        e.code = 421; e.transient = true;
+        throw e;
+      }
+    }
     for (const a of bundle.asientos || []) this.libroAppend(a);
     if (bundle.state) this.libroPutState(bundle.state);
     for (const c of bundle.contracts || []) this.libroPutContract(c);

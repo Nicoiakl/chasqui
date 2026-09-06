@@ -27,13 +27,17 @@ export function parseTxtRecord(txt) {
 }
 
 export class Resolver {
-  constructor({ hosts = {}, fetchImpl = globalThis.fetch, cacheTtlMs = 5 * 60 * 1000, pins = {}, timeoutMs = 5000, onPin = null } = {}) {
+  constructor({ hosts = {}, fetchImpl = globalThis.fetch, cacheTtlMs = 5 * 60 * 1000, pins = {}, timeoutMs = 5000, onPin = null, self = null } = {}) {
     this.hosts = { ...hosts };          // { "beta.local": { url: "http://localhost:4002", sig?: "<pub>" } }
     this.fetch = (...a) => fetchImpl(...a); // envuelto: workerd exige fetch con this=globalThis
     this.cacheTtlMs = cacheTtlMs;
     this.pins = { ...pins };            // dominio -> clave pública pineada (TOFU o DNS)
     this.timeoutMs = timeoutMs;
     this.onPin = onPin;                 // callback(pins) para PERSISTIR un pin nuevo: un pin solo en memoria no protege entre procesos/isolates
+    // La propia casa se sirve sin red: un Worker no puede pedirse su propia URL pública
+    // (Cloudflare corta la conexión: 522) y en cualquier runtime sería una vuelta inútil.
+    // self = { domain, estafeta, domainCard(), agentCard(local) }
+    this.self = self;
     this.cache = new Map();
   }
 
@@ -77,6 +81,10 @@ export class Resolver {
   // Tarjeta del dominio, verificada y (si corresponde) contrastada con la clave anclada.
   async domainCard(domain) {
     domain = domain.toLowerCase();
+    if (this.self && domain === this.self.domain) {
+      const card = await this.self.domainCard();
+      return { ...card, _estafeta: this.self.estafeta, _source: 'local' };
+    }
     const cached = this._cached(`domain:${domain}`);
     if (cached) return cached;
 
@@ -103,12 +111,28 @@ export class Resolver {
   // Tarjeta del agente, certificada por la clave del dominio.
   async agentCard(address) {
     const { local, domain } = parseAddress(address);
+    // La propia casa sirve la tarjeta sin red, pero pasa por la MISMA verificación que una ajena:
+    // venir de casa no la exime de estar certificada por el dominio y firmada por su padre.
+    if (this.self && domain === this.self.domain) {
+      const card = await this.self.agentCard(local);
+      if (!card) throw Object.assign(new Error(`agente inexistente: ${address}`), { permanent: true });
+      const dc = await this.domainCard(domain);
+      return this._verifyAgentCard(card, dc, address, local, domain);
+    }
     const key = `agent:${local}@${domain}`;
     const cached = this._cached(key);
     if (cached) return cached;
 
     const dc = await this.domainCard(domain);
     const card = await this._get(`${dc._estafeta}/agents/${encodeURIComponent(local)}`);
+    const value = await this._verifyAgentCard(card, dc, address, local, domain);
+    this._remember(key, value);
+    return value;
+  }
+
+  // La verificación de una tarjeta de agente, en un solo lugar: certificación del dominio,
+  // vigencia y cadena de delegación. La usan el camino local y el remoto por igual.
+  async _verifyAgentCard(card, dc, address, local, domain) {
     if (card.chasqui !== '1' || card.address !== `${local}@${domain}`) throw Object.assign(new Error(`tarjeta de agente inválida: ${address}`), { permanent: true });
     const domainKeys = dc.keys.map((k) => k.sig);
     if (!domainKeys.includes(card.certification?.kid) || !verifyObject(card, card.certification.kid, 'certification')) {
@@ -122,12 +146,9 @@ export class Resolver {
       if (parentDomain !== domain || !local.endsWith(`.${parentLocal}`) || d.address !== card.address || d.sig !== card.sig) throw Object.assign(new Error(`delegación inconsistente en ${address}`), { permanent: true });
       const parent = await this.agentCard(d.by);
       if (!Resolver.acceptedKids(parent).includes(d.signature?.kid) || !verifyObject(d, d.signature.kid)) throw Object.assign(new Error(`delegación no firmada por ${d.by}`), { permanent: true });
-      card.delegation = { ...d, _parent: parent };
+      card = { ...card, delegation: { ...d, _parent: parent } };
     }
-
-    const value = { ...card, _estafeta: dc._estafeta, _domain: dc };
-    this._remember(key, value);
-    return value;
+    return { ...card, _estafeta: dc._estafeta, _domain: dc };
   }
 
   // Claves aceptables de una tarjeta: la vigente más las anteriores dentro del período de gracia.

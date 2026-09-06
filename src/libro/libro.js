@@ -56,15 +56,36 @@ export class Libro {
   get feePct() { return this.feeBps / 10_000; } // compat de lectura (tarjeta de libro@)
 
   // ---------- transacción ----------
-  _begin() { this.tx = { state: null, asientos: [], contracts: new Map(), mandates: new Map(), op: null }; }
+  // El estado se lee UNA vez al abrir y no se vuelve a leer: si otra operación comete mientras
+  // esta decide, el número de asiento que ésta reservó ya estará tomado y su commit falla cerrado.
+  // Releer aquí sería el bug: dos cobros que leyeron el mismo mandato tomarían números distintos
+  // y ambos entrarían, superando el tope.
+  async _begin(concepto = 'control', refs = {}) {
+    const base = await this.store.libroState();
+    this.tx = { base, state: null, asientos: [], contracts: new Map(), mandates: new Map(), op: null, concepto, refs };
+  }
   _bundle() {
     const t = this.tx;
-    return { state: t.state, asientos: t.asientos, contracts: [...t.contracts.values()], mandates: [...t.mandates.values()], op: t.op };
+    return { state: t.state, base: t.base, asientos: t.asientos, contracts: [...t.contracts.values()], mandates: [...t.mandates.values()], op: t.op };
   }
-  async _commit() { const b = this._bundle(); this.tx = null; await this.store.libroCommit(b); return b; }
+  async _commit() {
+    const t = this.tx;
+    // Una operación que muta el Libro sin mover dinero (revocar, entregar, sub-delegar) también
+    // consume su número de asiento: es la única forma de que choque con quien corre en paralelo.
+    // El asiento de control tiene lines vacío, así que sigue cuadrando en cero y queda auditable.
+    if (!t.asientos.length && (t.contracts.size || t.mandates.size)) {
+      const st = t.state ?? t.base;
+      t.asientos.push(signObject({ id: uuid(), n: st.seq + 1, at: iso(), house: this.domain, concept: t.concepto, lines: [], meta: { kind: 'control' }, refs: t.refs }, this.keys));
+      t.state = { seq: st.seq + 1, balances: st.balances };
+    }
+    const b = this._bundle();
+    this.tx = null;
+    await this.store.libroCommit(b);
+    return b;
+  }
   _abort() { this.tx = null; }
   // Lecturas que ven las escrituras pendientes de la propia transacción:
-  async _state() { return this.tx?.state ?? await this.store.libroState(); }
+  async _state() { return this.tx ? (this.tx.state ?? this.tx.base) : await this.store.libroState(); }
   async getContract(id) { return this.tx?.contracts.get(id) ?? await this.store.libroGetContract(id); }
   putContract(c) { if (!this.tx) throw new LibroError(500, 'putContract fuera de transacción'); this.tx.contracts.set(c.id, c); }
   async getMandate(id) { return this.tx?.mandates.get(id) ?? await this.store.libroGetMandate(id); }
@@ -98,8 +119,8 @@ export class Libro {
       this.tx.asientos.push(asiento);
       this.tx.state = { seq: state.seq + 1, balances: next };
     } else {
-      // asiento suelto (topup administrativo): transacción propia
-      await this.store.libroCommit({ state: { seq: state.seq + 1, balances: next }, asientos: [asiento], contracts: [], mandates: [], op: null });
+      // asiento suelto (topup administrativo): transacción propia, con el mismo candado
+      await this.store.libroCommit({ base: state, state: { seq: state.seq + 1, balances: next }, asientos: [asiento], contracts: [], mandates: [], op: null });
     }
     return asiento;
   }
@@ -169,7 +190,7 @@ export class Libro {
     if (!op) return { ok: false, code: 400, reason: `operación desconocida: ${body.op}. Válidas: ${Object.keys(CONTRATOS.ops).join(', ')}` };
     const ctx = { libro: this, env, from: env.from, body, senderCard, opHash: sha256hex(canonical(env)), scope: senderCard?.delegation?.scope || null };
     return this._serial(async () => {
-      this._begin();
+      await this._begin(`op ${body.op}`, { op: env.id, op_sha256: ctx.opHash });
       let result;
       try { result = await op(ctx); }
       catch (e) {
@@ -197,7 +218,7 @@ export class Libro {
     const s = env.stamp;
     if (!s || s.house !== this.domain || !Number.isInteger(s.amount) || s.amount < price) throw new LibroError(402, `este buzón exige estampilla de ${price} tok en la casa ${this.domain} (campo stamp: {house, amount})`);
     return this._serial(async () => {
-    this._begin();
+    await this._begin('estampilla', { envelope: env.id });
     try {
       const asiento = await this.transfer(env.from, recipient, s.amount, `estampilla ${env.from} -> ${recipient}`, { kind: 'stamp' }, { envelope: env.id, envelope_sha256: sha256hex(canonical(env)) });
       const bundle = this._bundle();
