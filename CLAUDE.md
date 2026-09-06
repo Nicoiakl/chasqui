@@ -31,17 +31,18 @@ src/nucleo/almacen-d1.js D1Store: la misma interfaz sobre Cloudflare D1; atomici
 src/nucleo/d1-local.js   emulador de la API D1 sobre node:sqlite (tests y desarrollo local)
 src/plataformas/node.js  adaptador node:http (start() lo usa)
 src/plataformas/worker.js adaptador Cloudflare Workers (fetch + scheduled); config por env
-migrations/0002_chasqui.sql  esquema D1 (los invariantes viven en constraints)
+migrations/000{2,3,4}*.sql   esquema D1, candado del ledger y pins por fila
 bin/chasqui.js           CLI
 demo/                    e2e, offline, spam (correo) · contratos (libro)
-test/                    correo (9) · libro (11) · registro (6) · invariantes+D1 (13) · indice (4) -> `npm test` (43)
+test/                    correo (9) · libro (11) · registro (6) · invariantes+D1 (13) · indice (5) · concurrencia (5) · altos (9) -> `npm test` (58)
+test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
 
 ## Comandos
 
 ```
-npm test                 # 26 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 58 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -81,4 +82,13 @@ Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no 
 Fase 2 DESPLEGADA (2026-09-05): dos casas en producción sobre Cloudflare Workers + D1 —
 https://chasqui.sigo.uk (índice federado activo, registro por invitación, welcome 20.000, fee 20%)
 y https://chasqui-beta.sigo.uk. E2E federado verificado. Ver docs/ARQUITECTURA.md §3.
-Pendiente: ancla DNS TXT (decisión de Nicholas), fase 3 (SMTP, retención, métricas, dinero real).
+Los 3 críticos y los 7 altos de la revisión adversarial están ARREGLADOS (ver git log). Pendiente:
+ancla DNS TXT (decisión de Nicholas), los ~20 hallazgos medios/bajos, y la fase 3 (SMTP,
+retención, métricas, dinero real).
+
+**Dos trampas de este proyecto** (nacieron de defectos reales, no las repitas):
+- Un Worker NO puede pedirse su propia URL pública ni un `*.workers.dev` (522 / 1042). Todo lo
+  propio se resuelve local: ver `resolver.self` y el `propia` de `_indexCrawlHouse`.
+- Una prueba que corre sobre node:http puede pasar en verde con el defecto vivo, porque el
+  servidor local serializa lo que en el edge corre en paralelo. Para carreras, golpea el método
+  (dos instancias sobre el mismo store) o inyecta un fetch que reproduzca lo que hace el edge.
