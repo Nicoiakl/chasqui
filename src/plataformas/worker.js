@@ -51,6 +51,7 @@ export default {
       ip: request.headers.get('cf-connecting-ip') || null,
     };
     const out = await estafeta.handleRequest(rx);
+    if (out.pending) ctx.waitUntil(out.pending);
     if (out.kick) ctx.waitUntil(estafeta.tick().catch((e) => console.log('tick error', e.message)));
     return Response.json(out.body, { status: out.status });
   },

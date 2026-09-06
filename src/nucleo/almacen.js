@@ -38,12 +38,25 @@ export class FileStore {
   // --- agentes ---
   getAgent(local) { return readJson(path.join(this.dir, 'agents', `${local}.json`)); }
   putAgent(local, v) { writeJson(path.join(this.dir, 'agents', `${local}.json`), v); }
+  putAgentIfAbsent(local, v) {
+    if (this.getAgent(local)) return false;
+    this.putAgent(local, v);
+    return true;
+  }
   listAgents() { return fs.readdirSync(path.join(this.dir, 'agents')).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)); }
 
   // --- invitaciones de registro ---
   getInvite(code) { return readJson(path.join(this.dir, 'invitations', `${code}.json`)); }
   putInvite(inv) { writeJson(path.join(this.dir, 'invitations', `${inv.code}.json`), inv); }
   listInvites() { const d = path.join(this.dir, 'invitations'); return fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => readJson(path.join(d, f))); }
+  // Consumo de un uso, condicional: misma semántica que el UPDATE atómico de D1.
+  consumeInvite(code, atIso) {
+    const inv = this.getInvite(code);
+    if (!inv || inv.used >= inv.uses) return null;
+    inv.used += 1; inv.last_used = atIso;
+    this.putInvite(inv);
+    return inv;
+  }
 
   // --- deduplicación de sobres recibidos ---
   getSeen(id) { return readJson(path.join(this.dir, 'seen', `${id}.json`)); }
@@ -110,7 +123,15 @@ export class FileStore {
 
   // --- pins de claves de dominios ajenos (TOFU) ---
   getPins() { return readJson(path.join(this.dir, 'pins.json'), {}); }
-  putPins(v) { writeJson(path.join(this.dir, 'pins.json'), v); }
+  // TOFU: el primer pin de un dominio manda; putPins agrega, nunca borra lo que otro aprendió.
+  putPin(domain, kid) {
+    const pins = this.getPins();
+    if (pins[domain]) return false;
+    pins[domain] = kid;
+    writeJson(path.join(this.dir, 'pins.json'), pins);
+    return true;
+  }
+  putPins(v) { for (const [d, k] of Object.entries(v || {})) this.putPin(d, k); }
 
   // ===== Libro (ledger de doble entrada) =====
   // saldos.json = { seq: <último asiento>, balances: { cuenta: saldo } }

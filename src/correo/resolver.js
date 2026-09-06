@@ -100,7 +100,9 @@ export class Resolver {
     if (anchor && !keyIds.includes(anchor)) throw Object.assign(new Error(`la clave del dominio ${domain} no coincide con la anclada`), { permanent: true });
     if (!anchor) {
       this.pins[domain] = card.signature.kid;
-      try { await this.onPin?.({ ...this.pins }); } catch { /* persistir el pin es mejor-esfuerzo; el pin en memoria ya rige */ }
+      // Se persiste ESE pin, no el mapa entero: escribir el mapa desde la memoria de un proceso
+      // borraba los pines que otro había aprendido.
+      try { await this.onPin?.(domain, card.signature.kid); } catch { /* mejor-esfuerzo; el pin en memoria ya rige */ }
     }
 
     const value = { ...card, _estafeta: loc.url.replace(/\/$/, ''), _source: loc.source };

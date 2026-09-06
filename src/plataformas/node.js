@@ -28,6 +28,7 @@ export async function startNodeServer(estafeta, { port, host }) {
       };
       const out = await estafeta.handleRequest(rx);
       send(out.status, out.body);
+      if (out.pending) out.pending.catch(() => {});
       if (out.kick) setImmediate(() => estafeta.tick().catch((e) => estafeta.log('tick error', e.message)));
     } catch (e) {
       send(Number.isInteger(e.status) ? e.status : 500, { reason: e.message });

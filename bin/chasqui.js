@@ -152,7 +152,7 @@ try {
     case 'balance': print(await (await loadAgent()).balance(o.house)); break;
     case 'quote': {
       const a = await loadAgent();
-      const r = await a.quote({ to: need('to'), contract: o.contract || 'spot', price: Number(need('price')), concept: need('concept'), terms: o.terms ? JSON.parse(o.terms) : undefined, house: o.house });
+      const r = await a.quote({ to: need('to'), contract: o.contract || 'spot', price: Number(need('price')), concept: need('concept'), terms: o.terms ? JSON.parse(o.terms) : undefined, arbiter: o.arbiter, expires: o.expires, house: o.house });
       print({ sent: r.id, quote: r.quote }); break;
     }
     case 'accept': {

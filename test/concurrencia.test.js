@@ -14,9 +14,8 @@ import { D1Store } from '../src/nucleo/almacen-d1.js';
 import { openLocalD1 } from '../src/nucleo/d1-local.js';
 import { FileStore } from '../src/nucleo/almacen.js';
 import { generateKeys, signObject, uuid } from '../src/nucleo/crypto.js';
+import { MIGRACIONES } from './_migraciones.js';
 
-const MIGRACIONES = ['../migrations/0002_chasqui.sql', '../migrations/0003_candado.sql']
-  .map((f) => fs.readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
 const d1store = () => { const db = openLocalD1(); db._raw.exec(MIGRACIONES); return new D1Store(db); };
 
 // Un sobre de operación del Libro, firmado por quien opera.

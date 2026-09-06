@@ -63,6 +63,7 @@ export class Estafeta {
     this.regRate = new RateLimiter({ perMinute: this.policy.registrations_per_minute });
     this._ready = null;
     this._domainCardCache = null; // { value, until }
+    this._pushes = [];            // avisos por webhook en vuelo (los espera flushPushes)
     this._lastCrawl = 0;
   }
 
@@ -77,7 +78,7 @@ export class Estafeta {
       hosts: { [this.domain]: { url: this.publicUrl }, ...this.hostsOverride },
       pins: await this.store.getPins(),
       fetchImpl: this.fetch,
-      onPin: (pins) => this.store.putPins(pins),
+      onPin: (domain, kid) => this.store.putPin(domain, kid),
       // Resolución local de la propia casa: sin esto, verificar a un vendedor de casa exige un
       // fetch del Worker a su propio dominio público, que Cloudflare corta (522) y deja la
       // operación reintentando para siempre.
@@ -116,14 +117,15 @@ export class Estafeta {
     await this.store.putInvite(inv);
     return inv;
   }
+  // El consumo es atómico: leer-comprobar-escribir dejaba que un solo código de un uso sirviera
+  // N veces en paralelo, multiplicando el regalo de bienvenida (emisión no autorizada).
   async _consumeInvite(code) {
     const inv = code && await this.store.getInvite(String(code));
     if (!inv) throw Object.assign(new Error('invitación inexistente'), { status: 403 });
     if (inv.expires && Date.parse(inv.expires) < now()) throw Object.assign(new Error('invitación vencida'), { status: 403 });
-    if (inv.used >= inv.uses) throw Object.assign(new Error('invitación agotada'), { status: 403 });
-    inv.used += 1; inv.last_used = iso();
-    await this.store.putInvite(inv);
-    return inv;
+    const usada = await this.store.consumeInvite(String(code), iso());
+    if (!usada) throw Object.assign(new Error('invitación agotada'), { status: 403 });
+    return usada;
   }
   // Directorio público de la casa: tarjetas sin datos privados, con filtros por capacidad.
   async directory({ capability, accepts, q, limit = 50, offset = 0 } = {}) {
@@ -166,7 +168,23 @@ export class Estafeta {
       const parent = await this.store.getAgent(parentLocal);
       if (!parent) throw Object.assign(new Error('agente padre inexistente'), { status: 404 });
       if (delegation.address !== address || delegation.sig !== sig || !verifyObject(delegation, parent.sig)) throw Object.assign(new Error('delegación inválida: debe estar firmada por el padre y coincidir con la tarjeta'), { status: 403 });
-      if (parent.delegation?.scope?.cap != null && delegation.scope?.cap != null && delegation.scope.cap > parent.delegation.scope.cap) throw Object.assign(new Error('el delegado no puede tener más tope que su padre'), { status: 403 });
+      // Un delegado nunca tiene más ámbito que su padre (invariante 6). Lo que el hijo no declara
+      // lo HEREDA: declarar menos no puede ser una forma de escapar del tope de la cadena.
+      const ps = parent.delegation?.scope;
+      if (ps) {
+        const hs = delegation.scope || {};
+        if (ps.cap != null && (hs.cap == null || hs.cap > ps.cap)) {
+          if (hs.cap != null) throw Object.assign(new Error(`el delegado no puede tener más tope que su padre (${ps.cap})`), { status: 403 });
+          hs.cap = ps.cap; // sin tope declarado: hereda el del padre
+        }
+        for (const campo of ['types', 'to_domains']) {
+          if (ps[campo]?.length) {
+            if (!hs[campo]?.length) hs[campo] = [...ps[campo]];
+            else if (!hs[campo].every((x) => ps[campo].includes(x))) throw Object.assign(new Error(`el delegado no puede ampliar ${campo} respecto de su padre`), { status: 403 });
+          }
+        }
+        delegation = { ...delegation, scope: hs };
+      }
       valid_until = valid_until || delegation.valid_until || null;
     }
     const prev = await this.store.getAgent(local);
@@ -179,12 +197,29 @@ export class Estafeta {
       valid_from: iso(), valid_until, previous: previous.slice(0, 3),
       delegation: delegation || undefined,
     }, this.keys, 'certification');
-    await this.store.putAgent(local, { ...card, webhook });
+    // Alta atómica cuando el nombre es nuevo: dos altas concurrentes del mismo nombre no pueden
+    // pisarse la clave (el perdedor cree tener el nombre y su correo iría al otro), ni cobrar el
+    // regalo de bienvenida dos veces por la misma dirección.
+    let creado = true;
+    if (!prev) {
+      creado = await (this.store.putAgentIfAbsent
+        ? this.store.putAgentIfAbsent(local, { ...card, webhook })
+        : (this.store.putAgent(local, { ...card, webhook }), true));
+      if (!creado) throw Object.assign(new Error('ese nombre acaba de ser tomado; solo su dueño o la casa pueden actualizarlo'), { status: 409 });
+    } else {
+      await this.store.putAgent(local, { ...card, webhook });
+    }
     const gift = welcome ?? this.libro.welcome;
-    if (!prev && !this.isSystem(local) && !delegation && gift > 0) await this.libro.topup(address, gift, 'regalo de bienvenida', { agent: address });
+    if (creado && !prev && !this.isSystem(local) && !delegation && gift > 0) await this.libro.topup(address, gift, 'regalo de bienvenida', { agent: address });
     return card;
   }
+  // El nombre local viaja como clave al almacenamiento: se valida SIEMPRE aquí, no se confía en
+  // que el store lo sanee. Sin esto, `GET /agents/..%2Fdomain` leía el archivo del dominio y
+  // devolvía la clave PRIVADA de la casa (compromiso total).
+  static LOCAL = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+  static validLocal(local) { return typeof local === 'string' && Estafeta.LOCAL.test(local); }
   async agentCard(local) {
+    if (!Estafeta.validLocal(local)) return null;
     const rec = await this.store.getAgent(local);
     if (!rec) return null;
     const { webhook, ...card } = rec;
@@ -253,6 +288,7 @@ export class Estafeta {
     for (const job of due) await this._deliver(job);
     await this.store.pruneNonces?.(now() - 600_000);
     if (this.index.enabled) await this._indexCrawlIfDue();
+    await this.flushPushes();
   }
   async _deliver(job) {
     job.attempts += 1;
@@ -430,14 +466,20 @@ export class Estafeta {
     return { ok: true, code: 202, accepted: union, rejected, results, ...(seen ? { duplicate: true } : {}) };
   }
 
+  // Los avisos por webhook se acumulan para que el ciclo (y ctx.waitUntil en el edge) los espere:
+  // una promesa suelta la cancela el runtime al cerrar el request y el aviso nunca sale.
   _push(local, env) {
-    Promise.resolve(this.store.getAgent(local)).then((rec) => {
+    const pendiente = Promise.resolve(this.store.getAgent(local)).then((rec) => {
       if (!rec?.webhook) return;
       const body = JSON.stringify({ envelope: env });
       const sig = signBytes(`push:${env.id}`, this.keys);
       return this.fetch(rec.webhook, { method: 'POST', headers: { 'content-type': 'application/json', 'x-chasqui-push': `domain=${this.domain}; kid=${this.keys.sig}; sig=${sig}` }, body, signal: AbortSignal.timeout(5000) });
-    }).catch((e) => this.log(`webhook ${local} falló: ${e.message}`));
+    }).catch((e) => this.log(`webhook ${local} falló: ${e.message} / ${e.cause?.message}`));
+    this._pushes.push(pendiente);
+    return pendiente;
   }
+  // Espera los avisos en vuelo y vacía la lista.
+  flushPushes() { const p = this._pushes; this._pushes = []; return Promise.allSettled(p); }
 
   // ---------- índice federado (opcional) ----------
   // Cualquier casa puede correr un índice: registra casas verificables, rastrea sus directorios
@@ -519,6 +561,7 @@ export class Estafeta {
       if (rx.method === 'POST' && path === '/agents') {
         const body = rx.body || {};
         const local = String(body.local || '').toLowerCase();
+        if (!Estafeta.validLocal(local)) return send(400, { reason: 'nombre de agente inválido' });
         const exists = !!(await this.store.getAgent(local));
         const isAdmin = (rx.headers.authorization || '') === `Bearer ${this.adminToken}`;
         let ok = isAdmin, via = 'admin';
@@ -558,7 +601,9 @@ export class Estafeta {
       }
       if (rx.method === 'POST' && path === '/inbound') {
         const r = await this.inbound(rx.body, rx.headers['x-chasqui-relay']);
-        return { ...send(r.code || 400, r), kick: true };
+        // pending: los avisos por webhook que nacieron aquí. El adaptador los pasa a waitUntil;
+        // sin eso el runtime cancela el fetch al cerrar la respuesta y el aviso nunca sale.
+        return { ...send(r.code || 400, r), kick: true, pending: this.flushPushes() };
       }
       if (rx.method === 'GET' && (m = /^\/mailbox\/([^/]+)$/.exec(path))) {
         const who = await this._authenticate(rx, path);

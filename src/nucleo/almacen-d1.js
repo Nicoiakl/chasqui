@@ -27,12 +27,28 @@ export class D1Store {
   // --- agentes ---
   async getAgent(local) { return p(await this.db.prepare('SELECT doc FROM chasqui_agents WHERE local = ?').bind(local).first()); }
   async putAgent(local, v) { await this.db.prepare('INSERT INTO chasqui_agents (local, doc, updated) VALUES (?, ?, ?) ON CONFLICT(local) DO UPDATE SET doc = excluded.doc, updated = excluded.updated').bind(local, j(v), iso()).run(); }
+  // Alta atómica: true si este llamador creó el nombre. Dos altas concurrentes del mismo nombre
+  // ya no se pisan la clave (ni duplican el regalo de bienvenida).
+  async putAgentIfAbsent(local, v) {
+    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_agents (local, doc, updated) VALUES (?, ?, ?)').bind(local, j(v), iso()).run();
+    return r.meta.changes === 1;
+  }
   async listAgents() { return (await this.db.prepare('SELECT local FROM chasqui_agents ORDER BY local').all()).results.map((r) => r.local); }
 
   // --- invitaciones ---
   async getInvite(code) { return p(await this.db.prepare('SELECT doc FROM chasqui_invitations WHERE code = ?').bind(code).first()); }
   async putInvite(inv) { await this.db.prepare('INSERT INTO chasqui_invitations (code, doc) VALUES (?, ?) ON CONFLICT(code) DO UPDATE SET doc = excluded.doc').bind(inv.code, j(inv)).run(); }
   async listInvites() { return (await this.db.prepare('SELECT doc FROM chasqui_invitations').all()).results.map((r) => JSON.parse(r.doc)); }
+  // Consumo atómico de un uso: la condición viaja EN el UPDATE, así que diez canjes en paralelo
+  // de una invitación de un uso dejan pasar exactamente uno.
+  async consumeInvite(code, atIso) {
+    const r = await this.db.prepare(`
+      UPDATE chasqui_invitations
+      SET doc = json_set(json_set(doc, '$.used', json_extract(doc, '$.used') + 1), '$.last_used', ?)
+      WHERE code = ? AND json_extract(doc, '$.used') < json_extract(doc, '$.uses')`).bind(atIso, code).run();
+    if (r.meta.changes !== 1) return null;
+    return this.getInvite(code);
+  }
 
   // --- deduplicación ---
   async getSeen(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_seen WHERE id = ?').bind(id).first()); }
@@ -92,9 +108,17 @@ export class D1Store {
   }
   async pruneNonces(beforeMs) { await this.db.prepare('DELETE FROM chasqui_nonces WHERE ts < ?').bind(beforeMs).run(); }
 
-  // --- pins ---
-  async getPins() { return p(await this.db.prepare('SELECT doc FROM chasqui_pins WHERE id = 1').first()) || {}; }
-  async putPins(v) { await this.db.prepare('INSERT INTO chasqui_pins (id, doc) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(j(v)).run(); }
+  // --- pins (una fila por dominio: el primero gana y ningún isolate pisa lo que otro aprendió) ---
+  async getPins() {
+    const r = await this.db.prepare('SELECT domain, kid FROM chasqui_pin').all();
+    return Object.fromEntries(r.results.map((x) => [x.domain, x.kid]));
+  }
+  async putPin(domain, kid) {
+    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_pin (domain, kid, at) VALUES (?, ?, ?)').bind(domain, kid, iso()).run();
+    return r.meta.changes === 1;
+  }
+  // Compat: recibe el mapa completo pero NUNCA borra; cada pin se agrega si no existía.
+  async putPins(v) { for (const [d, k] of Object.entries(v || {})) await this.putPin(d, k); }
 
   // ===== Libro =====
   async libroState() {

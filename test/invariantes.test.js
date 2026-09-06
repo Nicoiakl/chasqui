@@ -12,6 +12,7 @@ import { Libro } from '../src/libro/libro.js';
 import { D1Store } from '../src/nucleo/almacen-d1.js';
 import { openLocalD1 } from '../src/nucleo/d1-local.js';
 import { generateKeys, signObject, uuid, canonical, verifyObject } from '../src/nucleo/crypto.js';
+import { MIGRACIONES } from './_migraciones.js';
 
 const P1 = 4131, P2 = 4132, P3 = 4133;
 const hosts = {
@@ -19,8 +20,7 @@ const hosts = {
   'delta.test': { url: `http://127.0.0.1:${P2}` },
   'sellada.test': { url: `http://127.0.0.1:${P3}` },
 };
-const MIGRACION = fs.readFileSync(new URL('../migrations/0002_chasqui.sql', import.meta.url), 'utf8');
-const d1store = () => { const db = openLocalD1(); db._raw.exec(MIGRACION); return new D1Store(db); };
+const d1store = () => { const db = openLocalD1(); db._raw.exec(MIGRACIONES); return new D1Store(db); };
 
 let tmp, gamma, delta, sellada, nico, ayudante;
 const env = (from, to, keys, extra = {}) => signObject({ chasqui: '1', id: uuid(), from, to: Array.isArray(to) ? to : [to], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'x' }, ...extra }, keys);
@@ -194,7 +194,7 @@ test('si la estafeta no confirma la rotación, el agente sigue firmando con las 
 
 // ---------- concurrencia real sobre D1: dos casas (isolates) contra la misma base ----------
 test('D1 · dos instancias sobre la MISMA base no pueden descuadrar el ledger: la segunda falla cerrado', async () => {
-  const db = openLocalD1(); db._raw.exec(MIGRACION);
+  const db = openLocalD1(); db._raw.exec(MIGRACIONES);
   const store = new D1Store(db);
   const keys = generateKeys();
   const mkLibro = () => new Libro({ domain: 'iso.test', store, keys, resolver: null, feeBps: 0 });
