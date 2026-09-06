@@ -322,10 +322,13 @@ Una cotización es un **documento firmado por el vendedor**, independiente del s
 { "tipo": "cotizacion", "id": "uuid", "house": "sigo.uk", "seller": "verifica@sigo.uk", "buyer": "nicolas@sigo.uk",
   "contract": "spot | escrow | metered", "price": 40, "currency": "tok", "concept": "verificación de despliegue",
   "terms": { "acceptance": "lighthouse >= 90", "deadline": "2026-09-15" }, "arbiter": null,
+  "referrer": { "address": "socio@otra.casa", "share": 1500 },
   "issued": "...", "expires": null, "signature": { "alg": "Ed25519", "kid": "<sig del vendedor>", "value": "..." } }
 ```
 
 Viaja al comprador dentro de un sobre con `media: application/chasqui.cotizacion+json`, cifrado. La casa la ve recién cuando el comprador la acepta. El Libro verifica: firma del vendedor (vía resolver), `buyer` igual al que acepta, `house` igual a la propia, vigencia, y que no haya sido aceptada antes (409).
+
+**Comisión de referido** (`referrer`, opcional): el vendedor firma en la cotización que le paga `share` (en basis points) a quien trajo el trato. La comisión **sale de lo que recibe el vendedor**, no se suma al precio: el comprador paga igual y la casa cobra igual. Al liquidar (el `transfer` del spot o el `release` del escrow), el asiento pasa a cuatro líneas —comprador, vendedor, casa, referidor— y sigue sumando cero. El Libro exige `share` entero y `> 0`, que `fee + share ≤ 10000` bps (el vendedor nunca queda en negativo), y que el referidor no sea el propio vendedor. La distribución se paga sola: nadie la factura aparte, se asienta en el mismo movimiento.
 
 ## 16. Operaciones
 

@@ -47,7 +47,7 @@ const ops = {
     const kind = CONTRATOS[q.contract];
     const c = {
       id: uuid(), kind: q.contract, house: libro.domain, seller: q.seller, buyer: from, amount: q.price,
-      concept: q.concept, terms: q.terms || {}, arbiter: q.arbiter || null,
+      concept: q.concept, terms: q.terms || {}, arbiter: q.arbiter || null, referrer: q.referrer || null,
       quote_id: q.id, quote_sha256: sha256hex(canonical(q)), accept_sha256: ctx.opHash,
       state: 'accepted', created: iso(), history: [],
     };
@@ -86,7 +86,7 @@ const ops = {
     if (c.kind === 'escrow') {
       must([c.buyer, c.arbiter].includes(from), 403, 'solo el comprador o el árbitro liberan el escrow');
       must(['held', 'delivered'].includes(c.state), 409, `estado ${c.state}`);
-      asiento = await libro.release(c.id, c.seller, c.amount, `liberación escrow ${c.id}: ${c.concept}`, { contract: c.id }, { op: ctx.env.id, op_sha256: ctx.opHash });
+      asiento = await libro.release(c.id, c.seller, c.amount, `liberación escrow ${c.id}: ${c.concept}`, { contract: c.id }, { op: ctx.env.id, op_sha256: ctx.opHash }, c.referrer);
       c.state = 'released';
     } else if (c.kind === 'bond') {
       const expired = c.expires && Date.parse(c.expires) < Date.now();
@@ -223,7 +223,7 @@ export const CONTRATOS = {
   // Spot: cotizar -> cobrar. Comprar un dato, un informe, una verificación.
   spot: { quoteable: true, async onAccept({ libro, c, refs }) {
     c.state = 'settled';
-    return { asiento: await libro.transfer(c.buyer, c.seller, c.amount, `spot ${c.id}: ${c.concept}`, { contract: c.id }, refs) };
+    return { asiento: await libro.transfer(c.buyer, c.seller, c.amount, `spot ${c.id}: ${c.concept}`, { contract: c.id }, refs, c.referrer) };
   } },
   // Escrow: retener al encargar -> liberar si la prueba pasa, devolver si falla. La cajita con dientes.
   escrow: { quoteable: true, async onAccept({ libro, c, refs }) {

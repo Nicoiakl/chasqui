@@ -198,3 +198,31 @@ test('lecturas directas: cuenta y contrato solo para las partes', async () => {
   const remote = await foraneo.balance(H);
   assert.equal(remote.account, foraneo.address);
 });
+
+test('D5 · comisión de referido: el asiento pasa a 4 líneas, cuadra en cero, y la paga el vendedor', async () => {
+  // vendedor cotiza a nicolas 200 con 15% (1500 bps) para verifica, que trajo el trato. Fee de la casa 10%.
+  const q = await vendedor.quote({ to: nicolas.address, house: H, contract: 'spot', price: 200,
+    concept: 'dato con referido', referrer: { address: verifica.address, share: 1500 } });
+  const cot = await receiveQuote(nicolas, q);
+  const acc = await nicolas.accept(cot);
+  const { asiento } = (await nicolas.awaitReceipt(acc.id)).receipt;
+  const linea = (a) => asiento.lines.find((l) => l.account === a)?.delta ?? 0;
+  // comprador -200 · casa +20 (10%) · referidor +30 (15%) · vendedor +150 (200-20-30). El comprador paga igual.
+  assert.equal(linea(nicolas.address), -200);
+  assert.equal(linea(`casa@${H}`), 20);
+  assert.equal(linea(verifica.address), 30);
+  assert.equal(linea(vendedor.address), 150);
+  assert.equal(asiento.lines.length, 4, 'cuatro líneas: comprador, vendedor, casa, referidor');
+  assert.equal(asiento.lines.reduce((s, l) => s + l.delta, 0), 0, 'el asiento cuadra en cero');
+  assert.equal(asiento.meta.commission, 30);
+  assert.equal(asiento.meta.referrer, verifica.address);
+});
+
+test('D5 · el fee de la casa más la comisión no pueden superar el 100% del precio', async () => {
+  const mala = Libro.buildQuote({ seller: vendedor.address, buyer: nicolas.address, house: H, contract: 'spot',
+    price: 100, concept: 'x', referrer: { address: verifica.address, share: 9500 } }, vendedor.keys); // 1000 + 9500 > 10000
+  await assert.rejects(() => alfa.libro.verifyQuote(mala, nicolas.address), /supera el 100%/);
+  // y una comisión no entera o <= 0 se rechaza ya al construir la cotización
+  assert.throws(() => Libro.buildQuote({ seller: vendedor.address, buyer: nicolas.address, house: H, contract: 'spot',
+    price: 100, concept: 'x', referrer: { address: verifica.address, share: 0 } }, vendedor.keys), /basis points/);
+});

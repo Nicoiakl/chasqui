@@ -131,23 +131,29 @@ export class Libro {
     const asentar = () => this.post(concept, [{ account: this.casa, delta: -amount }, { account, delta: amount }], { kind: 'topup', ...meta });
     return this.tx ? asentar() : this._serial(asentar);
   }
-  async transfer(from, to, amount, concept, meta = {}, refs = {}) {
+  // referrer opcional { address, share (bps) }: la comisión sale del monto (la recibe el vendedor),
+  // no se suma al precio. El asiento pasa a 4 líneas y sigue cuadrando en cero.
+  async transfer(from, to, amount, concept, meta = {}, refs = {}, referrer = null) {
     this._amount(amount);
     const fee = this.fee(amount);
-    const lines = [{ account: from, delta: -amount }, { account: to, delta: amount - fee }];
+    const com = referrer ? Math.floor((amount * referrer.share) / 10_000) : 0;
+    const lines = [{ account: from, delta: -amount }, { account: to, delta: amount - fee - com }];
     if (fee) lines.push({ account: this.casa, delta: fee });
-    return this.post(concept, lines, { kind: 'charge', fee, ...meta }, refs);
+    if (com) lines.push({ account: referrer.address, delta: com });
+    return this.post(concept, lines, { kind: 'charge', fee, ...(com ? { referrer: referrer.address, commission: com } : {}), ...meta }, refs);
   }
   async hold(from, contractId, amount, concept, meta = {}, refs = {}) {
     this._amount(amount);
     return this.post(concept, [{ account: from, delta: -amount }, { account: `escrow:${contractId}`, delta: amount }], { kind: 'hold', ...meta }, refs);
   }
-  async release(contractId, to, amount, concept, meta = {}, refs = {}) {
+  async release(contractId, to, amount, concept, meta = {}, refs = {}, referrer = null) {
     this._amount(amount);
     const fee = this.fee(amount);
-    const lines = [{ account: `escrow:${contractId}`, delta: -amount }, { account: to, delta: amount - fee }];
+    const com = referrer ? Math.floor((amount * referrer.share) / 10_000) : 0;
+    const lines = [{ account: `escrow:${contractId}`, delta: -amount }, { account: to, delta: amount - fee - com }];
     if (fee) lines.push({ account: this.casa, delta: fee });
-    return this.post(concept, lines, { kind: 'release', fee, ...meta }, refs);
+    if (com) lines.push({ account: referrer.address, delta: com });
+    return this.post(concept, lines, { kind: 'release', fee, ...(com ? { referrer: referrer.address, commission: com } : {}), ...meta }, refs);
   }
   async refund(contractId, to, amount, concept, meta = {}, refs = {}) {
     this._amount(amount);
@@ -157,10 +163,17 @@ export class Libro {
 
   // ---------- cotizaciones: documentos firmados por el vendedor ----------
   // Una cotización viaja adentro de un sobre (cifrado si se quiere) y se presenta al Libro al aceptar.
-  static buildQuote({ seller, buyer, house, contract = 'spot', price, concept, terms = {}, expires, arbiter = null }, sellerKeys) {
+  static buildQuote({ seller, buyer, house, contract = 'spot', price, concept, terms = {}, expires, arbiter = null, referrer = null }, sellerKeys) {
     if (!CONTRATOS[contract]?.quoteable) throw new LibroError(400, `contrato no cotizable: ${contract}`);
     if (arbiter) parseAddress(arbiter);
-    return signObject({ tipo: 'cotizacion', id: uuid(), house, seller, buyer, contract, price, currency: 'tok', concept, terms, arbiter, issued: iso(), expires: expires || null }, sellerKeys);
+    // Comisión de referido: el vendedor firma en su cotización que le paga `share` (en basis points)
+    // a quien trajo el trato. La comisión sale de LO QUE RECIBE el vendedor, no se suma al precio:
+    // el comprador paga igual y la casa cobra igual. verifyQuote valida los límites al aceptar.
+    if (referrer != null) {
+      parseAddress(referrer.address);
+      if (!Number.isInteger(referrer.share) || referrer.share <= 0) throw new LibroError(400, 'referrer.share debe ser un entero de basis points > 0');
+    }
+    return signObject({ tipo: 'cotizacion', id: uuid(), house, seller, buyer, contract, price, currency: 'tok', concept, terms, arbiter, referrer: referrer || undefined, issued: iso(), expires: expires || null }, sellerKeys);
   }
   async verifyQuote(q, buyer) {
     if (q?.tipo !== 'cotizacion' || !q.id || !q.seller || !q.signature) throw new LibroError(400, 'cotización malformada');
@@ -171,6 +184,13 @@ export class Libro {
     if (q.buyer !== buyer) throw new LibroError(403, 'la cotización no está dirigida a quien la acepta');
     if (q.expires && Date.parse(q.expires) < Date.now()) throw new LibroError(410, 'cotización vencida');
     if (q.arbiter) { try { parseAddress(q.arbiter); } catch { throw new LibroError(400, 'árbitro inválido en la cotización'); } }
+    if (q.referrer != null) {
+      try { parseAddress(q.referrer.address); } catch { throw new LibroError(400, 'referidor inválido en la cotización'); }
+      if (!Number.isInteger(q.referrer.share) || q.referrer.share <= 0) throw new LibroError(400, 'referrer.share debe ser un entero de basis points > 0');
+      // El fee de la casa y la comisión salen ambos del monto: juntos no pueden dejar al vendedor en negativo.
+      if (this.feeBps + q.referrer.share > 10_000) throw new LibroError(400, `fee (${this.feeBps} bps) + comisión (${q.referrer.share} bps) supera el 100% del precio`);
+      if (q.referrer.address === q.seller) throw new LibroError(400, 'el vendedor no puede ser su propio referidor');
+    }
     this._amount(q.price);
     let card;
     try { card = await this.resolver.agentCardForKid(q.seller, q.signature.kid); } catch (e) { throw new LibroError(e.permanent ? 403 : 421, `no se pudo verificar al vendedor: ${e.message}`); }

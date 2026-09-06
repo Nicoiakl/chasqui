@@ -134,8 +134,8 @@ export class Agent {
 
   // ---------- Libro: cotizaciones y contratos ----------
   // Una cotización es un documento firmado por el vendedor; viaja dentro de un sobre (cifrado) al comprador.
-  async quote({ to, contract = 'spot', price, concept, terms, expires, arbiter, house }) {
-    const q = Libro.buildQuote({ seller: this.address, buyer: to, house: house || parseAddress(to).domain, contract, price, concept, terms, expires, arbiter }, this.keys);
+  async quote({ to, contract = 'spot', price, concept, terms, expires, arbiter, house, referrer }) {
+    const q = Libro.buildQuote({ seller: this.address, buyer: to, house: house || parseAddress(to).domain, contract, price, concept, terms, expires, arbiter, referrer }, this.keys);
     const sent = await this.send({ to, type: 'message', media: MEDIA.cotizacion, body: q, expires: expires ?? null });
     return { quote: q, ...sent };
   }

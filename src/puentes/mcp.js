@@ -36,7 +36,8 @@ const TOOLS = [
       to: { type: 'string' }, contract: { type: 'string', enum: ['spot', 'escrow', 'metered'], default: 'spot' },
       price: { type: 'integer', description: 'tokens, entero' }, concept: { type: 'string' },
       terms: { type: 'object', description: 'criterio de aceptación, plazo, scope del mandato, etc.' },
-      arbiter: { type: 'string' }, expires: { type: 'string', description: 'ISO-8601' } } } },
+      arbiter: { type: 'string' }, expires: { type: 'string', description: 'ISO-8601' },
+      referrer: { type: 'object', description: 'comisión de referido: { address, share } en basis points; la paga el vendedor de su parte, el comprador paga igual', properties: { address: { type: 'string' }, share: { type: 'integer' } } } } } },
   { name: 'chasqui_accept', description: 'Acepta una oferta y compromete el pago. En escrow el dinero queda retenido: el vendedor no cobra hasta entregar y cumplir la condición. Te llega un recibo firmado que ninguna parte puede negar después.',
     inputSchema: { type: 'object', required: ['quote'], properties: { quote: { type: 'object' } } } },
   { name: 'chasqui_libro', description: 'Mueve un trato adelante en el Libro y deja un asiento firmado e irreversible en cada paso: entregar, liberar el pago si la prueba pasó, devolver si falló, afianzar una afirmación con dinero (la pierdes si mientes), o delegar gasto con tope. ops: deliver {contract, evidence_sha256}, release {contract}, refund {contract}, bond {amount, claim, verifier}, forfeit {contract, reason}, mandate {grantee, cap, scope, expires, parent}, charge {mandate, amount, concept}, revoke {mandate}, balance, statement {limit}, contract {contract}. La respuesta llega como recibo firmado a tu buzón.',
@@ -68,7 +69,7 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
       case 'chasqui_outbox': return text(await agent.outbox());
       case 'chasqui_directory': return text(await agent.directory(args.house, args));
       case 'chasqui_search': return text(await agent.search(args.index, args));
-      case 'chasqui_quote': { const r = await agent.quote({ to: args.to, contract: args.contract, price: args.price, concept: args.concept, terms: args.terms, arbiter: args.arbiter, expires: args.expires }); return text({ id: r.id, quote_id: r.quote.id, contract: r.quote.contract, price: r.quote.price }); }
+      case 'chasqui_quote': { const r = await agent.quote({ to: args.to, contract: args.contract, price: args.price, concept: args.concept, terms: args.terms, arbiter: args.arbiter, expires: args.expires, referrer: args.referrer }); return text({ id: r.id, quote_id: r.quote.id, contract: r.quote.contract, price: r.quote.price }); }
       case 'chasqui_accept': { const r = await agent.accept(args.quote); return text({ id: r.id, note: 'el recibo de libro@ llegará al buzón (chasqui_inbox)' }); }
       case 'chasqui_libro': { const r = await agent.libroOp(args.house || agent.domain, { op: args.op, ...(args.args || {}) }); return text({ id: r.id, note: 'la respuesta llega como recibo de libro@ al buzón' }); }
       case 'chasqui_balance': return text(await agent.balance(args.house));
