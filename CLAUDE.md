@@ -109,8 +109,8 @@ CI (Node 20/22), y el sitio de la spec generado desde `docs/SPEC.md` por `script
 (meta + JSON-LD para indexación LLM). Falta lo que requiere credenciales de Nicholas: `npm publish`
 (npm no autenticado aquí; nombre "chasqui" figura unpublished-2023, reclamable) y el repo GitHub público.
 
-Sigue el brief `docs/DISTRIBUCION.md` (análisis en `docs/ANALISIS-DISTRIBUCION.md`): hecho D1, V1, D4, D2, D5;
-próximos D6 aval, D7 índice opt-in, D3 SMTP. Pendiente además: ancla DNS TXT (decisión
+Sigue el brief `docs/DISTRIBUCION.md` (análisis en `docs/ANALISIS-DISTRIBUCION.md`): hecho D1, V1, D4, D2, D5, D6;
+quedan D7 índice opt-in y D3 SMTP. Pendiente además: ancla DNS TXT (decisión
 de Nicholas) y los ~20 hallazgos medios/bajos.
 
 **Dos trampas de este proyecto** (nacieron de defectos reales, no las repitas):
