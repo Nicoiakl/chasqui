@@ -15,7 +15,7 @@ const test = (name, ...rest) => { const fn = rest.pop(); const opts = (rest[0] &
 import { generateKeys, signObject, uuid } from '../src/nucleo/crypto.js';
 import { MIGRACIONES } from './_migraciones.js';
 
-const MIG = ['../migrations/0002_chasqui.sql', '../migrations/0003_candado.sql', '../migrations/0004_pins.sql']
+const MIG = ['../migrations/0002_nyx5.sql', '../migrations/0003_candado.sql', '../migrations/0004_pins.sql']
   .map((f) => { try { return fs.readFileSync(new URL(f, import.meta.url), 'utf8'); } catch { return ''; } }).join('\n');
 const d1store = () => { const db = openLocalD1(); db._raw.exec(MIGRACIONES); return new D1Store(db); };
 let puerto = 4160;
@@ -152,7 +152,7 @@ test('ALTO · el aviso por webhook se espera, no queda como promesa suelta', asy
     // El sobre se arma a mano y se entrega por la puerta de entrada — que es donde nace el aviso
     // en producción. (Mandarlo con send() lo entregaría por la cola antes, y llegaría duplicado.)
     const sobre = signObject({
-      chasqui: '1', id: uuid(), from: emisor.address, to: [dest.address], created: new Date().toISOString(),
+      nyx5: '1', id: uuid(), from: emisor.address, to: [dest.address], created: new Date().toISOString(),
       expires: null, thread: null, in_reply_to: null, type: 'message',
       content: { media: 'text/plain', body: 'avísame' },
     }, emisor.keys);
@@ -168,7 +168,7 @@ test('ALTO · el aviso por webhook se espera, no queda como promesa suelta', asy
 
 // ---------- ALTO 7: la CLI no descarta banderas que documenta ----------
 test('ALTO · la CLI pasa --arbiter y --expires a la cotización (los documentaba y los tiraba)', async () => {
-  const src = fs.readFileSync(new URL('../bin/chasqui.js', import.meta.url), 'utf8');
+  const src = fs.readFileSync(new URL('../bin/nyx5.js', import.meta.url), 'utf8');
   const usage = src.slice(0, src.indexOf('import '));
   const caseQuote = src.slice(src.indexOf("case 'quote'"), src.indexOf("case 'accept'"));
   for (const flag of ['arbiter', 'expires']) {
@@ -188,13 +188,13 @@ test('BUG BUZÓN · con muchos mensajes sin leer, el más reciente SÍ aparece (
     const emisor = generateKeys();
     await e.registerAgent({ local: 'emi', sig: emisor.sig, enc: emisor.enc });
     for (let i = 0; i < 60; i++) {
-      const s = signObject({ chasqui:'1', id:uuid(), from:`emi@${dom}`, to:[`busy@${dom}`], created:new Date(Date.now()-100000+i).toISOString(), type:'message', content:{media:'text/plain', body:`viejo ${i}`} }, emisor);
+      const s = signObject({ nyx5:'1', id:uuid(), from:`emi@${dom}`, to:[`busy@${dom}`], created:new Date(Date.now()-100000+i).toISOString(), type:'message', content:{media:'text/plain', body:`viejo ${i}`} }, emisor);
       await e.handleRequest({ method:'POST', path:'/inbound', query:new URLSearchParams(), headers:{}, body:s, ip:null });
     }
-    const nuevo = signObject({ chasqui:'1', id:uuid(), from:`emi@${dom}`, to:[`busy@${dom}`], created:new Date().toISOString(), type:'message', content:{media:'text/plain', body:'EL MÁS NUEVO'} }, emisor);
+    const nuevo = signObject({ nyx5:'1', id:uuid(), from:`emi@${dom}`, to:[`busy@${dom}`], created:new Date().toISOString(), type:'message', content:{media:'text/plain', body:'EL MÁS NUEVO'} }, emisor);
     await e.handleRequest({ method:'POST', path:'/inbound', query:new URLSearchParams(), headers:{}, body:nuevo, ip:null });
     // el destinatario lee su buzón con el límite por defecto de la app (50)
-    const auth = (m,p) => 'Chasqui ' + Buffer.from(JSON.stringify({address:`busy@${dom}`})).toString('base64url'); // placeholder, usamos el cliente real
+    const auth = (m,p) => 'Nyx5 ' + Buffer.from(JSON.stringify({address:`busy@${dom}`})).toString('base64url'); // placeholder, usamos el cliente real
     const { Agent } = await import('../src/correo/agente.js');
     const cli = new Agent({ address:`busy@${dom}`, keys:dest, estafeta:url, hosts:{[dom]:{url}} });
     const buzon = await cli.inbox({ limit: 50 });

@@ -1,5 +1,5 @@
 // node --test test/
-// D3: puente de correo (urn:chasqui:ext:email). Entrada: un email real entra al buzón como sobre
+// D3: puente de correo (urn:nyx5:ext:email). Entrada: un email real entra al buzón como sobre
 // SIN FIRMA, marcado no verificado, sin disfrazarse. Salida: el agente le escribe a un humano;
 // sin proveedor configurado queda pendiente (no se inventa canal).
 import { test } from 'node:test';

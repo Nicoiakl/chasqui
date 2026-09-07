@@ -1,6 +1,6 @@
-// Chasqui/1 — Puente de correo electrónico (extensión urn:chasqui:ext:email).
+// Nyx5/1 — Puente de correo electrónico (extensión urn:nyx5:ext:email).
 //
-// El puente conecta Chasqui con el mundo que ya existe. Dos direcciones:
+// El puente conecta Nyx5 con el mundo que ya existe. Dos direcciones:
 //   ENTRADA  un email real a agente@casa entra al buzón como un sobre SIN FIRMA, marcado
 //            from_verified:false y via:'email'. No se disfraza nunca (invariante 1): entra
 //            explícitamente como lo que es, un mensaje externo no verificable.
@@ -12,14 +12,14 @@
 
 import { uuid } from '../nucleo/crypto.js';
 
-export const EXT_EMAIL = 'urn:chasqui:ext:email';
+export const EXT_EMAIL = 'urn:nyx5:ext:email';
 const iso = () => new Date().toISOString();
 
 // Un email entrante -> el sobre que se deposita en el buzón del destinatario. Sin firma, en claro,
-// con el remitente real y el asunto guardados en la extensión. `to` es la dirección Chasqui local.
+// con el remitente real y el asunto guardados en la extensión. `to` es la dirección Nyx5 local.
 export function inboundEnvelope({ from, to, subject = '', text = '', messageId } = {}) {
   return {
-    chasqui: '1',
+    nyx5: '1',
     id: (messageId && /^[A-Za-z0-9._:-]{8,128}$/.test(messageId)) ? messageId : uuid(),
     from: `email@${addrDomain(to)}`,          // remitente de pasarela; el real va en la extensión
     to: [to],
@@ -27,7 +27,7 @@ export function inboundEnvelope({ from, to, subject = '', text = '', messageId }
     type: 'message',
     content: { media: 'text/plain', body: text },
     extensions: { [EXT_EMAIL]: { from, subject, message_id: messageId || null, verified: false } },
-    // sin signature: es la marca de que no es un sobre Chasqui firmado
+    // sin signature: es la marca de que no es un sobre Nyx5 firmado
   };
 }
 
@@ -59,7 +59,7 @@ export function decodeMimeWords(s) {
   }).replace(/\?=\s+=\?/g, '');
 }
 
-// El cuerpo para el proveedor de salida. Reply-To = la dirección Chasqui del agente, para que la
+// El cuerpo para el proveedor de salida. Reply-To = la dirección Nyx5 del agente, para que la
 // respuesta del humano vuelva por ENTRADA a su buzón.
 export function outboundPayload({ fromAgent, to, subject, text }) {
   return {

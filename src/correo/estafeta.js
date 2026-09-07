@@ -1,4 +1,4 @@
-// Chasqui/1 — Estafeta: el servidor de un dominio (equivale al servidor de correo de gmail.com).
+// Nyx5/1 — Estafeta: el servidor de un dominio (equivale al servidor de correo de gmail.com).
 // Aloja los dos componentes del sistema: el Correo (sobres, buzones, cola) y el Libro (ledger y
 // contratos). El Libro no tiene puerta propia: se opera escribiéndole a libro@<dominio>.
 //
@@ -12,7 +12,7 @@
 //   - avisar por webhook si el agente registró uno (push); si no, el agente hace poll
 //   - entregar a libro@ los sobres de operación del Libro y repartir los recibos resultantes
 //   - cobrar estampillas en buzones con política `stamp`
-//   - opcionalmente, operar un índice federado de agentes (urn:chasqui:ext:indice)
+//   - opcionalmente, operar un índice federado de agentes (urn:nyx5:ext:indice)
 //
 // RUNTIME: esta clase no conoce node:http ni Workers. El transporte vive en src/plataformas/
 // (node.js y worker.js) y habla con `handleRequest(rx)`: rx = { method, path, query, headers,
@@ -59,9 +59,9 @@ export class Estafeta {
     // `email.provider` es una función async(payload) (ver src/puentes/email.js); sin ella, la salida queda pendiente.
     this.email = { enabled: !!(email.enabled || email.provider), provider: email.provider || null };
     this.extensions = extensions || [
-      'urn:chasqui:ext:mcp', 'urn:chasqui:ext:a2a', 'urn:chasqui:ext:libro',
-      ...(this.index.enabled ? ['urn:chasqui:ext:indice'] : []),
-      ...(this.email.enabled ? ['urn:chasqui:ext:email'] : []),
+      'urn:nyx5:ext:mcp', 'urn:nyx5:ext:a2a', 'urn:nyx5:ext:libro',
+      ...(this.index.enabled ? ['urn:nyx5:ext:indice'] : []),
+      ...(this.email.enabled ? ['urn:nyx5:ext:email'] : []),
     ];
     this.libroOpts = libro;
     this.hostsOverride = hosts;
@@ -116,7 +116,7 @@ export class Estafeta {
     if (!await this.store.getAgent('libro')) await this.registerAgent({ local: 'libro', sig: this.keys.sig, capabilities: { accepts: [MEDIA.op], libro: { fee_bps: this.libro.feeBps, ops: this.libro.ops } }, inbox: { policy: 'open' } });
   }
   isSystem(local) { return local === 'postmaster' || local === 'libro'; }
-  static RESERVED = new Set(['postmaster', 'libro', 'casa', 'admin', 'root', 'abuse', 'security', 'hostmaster', 'noreply', 'no-reply', 'support', 'estafeta', 'chasqui', 'indice']);
+  static RESERVED = new Set(['postmaster', 'libro', 'casa', 'admin', 'root', 'abuse', 'security', 'hostmaster', 'noreply', 'no-reply', 'support', 'estafeta', 'nyx5', 'indice']);
 
   // ---------- servicio de registro ----------
   // Invitaciones: la casa emite códigos con usos y vencimiento; un agente los presenta al inscribirse.
@@ -156,7 +156,7 @@ export class Estafeta {
     if (this._domainCardCache && this._domainCardCache.until > now()) return this._domainCardCache.value;
     const rec = await this.store.getDomain();
     const card = signObject({
-      chasqui: '1', domain: this.domain, estafeta: this.publicUrl,
+      nyx5: '1', domain: this.domain, estafeta: this.publicUrl,
       keys: rec.keys.map((k) => ({ sig: k.sig, created: k.created })),
       policy: { inbound: this.policy.inbound, max_bytes: this.policy.max_bytes, registration: this.policy.registration, ...(this.policy.outbound ? { outbound: this.policy.outbound } : {}) },
       extensions: this.extensions,
@@ -202,7 +202,7 @@ export class Estafeta {
     const previous = [];
     if (prev && prev.sig !== sig) previous.push({ sig: prev.sig, until: iso(now() + 7 * 24 * 3600 * 1000) }, ...(prev.previous || []));
     const card = signObject({
-      chasqui: '1', address, sig, enc,
+      nyx5: '1', address, sig, enc,
       capabilities: { accepts: ['text/plain', 'application/json'], ...capabilities },
       inbox: { policy: 'open', ...inbox },
       valid_from: iso(), valid_until, previous: previous.slice(0, 3),
@@ -238,14 +238,14 @@ export class Estafeta {
   }
 
   // ---------- autenticación de agentes propios ----------
-  // Authorization: Chasqui <b64u(canonical({address,ts,nonce,method,path,host}))>.<firma Ed25519>
+  // Authorization: Nyx5 <b64u(canonical({address,ts,nonce,method,path,host}))>.<firma Ed25519>
   // `host` amarra el token a ESTA estafeta: el mismo header no sirve contra otra casa.
   // Con allowForeign, un agente de otra casa también puede autenticarse: su clave se obtiene por el
   // resolver (cadena DNS -> dominio -> agente). Así un foráneo consulta su cuenta en este Libro sin login.
   async _authenticate(rx, path, { allowForeign = false } = {}) {
     const h = rx.headers.authorization || '';
-    const m = /^Chasqui\s+([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(h);
-    if (!m) throw Object.assign(new Error('falta Authorization: Chasqui <token>.<firma>'), { status: 401 });
+    const m = /^Nyx5\s+([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(h);
+    if (!m) throw Object.assign(new Error('falta Authorization: Nyx5 <token>.<firma>'), { status: 401 });
     let claims;
     try { claims = JSON.parse(unb64u(m[1]).toString()); } catch { throw Object.assign(new Error('token ilegible'), { status: 401 }); }
     const { local, domain } = parseAddress(claims.address);
@@ -314,7 +314,7 @@ export class Estafeta {
     let outcome;
     if (job.domain === this.domain) {
       // Entrega local: sin red, directo a inbound (misma verificación, cero riesgo de auto-fetch).
-      const relay = `chasqui1 domain=${this.domain}; kid=${this.keys.sig}; sig=${signBytes(`relay:${job.envelope.id}:${this.domain}`, this.keys)}`;
+      const relay = `nyx51 domain=${this.domain}; kid=${this.keys.sig}; sig=${signBytes(`relay:${job.envelope.id}:${this.domain}`, this.keys)}`;
       try {
         const r = await this.inbound(job.envelope, relay);
         outcome = { status: r.code, body: r };
@@ -324,9 +324,9 @@ export class Estafeta {
     } else {
       try {
         const dc = await this.resolver.domainCard(job.domain);
-        const relay = `chasqui1 domain=${this.domain}; kid=${this.keys.sig}; sig=${signBytes(`relay:${job.envelope.id}:${job.domain}`, this.keys)}`;
+        const relay = `nyx51 domain=${this.domain}; kid=${this.keys.sig}; sig=${signBytes(`relay:${job.envelope.id}:${job.domain}`, this.keys)}`;
         const res = await this.fetch(`${dc._estafeta}/inbound`, {
-          method: 'POST', headers: { 'content-type': 'application/json', 'x-chasqui-relay': relay },
+          method: 'POST', headers: { 'content-type': 'application/json', 'x-nyx5-relay': relay },
           body: JSON.stringify(job.envelope), signal: AbortSignal.timeout(10_000),
         });
         const body = await res.json().catch(() => null);
@@ -378,7 +378,7 @@ export class Estafeta {
   // Sobres emitidos por los agentes de sistema (postmaster@, libro@), firmados con la clave del dominio.
   // Destinatarios locales: directo al buzón. Remotos: por la cola, como cualquier envío.
   async _systemSend(fromLocal, to, { type = 'receipt', content, thread = null, in_reply_to = null, deliverAfter = null }) {
-    const env = signObject({ chasqui: '1', id: uuid(), from: `${fromLocal}@${this.domain}`, to, created: iso(), expires: null, deliver_after: deliverAfter ?? undefined, thread, in_reply_to, type, content }, this.keys);
+    const env = signObject({ nyx5: '1', id: uuid(), from: `${fromLocal}@${this.domain}`, to, created: iso(), expires: null, deliver_after: deliverAfter ?? undefined, thread, in_reply_to, type, content }, this.keys);
     // Un aviso diferido (deliver_after futuro) SIEMPRE va por la cola, aunque el destino sea local:
     // la cola es lo único que respeta la fecha. Sin fecha, el destinatario local recibe al instante.
     const diferido = deliverAfter && Date.parse(deliverAfter) > now();
@@ -431,7 +431,7 @@ export class Estafeta {
     const { domain: fromDomain } = parseAddress(env.from);
     let relayVerified = false;
     if (relayHeader) {
-      const r = Object.fromEntries(relayHeader.replace(/^chasqui1\s*/, '').split(';').map((p) => p.trim().split('=').map((x) => x.trim())).filter((p) => p[0]));
+      const r = Object.fromEntries(relayHeader.replace(/^nyx51\s*/, '').split(';').map((p) => p.trim().split('=').map((x) => x.trim())).filter((p) => p[0]));
       relayVerified = r.domain === fromDomain && senderCard._domain.keys.some((k) => k.sig === r.kid) && verifyBytes(`relay:${env.id}:${this.domain}`, r.sig, r.kid);
     }
     if (this.policy.require_relay && !relayVerified) return { ok: false, code: 403, reason: 'este dominio exige firma de relay válida' };
@@ -515,7 +515,7 @@ export class Estafeta {
       if (!rec?.webhook) return;
       const body = JSON.stringify({ envelope: env });
       const sig = signBytes(`push:${env.id}`, this.keys);
-      return this.fetch(rec.webhook, { method: 'POST', headers: { 'content-type': 'application/json', 'x-chasqui-push': `domain=${this.domain}; kid=${this.keys.sig}; sig=${sig}` }, body, signal: AbortSignal.timeout(5000) });
+      return this.fetch(rec.webhook, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nyx5-push': `domain=${this.domain}; kid=${this.keys.sig}; sig=${sig}` }, body, signal: AbortSignal.timeout(5000) });
     }).catch((e) => this.log(`webhook ${local} falló: ${e.message} / ${e.cause?.message}`));
     this._pushes.push(pendiente);
     return pendiente;
@@ -532,7 +532,7 @@ export class Estafeta {
     if (!/^[a-z0-9.-]+$/.test(domain)) throw Object.assign(new Error('dominio inválido'), { status: 400 });
     const houses = await this.store.indexListHouses();
     if (houses.length >= this.index.maxHouses && !houses.some((h) => h.domain === domain)) throw Object.assign(new Error('índice lleno'), { status: 507 });
-    // La verificación ES la puerta: solo se lista lo que resuelve y firma como casa Chasqui.
+    // La verificación ES la puerta: solo se lista lo que resuelve y firma como casa Nyx5.
     const dc = await this.resolver.domainCard(domain).catch((e) => { throw Object.assign(new Error(`casa no verificable: ${e.message}`), { status: 422 }); });
     const h = { domain, estafeta: dc._estafeta, added: iso(), last_ok: null, fails: 0 };
     await this.store.indexPutHouse(h);
@@ -576,7 +576,7 @@ export class Estafeta {
       throw e;
     }
   }
-  // ---------- puente de correo (urn:chasqui:ext:email) ----------
+  // ---------- puente de correo (urn:nyx5:ext:email) ----------
   // ENTRADA: un email real entra al buzón del destinatario como sobre SIN FIRMA, marcado
   // from_verified:false y via:'email'. No pasa por /inbound ni finge estar firmado (invariante 1).
   async receiveEmail({ from, to, subject, text, messageId } = {}) {
@@ -608,7 +608,7 @@ export class Estafeta {
   async indexSearch(params) {
     const out = await this.store.indexSearch(params);
     // Respuesta firmada por la casa del índice: otro índice (u otra casa) puede ingerirla verificada.
-    return signObject({ chasqui: '1', index: this.domain, issued: iso(), ...out }, this.keys);
+    return signObject({ nyx5: '1', index: this.domain, issued: iso(), ...out }, this.keys);
   }
 
   // ---------- HTTP (agnóstico de runtime) ----------
@@ -626,7 +626,7 @@ export class Estafeta {
       // La especificación en una página, indexable. Se genera desde docs/SPEC.md (build:spec).
       if (rx.method === 'GET' && (path === '/spec' || path === '/spec/')) return { status: 200, body: SPEC_HTML, contentType: 'text/html; charset=utf-8' };
       if (rx.method === 'GET' && path === '/llms.txt') return { status: 200, body: LLMS_TXT, contentType: 'text/plain; charset=utf-8' };
-      if (rx.method === 'GET' && path === '/.well-known/chasqui.json') return send(200, await this.domainCard());
+      if (rx.method === 'GET' && path === '/.well-known/nyx5.json') return send(200, await this.domainCard());
       let m;
       if (rx.method === 'GET' && (m = /^\/agents\/([^/]+)$/.exec(path))) {
         const card = await this.agentCard(decodeURIComponent(m[1]).toLowerCase());
@@ -643,7 +643,7 @@ export class Estafeta {
         const exists = !!(await this.store.getAgent(local));
         const isAdmin = (rx.headers.authorization || '') === `Bearer ${this.adminToken}`;
         let ok = isAdmin, via = 'admin';
-        if (!ok && rx.headers.authorization?.startsWith('Chasqui ')) {
+        if (!ok && rx.headers.authorization?.startsWith('Nyx5 ')) {
           const who = await this._authenticate(rx, path);
           ok = who.local === local || (body.delegation && who.address === body.delegation.by);
           via = body.delegation ? 'delegation' : 'self';
@@ -685,7 +685,7 @@ export class Estafeta {
         return send(r.code || 400, r);
       }
       if (rx.method === 'POST' && path === '/inbound') {
-        const r = await this.inbound(rx.body, rx.headers['x-chasqui-relay']);
+        const r = await this.inbound(rx.body, rx.headers['x-nyx5-relay']);
         // pending: los avisos por webhook que nacieron aquí. El adaptador los pasa a waitUntil;
         // sin eso el runtime cancela el fetch al cerrar la respuesta y el aviso nunca sale.
         return { ...send(r.code || 400, r), kick: true, pending: this.flushPushes() };

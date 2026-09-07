@@ -13,7 +13,7 @@ const P1 = 4101, P2 = 4102;
 const hosts = { 'alfa.test': { url: `http://127.0.0.1:${P1}` }, 'beta.test': { url: `http://127.0.0.1:${P2}` } };
 let tmp, alfa, beta, nicolas, asistente;
 const mk = (domain, port, token) => new Estafeta({ domain, port, dataDir: path.join(tmp, domain), adminToken: token, hosts, workerIntervalMs: 150, retry: { baseMs: 150, maxMs: 600 }, log: () => {} });
-const env = (from, to, keys, extra = {}) => signObject({ chasqui: '1', id: uuid(), from, to: [to], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'x' }, ...extra }, keys);
+const env = (from, to, keys, extra = {}) => signObject({ nyx5: '1', id: uuid(), from, to: [to], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'x' }, ...extra }, keys);
 const inbound = async (port, e) => { const r = await fetch(`http://127.0.0.1:${port}/inbound`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(e) }); return { status: r.status, ...(await r.json()) }; };
 
 before(async () => {
@@ -35,7 +35,7 @@ test('primitivas: canónico, cifrado, pow', () => {
   assert.throws(() => decryptContent(enc, 'x@y', k, 'otro-aad'));
   const pow = mintPow('id-1', 8);
   assert.ok(checkPow('id-1', pow, 8)); assert.ok(!checkPow('id-2', pow, 8));
-  assert.deepEqual(parseTxtRecord('v=chasqui1; url=https://mail.sigo.uk; sig=abc'), { v: 'chasqui1', url: 'https://mail.sigo.uk', sig: 'abc' });
+  assert.deepEqual(parseTxtRecord('v=nyx51; url=https://mail.sigo.uk; sig=abc'), { v: 'nyx51', url: 'https://mail.sigo.uk', sig: 'abc' });
   assert.deepEqual(parseAddress('Nicolas@Sigo.UK'), { local: 'nicolas', domain: 'sigo.uk' });
   assert.throws(() => parseAddress('sin-arroba'));
 });

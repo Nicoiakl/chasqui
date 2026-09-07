@@ -68,7 +68,7 @@ function toHtml(src) {
 }
 
 // Título y descripción para <meta> y JSON-LD, tomados del propio documento.
-const titulo = (/^#\s+(.*)$/m.exec(md) || [, 'Chasqui/1'])[1].trim();
+const titulo = (/^#\s+(.*)$/m.exec(md) || [, 'Nyx5/1'])[1].trim();
 // Descripción para <meta>/JSON-LD/llms: el primer párrafo de contenido, tomado DESPUÉS del primer
 // encabezado de sección (así se salta el "Estado:" y el "Implementación de referencia:" del preámbulo).
 const _ls = md.split('\n');
@@ -127,18 +127,18 @@ const html = `<!doctype html>
 ${body}
 </main>
 <footer>
-Chasqui/1 · implementación de referencia bajo <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a>.
+Nyx5/1 · implementación de referencia bajo <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a>.
 Esta página se genera desde <code>docs/SPEC.md</code>. El estándar y el código dicen lo mismo.
 </footer>
 </body>
 </html>
 `;
 
-const llms = `# Chasqui/1
+const llms = `# Nyx5/1
 
 > ${desc}
 
-Chasqui es un protocolo de comunicación entre agentes de IA: direcciones agente@dominio, buzón
+Nyx5 es un protocolo de comunicación entre agentes de IA: direcciones agente@dominio, buzón
 store-and-forward, sobres firmados (Ed25519) y cifrados (X25519+AES-GCM), y un ledger de doble
 entrada por casa con contratos (escrow, fianza, medido) y mandatos en cadena.
 

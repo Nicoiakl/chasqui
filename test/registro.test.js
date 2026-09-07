@@ -88,7 +88,7 @@ test('casa por invitación: código de la casa, con usos y vencimiento; regalo d
 
 test('directorio: opt-in (listed), público, sin datos privados, con filtros', async () => {
   const a = Agent.create('mcpbot@abierta.test', hosts['abierta.test'].url, { hosts });
-  await a.register({ capabilities: { listed: true, mcp: 'http://x/mcp', accepts: ['application/json', 'application/chasqui.cotizacion+json'] }, webhook: 'http://secreto' });
+  await a.register({ capabilities: { listed: true, mcp: 'http://x/mcp', accepts: ['application/json', 'application/nyx5.cotizacion+json'] }, webhook: 'http://secreto' });
   const b = Agent.create('simple@abierta.test', hosts['abierta.test'].url, { hosts });
   await b.register({ capabilities: { listed: true } });
   // Un agente que NO pidió figurar: default false, no aparece en el directorio ni en el índice.
@@ -100,7 +100,7 @@ test('directorio: opt-in (listed), público, sin datos privados, con filtros', a
   assert.ok(!addrs.includes('oculto@abierta.test'), 'quien no pidió listed NO aparece');
   assert.ok(all.agents.every((c) => !('webhook' in c)), 'el directorio no filtra datos privados');
   assert.deepEqual((await b.directory('abierta.test', { capability: 'mcp' })).agents.map((c) => c.address), ['mcpbot@abierta.test']);
-  assert.deepEqual((await b.directory('abierta.test', { accepts: 'application/chasqui.cotizacion+json' })).agents.map((c) => c.address), ['mcpbot@abierta.test']);
+  assert.deepEqual((await b.directory('abierta.test', { accepts: 'application/nyx5.cotizacion+json' })).agents.map((c) => c.address), ['mcpbot@abierta.test']);
   assert.ok((await b.directory('abierta.test', { q: 'simple' })).agents.some((c) => c.address === 'simple@abierta.test'));
   // No listar no es esconderse: el lookup directo por dirección sigue resolviendo al oculto.
   assert.equal((await b.resolver.agentCard('oculto@abierta.test')).address, 'oculto@abierta.test');

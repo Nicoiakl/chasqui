@@ -1,4 +1,4 @@
-// Chasqui/1 — Almacenamiento de una estafeta (Correo) y su Libro en archivos JSON.
+// Nyx5/1 — Almacenamiento de una estafeta (Correo) y su Libro en archivos JSON.
 // Es deliberadamente simple e inspeccionable. En producción se reemplaza por una clase con la
 // misma interfaz sobre D1/Postgres (ver almacen-d1.js y docs/ARQUITECTURA.md).
 //

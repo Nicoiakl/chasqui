@@ -70,7 +70,7 @@ test('V1 · un sobre que vence esperando en la cola REBOTA al remitente, no desa
     // el próximo intento de entrega lo rebota en vez de tragárselo. Lo montamos directo en el
     // store —el defecto vive en _deliver, no en send— con next_attempt vencido y expires en el pasado.
     const pasado = new Date(Date.now() - 1000).toISOString();
-    const env = { chasqui: '1', id: crypto.randomUUID(), from: `a@${dom}`, to: [`x@${dom}`],
+    const env = { nyx5: '1', id: crypto.randomUUID(), from: `a@${dom}`, to: [`x@${dom}`],
       created: pasado, expires: pasado, type: 'message', content: { media: 'text/plain', body: 'x' } };
     await e.store.enqueue({ id: crypto.randomUUID(), envelope: env, domain: dom, to: [`x@${dom}`],
       from_local: 'a', attempts: 1, next_attempt: pasado, created: pasado, status: 'queued', log: [] });
@@ -82,7 +82,7 @@ test('V1 · un sobre que vence esperando en la cola REBOTA al remitente, no desa
   } finally { await e.stop(); }
 });
 
-test('V1 · chasqui_remind: el auto-envío llega cifrado y se descifra en la sesión siguiente', async () => {
+test('V1 · nyx5_remind: el auto-envío llega cifrado y se descifra en la sesión siguiente', async () => {
   const { e, url, dom } = await casa();
   try {
     const a = Agent.create(`a@${dom}`, url, { hosts: { [dom]: { url } } });

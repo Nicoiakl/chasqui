@@ -1,4 +1,4 @@
-// Chasqui/1 — Contratos: máquinas de estado sobre las primitivas del Libro.
+// Nyx5/1 — Contratos: máquinas de estado sobre las primitivas del Libro.
 //
 // Cada operación recibe un contexto { libro, env, from, body, senderCard, opHash, scope } y devuelve
 // { result, recibos: [{ to: [...], thread, body }] }. Los recibos los envía la estafeta desde

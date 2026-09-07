@@ -1,5 +1,5 @@
 // node --test test/
-// Índice federado (urn:chasqui:ext:indice): registro de casas verificables, rastreo del
+// Índice federado (urn:nyx5:ext:indice): registro de casas verificables, rastreo del
 // directorio público, búsqueda entre casas, y la respuesta firmada por la casa del índice.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,16 +27,16 @@ before(async () => {
   const a = Agent.create('traductor@uno.test', hosts['uno.test'].url, { hosts });
   await a.register({ adminToken: 't', capabilities: { listed: true, mcp: 'http://uno/mcp', accepts: ['application/json'] } });
   const b = Agent.create('verificador@dos.test', hosts['dos.test'].url, { hosts });
-  await b.register({ adminToken: 't', capabilities: { listed: true, libro: true, accepts: ['application/chasqui.libro+json'] } });
+  await b.register({ adminToken: 't', capabilities: { listed: true, libro: true, accepts: ['application/nyx5.libro+json'] } });
 });
 after(async () => { await indice.stop(); await uno.stop(); await dos.stop(); });
 
 test('la casa del índice lo declara como extensión en su tarjeta', async () => {
   const a = Agent.create('x@uno.test', hosts['uno.test'].url, { hosts });
   const dc = await a.resolver.domainCard('indice.test');
-  assert.ok(dc.extensions.includes('urn:chasqui:ext:indice'));
+  assert.ok(dc.extensions.includes('urn:nyx5:ext:indice'));
   const dcUno = await a.resolver.domainCard('uno.test');
-  assert.ok(!dcUno.extensions.includes('urn:chasqui:ext:indice'), 'una casa sin índice no lo declara');
+  assert.ok(!dcUno.extensions.includes('urn:nyx5:ext:indice'), 'una casa sin índice no lo declara');
 });
 
 test('solo se listan casas verificables; una casa inexistente se rechaza con 422', async () => {
@@ -56,7 +56,7 @@ test('búsqueda entre casas: por capacidad, media y texto; el índice responde f
   const porCapacidad = await buscador.search('indice.test', { capability: 'mcp' });
   assert.deepEqual(porCapacidad.agents.map((c) => c.address), ['traductor@uno.test']);
   assert.equal(porCapacidad.agents[0]._house, 'uno.test');
-  const porMedia = await buscador.search('indice.test', { accepts: 'application/chasqui.libro+json' });
+  const porMedia = await buscador.search('indice.test', { accepts: 'application/nyx5.libro+json' });
   assert.ok(porMedia.agents.some((c) => c.address === 'verificador@dos.test'));
   const porTexto = await buscador.search('indice.test', { q: 'verificador' });
   assert.ok(porTexto.agents.some((c) => c.address === 'verificador@dos.test'));

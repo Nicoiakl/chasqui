@@ -1,4 +1,4 @@
-// Chasqui/1 — Cliente de agente: la app de correo y la billetera en una sola pieza.
+// Nyx5/1 — Cliente de agente: la app de correo y la billetera en una sola pieza.
 // Correo: firma, cifra, envía, lee, confirma. Libro: cotiza, acepta, entrega, libera, afianza, manda, cobra.
 // Las operaciones del Libro son sobres firmados a libro@<casa>; las respuestas vuelven como recibos al buzón.
 
@@ -28,7 +28,7 @@ export class Agent {
     // `host` amarra el token a la casa destino: capturado, no sirve contra otra estafeta.
     const claims = { address: this.address, ts: iso(), nonce: uuid(), method, path, host: new URL(base).host };
     const token = b64u(canonical(claims));
-    return `Chasqui ${token}.${signBytes(canonical(claims), keys)}`;
+    return `Nyx5 ${token}.${signBytes(canonical(claims), keys)}`;
   }
   async _call(method, path, body, { admin, noAuth, authKeys } = {}) {
     const headers = { 'content-type': 'application/json' };
@@ -78,7 +78,7 @@ export class Agent {
     const recipients = Array.isArray(to) ? to : [to];
     const id = uuid();
     const base = {
-      chasqui: '1', id, from: this.address, to: recipients, created: iso(),
+      nyx5: '1', id, from: this.address, to: recipients, created: iso(),
       expires: expires ?? null, deliver_after: deliverAfter ?? undefined, thread: thread ?? null, in_reply_to: inReplyTo ?? null, type,
       attachments, extensions, receipt,
     };
@@ -184,7 +184,7 @@ export class Agent {
     return { ...opened, receipt: opened.content.body, envelope: m.envelope };
   }
 
-  // Búsqueda en un índice federado (urn:chasqui:ext:indice): por casa que lo opera o URL directa.
+  // Búsqueda en un índice federado (urn:nyx5:ext:indice): por casa que lo opera o URL directa.
   // El índice es una pista: cada tarjeta se re-verifica por la cadena normal al usarla.
   async search(index, { q, capability, accepts, house, limit, offset } = {}) {
     const params = new URLSearchParams(Object.entries({ q, capability, accepts, house, limit, offset }).filter(([, v]) => v != null));
@@ -202,9 +202,9 @@ export class Agent {
 
   // Verifica la cadena de confianza del remitente y descifra si corresponde.
   async open(envelope) {
-    // Correo entrante por el puente (urn:chasqui:ext:email): sin firma, en claro, marcado como NO
+    // Correo entrante por el puente (urn:nyx5:ext:email): sin firma, en claro, marcado como NO
     // verificado. No se disfraza de sobre firmado: se abre explícitamente como lo que es.
-    const em = envelope.extensions?.['urn:chasqui:ext:email'];
+    const em = envelope.extensions?.['urn:nyx5:ext:email'];
     if (em && !envelope.signature) {
       return { id: envelope.id, from: em.from, to: envelope.to, type: envelope.type, created: envelope.created, verified: false, via: 'email', subject: em.subject || null, content: envelope.content };
     }

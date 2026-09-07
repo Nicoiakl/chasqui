@@ -1,27 +1,27 @@
 #!/usr/bin/env node
-// Chasqui/1 — CLI
+// Nyx5/1 — CLI
 //
-//   chasqui estafeta --domain alfa.local --port 4001 --data ./data/alfa --admin-token secreto [--registration admin|invite|open] [--welcome 100] [--fee 0.10]
-//   chasqui keygen   --address nicolas@alfa.local --estafeta http://127.0.0.1:4001 --out ./keys/nicolas.json
-//   chasqui register --agent ./keys/nicolas.json --admin-token secreto [--policy open|allowlist|pow|stamp] [--allow a@b,c@d] [--pow-bits 16] [--webhook URL] [--mcp URL] [--a2a URL]
-//   chasqui register --agent ./keys/nicolas.json --invite CODIGO        (o sin nada, si la casa tiene registration=open)
-//   chasqui invite   --estafeta http://127.0.0.1:4001 --admin-token secreto [--uses 1] [--expires ISO] [--note "para Marta"]
-//   chasqui directory [--house alfa.local | --estafeta URL] [--capability mcp] [--accepts media] [--q texto]
-//   chasqui search   --index indice.local [--q texto] [--capability mcp] [--accepts media] [--house uno.local]
-//   chasqui card     --address asistente@beta.local
-//   chasqui send     --agent ./keys/nicolas.json --to asistente@beta.local --body "hola" [--json] [--type task] [--plain]
-//   chasqui inbox    --agent ./keys/nicolas.json [--ack]
-//   chasqui ack      --agent ./keys/nicolas.json --id <id>[,<id>]
-//   chasqui outbox   --agent ./keys/nicolas.json
-//   chasqui mcp      --agent ./keys/nicolas.json          (servidor MCP por stdio)
+//   nyx5 estafeta --domain alfa.local --port 4001 --data ./data/alfa --admin-token secreto [--registration admin|invite|open] [--welcome 100] [--fee 0.10]
+//   nyx5 keygen   --address nicolas@alfa.local --estafeta http://127.0.0.1:4001 --out ./keys/nicolas.json
+//   nyx5 register --agent ./keys/nicolas.json --admin-token secreto [--policy open|allowlist|pow|stamp] [--allow a@b,c@d] [--pow-bits 16] [--webhook URL] [--mcp URL] [--a2a URL]
+//   nyx5 register --agent ./keys/nicolas.json --invite CODIGO        (o sin nada, si la casa tiene registration=open)
+//   nyx5 invite   --estafeta http://127.0.0.1:4001 --admin-token secreto [--uses 1] [--expires ISO] [--note "para Marta"]
+//   nyx5 directory [--house alfa.local | --estafeta URL] [--capability mcp] [--accepts media] [--q texto]
+//   nyx5 search   --index indice.local [--q texto] [--capability mcp] [--accepts media] [--house uno.local]
+//   nyx5 card     --address asistente@beta.local
+//   nyx5 send     --agent ./keys/nicolas.json --to asistente@beta.local --body "hola" [--json] [--type task] [--plain]
+//   nyx5 inbox    --agent ./keys/nicolas.json [--ack]
+//   nyx5 ack      --agent ./keys/nicolas.json --id <id>[,<id>]
+//   nyx5 outbox   --agent ./keys/nicolas.json
+//   nyx5 mcp      --agent ./keys/nicolas.json          (servidor MCP por stdio)
 //   --- Libro ---
-//   chasqui topup    --estafeta http://127.0.0.1:4001 --admin-token secreto --account nicolas@alfa.local --amount 1000
-//   chasqui balance  --agent ./keys/nicolas.json [--house alfa.local]
-//   chasqui quote    --agent ./keys/verifica.json --to nicolas@alfa.local --price 40 --concept "verificación" [--contract spot|escrow|metered] [--terms '{...}'] [--arbiter a@casa] [--expires ISO]
-//   chasqui accept   --agent ./keys/nicolas.json --quote <archivo.json o JSON>     (o `inbox` te muestra la cotización; cópiala)
-//   chasqui libro    --agent ./keys/nicolas.json --op release --args '{"contract":"..."}' [--house alfa.local]
-//   chasqui contract --agent ./keys/nicolas.json --id <contrato>
-//   chasqui delegate --agent ./keys/constructor.json --name tester --scope '{"types":["message","result"],"cap":100}' --out ./keys/tester.json
+//   nyx5 topup    --estafeta http://127.0.0.1:4001 --admin-token secreto --account nicolas@alfa.local --amount 1000
+//   nyx5 balance  --agent ./keys/nicolas.json [--house alfa.local]
+//   nyx5 quote    --agent ./keys/verifica.json --to nicolas@alfa.local --price 40 --concept "verificación" [--contract spot|escrow|metered] [--terms '{...}'] [--arbiter a@casa] [--expires ISO]
+//   nyx5 accept   --agent ./keys/nicolas.json --quote <archivo.json o JSON>     (o `inbox` te muestra la cotización; cópiala)
+//   nyx5 libro    --agent ./keys/nicolas.json --op release --args '{"contract":"..."}' [--house alfa.local]
+//   nyx5 contract --agent ./keys/nicolas.json --id <contrato>
+//   nyx5 delegate --agent ./keys/constructor.json --name tester --scope '{"types":["message","result"],"cap":100}' --out ./keys/tester.json
 //
 // Resolución local: --hosts hosts.json, o CHASQUI_HOSTS, o ./hosts.local.json si existe.
 

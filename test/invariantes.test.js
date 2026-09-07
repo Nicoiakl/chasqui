@@ -25,7 +25,7 @@ const hosts = {
 const d1store = () => { const db = openLocalD1(); db._raw.exec(MIGRACIONES); return new D1Store(db); };
 
 let tmp, gamma, delta, sellada, nico, ayudante;
-const env = (from, to, keys, extra = {}) => signObject({ chasqui: '1', id: uuid(), from, to: Array.isArray(to) ? to : [to], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'x' }, ...extra }, keys);
+const env = (from, to, keys, extra = {}) => signObject({ nyx5: '1', id: uuid(), from, to: Array.isArray(to) ? to : [to], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'x' }, ...extra }, keys);
 const inbound = async (port, e, headers = {}) => { const r = await fetch(`http://127.0.0.1:${port}/inbound`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(e) }); return { status: r.status, ...(await r.json()) }; };
 
 before(async () => {

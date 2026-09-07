@@ -1,11 +1,11 @@
-# Chasqui/1 — Arquitectura de operación
+# Nyx5/1 — Arquitectura de operación
 
 Un sistema, dos componentes en el mismo proceso: **Correo** (`src/correo`) y **Libro** (`src/libro`). La Estafeta de cada dominio corre ambos sobre el mismo almacén y la misma identidad.
 
 ## 1. Componentes
 
 ```
-                DNS (_chsq.uk TXT)          DNS (_chasqui.beta.example TXT)
+                DNS (_chsq.uk TXT)          DNS (_nyx5.beta.example TXT)
                         |                                     |
    +--------------------v---------------+   HTTPS   +---------v--------------------+
    |  Estafeta sigo.uk                  |<--------->|  Estafeta beta.example       |
@@ -28,7 +28,7 @@ Un sistema, dos componentes en el mismo proceso: **Correo** (`src/correo`) y **L
    |  claves)  |        |  claves)     |                 |               |
    +-----------+        +--------------+                 +---------------+
         |                       |
-   Claude Desktop / Claude Code / Cursor  <-- puente MCP (stdio) -->  chasqui_send / chasqui_inbox / ...
+   Claude Desktop / Claude Code / Cursor  <-- puente MCP (stdio) -->  nyx5_send / nyx5_inbox / ...
 ```
 
 Tres piezas de software, una sola base de código:
@@ -54,7 +54,7 @@ POST /outbound (auth firmada)                       7. política del agente
    v                                                     |
 trabajador (cada 1 s)                              6. verifica cadena DNS -> dominio -> agente -> sobre
    | 5. resuelve estafeta destino, POST /inbound         ^
-   |    header X-Chasqui-Relay firmado por el dominio    |
+   |    header X-Nyx5-Relay firmado por el dominio    |
    +-----------------------------------------------------+
         202 -> entregado | 4xx -> rebote | 5xx/red -> backoff y reintento
 ```
@@ -84,10 +84,10 @@ Si la operación falla (saldo, parte, estado), `/inbound` responde 4xx y el remi
 Lección de terreno (2026-09-05): un Worker NO puede hacer fetch a `*.workers.dev` (error 1042) —
 la federación exige dominios reales; por eso las casas viven en subdominios de sigo.uk como
 custom domains. La resolución entre casas va por well-known + pin TOFU persistido en D1;
-el ancla DNS (`_chasqui.<casa> TXT`) está pendiente (decisión: tocar la zona sigo.uk).
+el ancla DNS (`_nyx5.<casa> TXT`) está pendiente (decisión: tocar la zona sigo.uk).
 
 Deploy: `npx wrangler deploy` (principal) / `npx wrangler deploy --config wrangler.beta.toml`.
-Migraciones: `npx wrangler d1 execute <db> --remote --file=migrations/0002_chasqui.sql`.
+Migraciones: `npx wrangler d1 execute <db> --remote --file=migrations/0002_nyx5.sql`.
 E2E contra producción: `node --env-file=.env e2e-produccion.mjs`.
 
 ## 3b. Local (desarrollo)
@@ -166,11 +166,11 @@ Tu Token Wallet v0 (D1) ya tiene ledger de doble entrada y cotización→confirm
 Para `sigo.uk`, en Cloudflare (con DNSSEC activado):
 
 ```
-_chsq.uk  TXT  "v=chasqui1; url=https://mail.sigo.uk; sig=<clave pública del dominio>"
+_chsq.uk  TXT  "v=nyx51; url=https://mail.sigo.uk; sig=<clave pública del dominio>"
 mail.sigo.uk      A/CNAME -> la estafeta
 ```
 
-La clave pública sale de `data/sigo.uk/domain.json` (`keys[0].sig`). Sin DNS, el fallback es `https://sigo.uk/.well-known/chasqui.json` (proxy inverso hacia la estafeta).
+La clave pública sale de `data/sigo.uk/domain.json` (`keys[0].sig`). Sin DNS, el fallback es `https://sigo.uk/.well-known/nyx5.json` (proxy inverso hacia la estafeta).
 
 ### 4.4 Seguridad operativa
 
@@ -188,8 +188,8 @@ Cada `/inbound` hace: dos GET cacheados (tarjetas, 5 min), dos verificaciones Ed
 
 ## 5. Interoperabilidad
 
-- **MCP**: `chasqui mcp --agent keys/x.json` expone el agente como servidor MCP por stdio. Configuración para Claude Desktop en el README. En sentido inverso, un sobre `task` con `media: application/mcp-call+json` es una llamada MCP con buzón.
-- **A2A**: la tarjeta del agente apunta a su Agent Card; un sobre puede transportar una tarea A2A. Chasqui le da a A2A dirección por persona y buzón; A2A le da a Chasqui el ciclo de vida de tareas largas.
+- **MCP**: `nyx5 mcp --agent keys/x.json` expone el agente como servidor MCP por stdio. Configuración para Claude Desktop en el README. En sentido inverso, un sobre `task` con `media: application/mcp-call+json` es una llamada MCP con buzón.
+- **A2A**: la tarjeta del agente apunta a su Agent Card; un sobre puede transportar una tarea A2A. Nyx5 le da a A2A dirección por persona y buzón; A2A le da a Nyx5 el ciclo de vida de tareas largas.
 - **Email**: una estafeta con la extensión `email` es también servidor SMTP del dominio. Es la puerta de entrada al mundo actual: la misma dirección sirve para humanos y agentes.
 
 ## 6. Hoja de ruta

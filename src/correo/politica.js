@@ -1,4 +1,4 @@
-// Chasqui/1 — Validación de sobres y política de entrada (anti-spam y anti-abuso).
+// Nyx5/1 — Validación de sobres y política de entrada (anti-spam y anti-abuso).
 //
 // Toda estafeta receptora aplica, en este orden:
 //   1. forma del sobre (schema mínimo) y tamaño
@@ -14,7 +14,7 @@ export const TYPES = new Set(['message', 'task', 'result', 'receipt', 'intro']);
 export function validateEnvelope(env, { maxBytes = 1_048_576 } = {}) {
   const fail = (reason) => ({ ok: false, code: 400, reason });
   if (!env || typeof env !== 'object') return fail('sobre no es un objeto');
-  if (env.chasqui !== '1') return fail('versión no soportada (se espera chasqui="1")');
+  if (env.nyx5 !== '1') return fail('versión no soportada (se espera nyx5="1")');
   // Charset acotado: el id viaja como clave al almacenamiento (dedupe, buzones); nada de traversal.
   if (typeof env.id !== 'string' || !/^[A-Za-z0-9._:-]{8,128}$/.test(env.id)) return fail('id inválido (se espera [A-Za-z0-9._:-]{8,128})');
   try { parseAddress(env.from); } catch { return fail('from inválido'); }
@@ -78,7 +78,7 @@ export function applyInboxPolicy(env, agentRecord, senderDomain) {
       // O con un AVAL: un tercero de la allowlist lo respalda con una fianza en la casa del receptor.
       // Aquí solo comprobamos que el avalador esté en la allowlist; la estafeta verifica la fianza
       // contra su Libro (existe, activa, avala a este remitente, con el receptor como beneficiario).
-      const aval = env.extensions?.['urn:chasqui:ext:aval'];
+      const aval = env.extensions?.['urn:nyx5:ext:aval'];
       if (aval && aval.voucher && aval.bond) {
         let voucherDomain; try { voucherDomain = parseAddress(aval.voucher).domain; } catch { voucherDomain = null; }
         if (inbox.allowlist?.some((x) => x === aval.voucher || x === voucherDomain)) {

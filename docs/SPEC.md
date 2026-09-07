@@ -1,4 +1,4 @@
-# Chasqui/1 — Correo y Libro para agentes
+# Nyx5/1 — Correo y Libro para agentes
 
 Estado: borrador ejecutable v0.3 (septiembre 2026)
 Implementación de referencia: este repositorio (Node 20+, sin dependencias)
@@ -14,14 +14,14 @@ No son dos protocolos compatibles. El Libro no tiene login ni API propia: se ope
 
 El email logró algo que ningún protocolo de agentes tiene hoy: una dirección universal, un buzón, y una red donde cualquier servidor le escribe a cualquier otro sin pedir permiso. MCP conecta un agente con sus herramientas; A2A conecta agentes que ya se conocen y están en línea. Ninguno da identidad por persona, buzón, confianza verificable entre desconocidos, ni una forma de que un acuerdo tenga peso.
 
-Chasqui/1 cierra esos huecos así:
+Nyx5/1 cierra esos huecos así:
 
-| Hueco | Cómo lo cierra Chasqui |
+| Hueco | Cómo lo cierra Nyx5 |
 |---|---|
 | Identidad por persona, no solo por dominio | Dirección `agente@dominio`. El dominio certifica la clave pública de cada agente. La persona es dueña de su clave; el dominio solo la avala. |
 | Buzón (store-and-forward) | Cada dominio tiene una estafeta que acepta, guarda y reintenta. El agente puede estar apagado días; nada se pierde. |
 | Confianza y anti-spam | Todo sobre viene firmado por el agente y avalado por su dominio (ancla en DNS). Sin firma verificable no hay entrega. El receptor decide su política: abierto, lista blanca, o estampilla (proof-of-work / pago). |
-| Fragmentación | Chasqui no reemplaza a MCP ni a A2A: es el sobre universal. El contenido puede ser texto, JSON, una tarea A2A o una llamada MCP; la tarjeta del agente publica sus endpoints MCP/A2A. |
+| Fragmentación | Nyx5 no reemplaza a MCP ni a A2A: es el sobre universal. El contenido puede ser texto, JSON, una tarea A2A o una llamada MCP; la tarjeta del agente publica sus endpoints MCP/A2A. |
 | Palabras gratis | Un acuerdo es un asiento en el Libro, no prosa. Escrow retiene hasta que la prueba pasa; la fianza le pone precio a afirmar; el mandato acota cuánto puede gastar cada agente y quién paga al final. |
 | Recibo negable | Todo recibo lleva el hash del sobre que lo causó y la firma de quien lo emite. |
 
@@ -32,7 +32,7 @@ Y cifrado extremo a extremo por defecto. Las estafetas ven `de`, `para` y el tam
 - **Agente**: cualquier proceso (o persona operando un cliente) con un par de claves y una dirección.
 - **Dirección**: `local@dominio`. Minúsculas, `local` = `[a-z0-9][a-z0-9._-]{0,63}`.
 - **Estafeta**: el servidor de un dominio. Publica tarjetas, certifica agentes, recibe, guarda y entrega. Equivale al servidor MX del correo.
-- **Tarjeta de dominio**: JSON autofirmado en `/.well-known/chasqui.json`. Declara claves, URL de la estafeta, política y extensiones.
+- **Tarjeta de dominio**: JSON autofirmado en `/.well-known/nyx5.json`. Declara claves, URL de la estafeta, política y extensiones.
 - **Tarjeta de agente**: JSON con las claves y capacidades de un agente, firmado (certificado) por la clave del dominio.
 - **Sobre**: la unidad de envío. JSON firmado, opcionalmente cifrado.
 - **Resolver**: la lógica que va de una dirección a una tarjeta verificada.
@@ -42,12 +42,12 @@ Y cifrado extremo a extremo por defecto. Las estafetas ven `de`, `para` y el tam
 Dada `asistente@sigo.uk`, el resolver localiza la estafeta de `sigo.uk` en este orden:
 
 1. **Override local** (`hosts.json`): pruebas y redes privadas. Puede fijar la clave esperada (`sig`).
-2. **DNS**: registro TXT en `_chasqui.sigo.uk`:
+2. **DNS**: registro TXT en `_nyx5.sigo.uk`:
    ```
-   v=chasqui1; url=https://mail.sigo.uk; sig=<clave pública Ed25519 del dominio, base64url>
+   v=nyx51; url=https://mail.sigo.uk; sig=<clave pública Ed25519 del dominio, base64url>
    ```
    `sig` es el ancla: la tarjeta del dominio debe estar firmada por esa clave. Con DNSSEC, la cadena queda completa.
-3. **Well-known sin DNS**: `https://sigo.uk/.well-known/chasqui.json`. Si no hay ancla, el resolver aplica TOFU (confía en el primer uso y pinea la clave; un cambio posterior se rechaza hasta que el operador lo confirme).
+3. **Well-known sin DNS**: `https://sigo.uk/.well-known/nyx5.json`. Si no hay ancla, el resolver aplica TOFU (confía en el primer uso y pinea la clave; un cambio posterior se rechaza hasta que el operador lo confirme).
 
 Luego descarga la tarjeta del dominio y la del agente, y verifica la cadena: **DNS → clave del dominio → tarjeta del agente → firma del sobre**.
 
@@ -57,12 +57,12 @@ Las tarjetas se cachean (5 min por defecto). Si un sobre llega firmado con una c
 
 ```json
 {
-  "chasqui": "1",
+  "nyx5": "1",
   "domain": "sigo.uk",
   "estafeta": "https://mail.sigo.uk",
   "keys": [ { "sig": "<Ed25519 pub>", "created": "2026-09-04T00:00:00Z" } ],
   "policy": { "inbound": "verified", "max_bytes": 1048576 },
-  "extensions": ["urn:chasqui:ext:mcp", "urn:chasqui:ext:a2a"],
+  "extensions": ["urn:nyx5:ext:mcp", "urn:nyx5:ext:a2a"],
   "issued": "2026-09-04T19:00:00Z",
   "signature": { "alg": "Ed25519", "kid": "<Ed25519 pub>", "value": "<base64url>" }
 }
@@ -80,7 +80,7 @@ Reglas:
 
 ```json
 {
-  "chasqui": "1",
+  "nyx5": "1",
   "address": "asistente@sigo.uk",
   "sig": "<Ed25519 pub del agente>",
   "enc": "<X25519 pub del agente>",
@@ -119,7 +119,7 @@ Reglas:
 
 ```json
 {
-  "chasqui": "1",
+  "nyx5": "1",
   "id": "uuid",
   "from": "nicolas@sigo.uk",
   "to": ["asistente@beta.example"],
@@ -136,7 +136,7 @@ Reglas:
   "attachments": [ { "name": "informe.pdf", "media": "application/pdf", "sha256": "...", "url": "https://...", "bytes": 12345 } ],
   "pow": { "bits": 16, "nonce": "12345" },
   "receipt": "delivered",
-  "extensions": { "urn:chasqui:ext:a2a": { "task_id": "..." } },
+  "extensions": { "urn:nyx5:ext:a2a": { "task_id": "..." } },
   "signature": { "alg": "Ed25519", "kid": "<sig del agente>", "value": "<base64url>" }
 }
 ```
@@ -145,7 +145,7 @@ Reglas:
 - `content` y `encrypted` son excluyentes. `content.media` sigue el modelo MIME; `body` es texto o JSON.
 - La **firma** cubre todo el sobre canónico menos `signature`. Se firma después de cifrar: cualquier estafeta verifica autenticidad sin poder leer el contenido.
 - El **cifrado** es JWE-like: una clave de contenido aleatoria cifra `content` con AES-256-GCM; esa clave se envuelve para cada destinatario con X25519 efímero + HKDF. El AAD es el canónico de `{id, from, to}`: un sobre no puede ser re-dirigido ni re-firmado por otro sin romper el descifrado.
-- **Detalle normativo del KDF** (toda implementación debe copiarlo byte a byte o nada interopera): la KEK de cada destinatario es `HKDF-SHA256(ikm = X25519(epk_priv, enc_dest), salt = los bytes UTF-8 del STRING base64url de epk — no la clave decodificada —, info = "chasqui/1 cek-wrap", 32)`. Y el canónico ordena claves, omite en objetos los valores `undefined`, y serializa como JSON compacto.
+- **Detalle normativo del KDF** (toda implementación debe copiarlo byte a byte o nada interopera): la KEK de cada destinatario es `HKDF-SHA256(ikm = X25519(epk_priv, enc_dest), salt = los bytes UTF-8 del STRING base64url de epk — no la clave decodificada —, info = "nyx5/1 cek-wrap", 32)`. Y el canónico ordena claves, omite en objetos los valores `undefined`, y serializa como JSON compacto.
 - **Adjuntos** viajan por referencia (URL + hash), no incrustados. La estafeta no almacena binarios. El hash hace verificable la descarga.
 - `type` es un hint semántico. `task`/`result` para trabajo delegado; `receipt` para acuses; `intro` para presentarse ante buzones con lista blanca (máximo 4 KB); `message` para todo lo demás.
 - `thread` e `in_reply_to` dan hilos sin estado en el servidor.
@@ -160,7 +160,7 @@ Tamaño máximo por defecto: 1 MB. Lo declara cada dominio en su tarjeta.
 `POST https://<estafeta destino>/inbound` con el sobre como cuerpo JSON y este header:
 
 ```
-X-Chasqui-Relay: chasqui1 domain=<dominio emisor>; kid=<clave del dominio>; sig=<firma de "relay:<id>:<dominio destino>">
+X-Nyx5-Relay: nyx51 domain=<dominio emisor>; kid=<clave del dominio>; sig=<firma de "relay:<id>:<dominio destino>">
 ```
 
 La firma del agente autentica al remitente (como DKIM). La firma de relay autentica a la estafeta emisora (como SPF). Un dominio puede exigir ambas (`require_relay`).
@@ -196,11 +196,11 @@ Semántica de códigos (por sobre o por destinatario):
 
 ## 8. API agente ↔ estafeta
 
-Autenticación: `Authorization: Chasqui <token>.<firma>` donde `token` = base64url del canónico de `{address, ts, nonce, method, path, host}` y `firma` = Ed25519 con la clave del agente. Ventana de 5 minutos, nonce de un solo uso, atado a método, ruta y **casa destino** (`host`): un token capturado no sirve contra otra estafeta.
+Autenticación: `Authorization: Nyx5 <token>.<firma>` donde `token` = base64url del canónico de `{address, ts, nonce, method, path, host}` y `firma` = Ed25519 con la clave del agente. Ventana de 5 minutos, nonce de un solo uso, atado a método, ruta y **casa destino** (`host`): un token capturado no sirve contra otra estafeta.
 
 | Método | Ruta | Quién | Para |
 |---|---|---|---|
-| GET | `/.well-known/chasqui.json` | público | tarjeta del dominio |
+| GET | `/.well-known/nyx5.json` | público | tarjeta del dominio |
 | GET | `/agents` | público | directorio de la casa (`?capability=mcp&accepts=<media>&q=<texto>&limit&offset`) |
 | GET | `/agents/:local` | público | tarjeta del agente |
 | POST | `/agents` | ver sección 8b | registrar/actualizar agente |
@@ -223,7 +223,7 @@ Cómo entra un agente a una casa lo decide la tarjeta del dominio (`policy.regis
 | `invite` | quien tenga un código | la casa emite códigos con usos y vencimiento; el agente lo presenta en `invite` |
 | `open` | cualquiera | primer llegado, primer servido; límite de altas por minuto |
 
-En `invite` y `open` el cuerpo va **firmado con la misma clave que se inscribe** (`signature.kid == sig`, con `ts` dentro de 5 minutos): prueba de posesión. Nadie puede registrar una clave que no controla. Un nombre ya tomado solo lo actualiza su dueño (autenticación firmada, incluso al rotar claves: el cuerpo lleva las nuevas, la autenticación se firma con las viejas) o la casa. Nombres reservados: `postmaster`, `libro`, `casa`, `admin`, `root`, `abuse`, `security`, `hostmaster`, `noreply`, `support`, `estafeta`, `chasqui`. Los subagentes se inscriben con la firma del padre (sección 4).
+En `invite` y `open` el cuerpo va **firmado con la misma clave que se inscribe** (`signature.kid == sig`, con `ts` dentro de 5 minutos): prueba de posesión. Nadie puede registrar una clave que no controla. Un nombre ya tomado solo lo actualiza su dueño (autenticación firmada, incluso al rotar claves: el cuerpo lleva las nuevas, la autenticación se firma con las viejas) o la casa. Nombres reservados: `postmaster`, `libro`, `casa`, `admin`, `root`, `abuse`, `security`, `hostmaster`, `noreply`, `support`, `estafeta`, `nyx5`. Los subagentes se inscriben con la firma del padre (sección 4).
 
 El **directorio** (`GET /agents`) es la lista pública de las tarjetas de la casa que **pidieron figurar** (`capabilities.listed: true`): claves, capacidades, política de buzón, si es delegado y por quién. Sin webhooks ni datos privados. El default es no aparecer: un agente no figura en el directorio ni en ningún índice sin haberlo pedido. El lookup directo por dirección (`GET /agents/<local>`) resuelve a cualquier agente que ya conoces, listado o no. Sirve para encontrar quién ofrece qué dentro de una casa; entre casas, el descubrimiento sigue siendo por dirección (sección 2): no hay un registro global, y ese hueco está declarado en la sección 21.
 
@@ -234,7 +234,7 @@ Cada alta es un evento registrado (`registered_via`: admin, self, delegation, op
 La estafeta receptora rechaza sin excepción sobres sin firma verificable. Sobre eso, cada agente elige:
 
 - `open`: acepta cualquier remitente verificado. Límite de tasa por dominio emisor (120/min por defecto).
-- `allowlist`: solo direcciones o dominios listados. Un desconocido tiene dos formas de entrar: un `intro` de hasta 4 KB (el agente decide si lo agrega a la lista), o un **aval con fianza** (`urn:chasqui:ext:aval`): un tercero **de la allowlist** lo respalda con una fianza en la casa del receptor. El sobre lleva `extensions["urn:chasqui:ext:aval"] = { voucher, bond }`; la estafeta comprueba que la fianza exista y esté activa, que la puso el avalador (que debe estar en la allowlist), que avala a este remitente (`vouchee`), y que tiene al receptor como beneficiario y verificador. Si la presentación resulta basura, el receptor ejecuta la fianza (`forfeit`, §16): avalar deja de ser gratis.
+- `allowlist`: solo direcciones o dominios listados. Un desconocido tiene dos formas de entrar: un `intro` de hasta 4 KB (el agente decide si lo agrega a la lista), o un **aval con fianza** (`urn:nyx5:ext:aval`): un tercero **de la allowlist** lo respalda con una fianza en la casa del receptor. El sobre lleva `extensions["urn:nyx5:ext:aval"] = { voucher, bond }`; la estafeta comprueba que la fianza exista y esté activa, que la puso el avalador (que debe estar en la allowlist), que avala a este remitente (`vouchee`), y que tiene al receptor como beneficiario y verificador. Si la presentación resulta basura, el receptor ejecuta la fianza (`forfeit`, §16): avalar deja de ser gratis.
 - `pow`: exige proof-of-work (hashcash, `pow_bits` bits de ceros iniciales en SHA-256 de `id:nonce`). Los de la allowlist quedan exentos. Con 16 bits, un envío cuesta ~65k hashes: gratis para uno, caro para un millón.
 - `stamp`: exige estampilla pagada en el Libro. La tarjeta publica `{ policy: "stamp", price: 5, house?: "sigo.uk" }`; el sobre lleva `stamp: { house, amount }` firmado como parte del sobre; la estafeta receptora cobra en su Libro al aceptar (sección 19). Sin saldo, 402 y rebote.
 - `blocklist`: siempre se aplica antes que lo demás.
@@ -243,17 +243,17 @@ La estafeta receptora rechaza sin excepción sobres sin firma verificable. Sobre
 
 Una extensión es una URI. El dominio y el agente declaran las que soportan; un sobre puede llevar datos bajo `extensions[uri]`. Implementaciones que no la conocen ignoran esos datos sin fallar.
 
-- `urn:chasqui:ext:mcp`: el agente publica `capabilities.mcp` (URL de su servidor MCP). Un sobre `type: task` con `media: application/mcp-call+json` y `body: {tool, arguments}` es una llamada MCP asíncrona con buzón. La referencia incluye el puente inverso: un servidor MCP por stdio (`chasqui mcp`) que expone `chasqui_send`, `chasqui_inbox`, `chasqui_ack`, `chasqui_resolve` a cualquier cliente MCP (Claude Desktop, Claude Code, Cursor).
-- `urn:chasqui:ext:a2a`: `capabilities.a2a` apunta a la Agent Card A2A. Un sobre con `media: application/a2a-task+json` transporta una tarea A2A; el `task_id` viaja en `extensions`. Así A2A gana buzón y direccionamiento por persona sin cambiar su spec.
-- `urn:chasqui:ext:email`: la casa es pasarela de correo. `nombre@dominio` es a la vez dirección Chasqui y de correo. **Entrada**: un email real entra al buzón como un sobre **sin firma**, con el remitente real y el asunto en `extensions["urn:chasqui:ext:email"]`, marcado `from_verified: false` y `via: "email"`. Nunca se disfraza de sobre firmado (invariante 1): se abre explícitamente como lo que es, un mensaje externo no verificable. **Salida**: un agente le escribe a una dirección de correo cualquiera (`POST /email/out`, autenticado); el mensaje sale con `Reply-To` igual a la dirección Chasqui del agente, así la respuesta del humano vuelve a su buzón por la entrada. Es el arranque en frío: llega la carta antes de que exista la decisión de adoptar; cuando el humano quiere firma, cifrado y Libro, se registra. La entrada corre en el borde (Cloudflare Email Routing → Email Worker); la salida usa un proveedor HTTP (el envelope-from debe ser un dominio verificado en él). Sin proveedor configurado, la salida queda **pendiente**: el puente no inventa un canal que no tiene.
-- `urn:chasqui:ext:indice`: la casa opera un índice federado de agentes (§13).
-- `urn:chasqui:ext:libro`: la casa opera un Libro (secciones 14 a 20). Lo declara la tarjeta del dominio y la tarjeta de `libro@<dominio>` publica el fee y las operaciones.
-- `urn:chasqui:ext:aval`: un sobre de un desconocido a un buzón con lista blanca lo lleva para presentar su aval: `{ voucher, bond }`. El avalador respalda con una fianza (op `bond` con `vouchee`) en la casa del receptor; la política de entrada (§9) la exige válida antes de aceptar.
-- `urn:chasqui:ext:person`: la tarjeta del agente puede declarar `person: {name, verified_by}` para agentes que actúan por una persona identificada, con verificación delegada (por ejemplo, un dominio que solo certifica clientes con identidad verificada).
+- `urn:nyx5:ext:mcp`: el agente publica `capabilities.mcp` (URL de su servidor MCP). Un sobre `type: task` con `media: application/mcp-call+json` y `body: {tool, arguments}` es una llamada MCP asíncrona con buzón. La referencia incluye el puente inverso: un servidor MCP por stdio (`nyx5 mcp`) que expone `nyx5_send`, `nyx5_inbox`, `nyx5_ack`, `nyx5_resolve` a cualquier cliente MCP (Claude Desktop, Claude Code, Cursor).
+- `urn:nyx5:ext:a2a`: `capabilities.a2a` apunta a la Agent Card A2A. Un sobre con `media: application/a2a-task+json` transporta una tarea A2A; el `task_id` viaja en `extensions`. Así A2A gana buzón y direccionamiento por persona sin cambiar su spec.
+- `urn:nyx5:ext:email`: la casa es pasarela de correo. `nombre@dominio` es a la vez dirección Nyx5 y de correo. **Entrada**: un email real entra al buzón como un sobre **sin firma**, con el remitente real y el asunto en `extensions["urn:nyx5:ext:email"]`, marcado `from_verified: false` y `via: "email"`. Nunca se disfraza de sobre firmado (invariante 1): se abre explícitamente como lo que es, un mensaje externo no verificable. **Salida**: un agente le escribe a una dirección de correo cualquiera (`POST /email/out`, autenticado); el mensaje sale con `Reply-To` igual a la dirección Nyx5 del agente, así la respuesta del humano vuelve a su buzón por la entrada. Es el arranque en frío: llega la carta antes de que exista la decisión de adoptar; cuando el humano quiere firma, cifrado y Libro, se registra. La entrada corre en el borde (Cloudflare Email Routing → Email Worker); la salida usa un proveedor HTTP (el envelope-from debe ser un dominio verificado en él). Sin proveedor configurado, la salida queda **pendiente**: el puente no inventa un canal que no tiene.
+- `urn:nyx5:ext:indice`: la casa opera un índice federado de agentes (§13).
+- `urn:nyx5:ext:libro`: la casa opera un Libro (secciones 14 a 20). Lo declara la tarjeta del dominio y la tarjeta de `libro@<dominio>` publica el fee y las operaciones.
+- `urn:nyx5:ext:aval`: un sobre de un desconocido a un buzón con lista blanca lo lleva para presentar su aval: `{ voucher, bond }`. El avalador respalda con una fianza (op `bond` con `vouchee`) en la casa del receptor; la política de entrada (§9) la exige válida antes de aceptar.
+- `urn:nyx5:ext:person`: la tarjeta del agente puede declarar `person: {name, verified_by}` para agentes que actúan por una persona identificada, con verificación delegada (por ejemplo, un dominio que solo certifica clientes con identidad verificada).
 
 ## 11. Versionado
 
-- `chasqui: "1"` en tarjetas y sobres. Un cambio incompatible es `"2"`; las estafetas pueden hablar ambas.
+- `nyx5: "1"` en tarjetas y sobres. Un cambio incompatible es `"2"`; las estafetas pueden hablar ambas.
 - Campos nuevos dentro de la versión 1 son siempre opcionales y se ignoran si no se conocen.
 - Algoritmos: `alg` explícito en firma y cifrado. Agregar uno nuevo no rompe nada; retirar uno se anuncia en la tarjeta del dominio.
 
@@ -272,14 +272,14 @@ Una extensión es una URI. El dominio y el agente declaran las que soportan; un 
 | Pérdida por caída del destino | Cola persistente con reintentos y rebote final al remitente. |
 | Clave de agente comprometida | Rotación con período de gracia; `valid_until`; blocklist inmediata en el dominio. |
 
-## 13. El índice federado (extensión `urn:chasqui:ext:indice`)
+## 13. El índice federado (extensión `urn:nyx5:ext:indice`)
 
 El directorio (§8b) es por casa. Para "encuentra un agente que haga X en cualquier casa" existe el
 índice federado: una casa cualquiera que decide operar un buscador. No es infraestructura del
 protocolo: es un servicio que cualquiera monta, como un buscador sobre la web.
 
 - **Alta**: `POST /index/houses { domain }`. La verificación ES la puerta: el índice resuelve la
-  tarjeta del dominio por la cadena normal (§2) y solo lista lo que firma como casa Chasqui.
+  tarjeta del dominio por la cadena normal (§2) y solo lista lo que firma como casa Nyx5.
 - **Opt-in**: un agente aparece en el directorio (§8b) —y por lo tanto en cualquier índice que lo
   rastree— **solo si su tarjeta declara `capabilities.listed: true`**. El default es no figurar: nadie
   se lista sin pedirlo. No listar no es esconderse: el lookup directo por dirección (`GET /agents/<local>`)
@@ -331,13 +331,13 @@ Una cotización es un **documento firmado por el vendedor**, independiente del s
   "issued": "...", "expires": null, "signature": { "alg": "Ed25519", "kid": "<sig del vendedor>", "value": "..." } }
 ```
 
-Viaja al comprador dentro de un sobre con `media: application/chasqui.cotizacion+json`, cifrado. La casa la ve recién cuando el comprador la acepta. El Libro verifica: firma del vendedor (vía resolver), `buyer` igual al que acepta, `house` igual a la propia, vigencia, y que no haya sido aceptada antes (409).
+Viaja al comprador dentro de un sobre con `media: application/nyx5.cotizacion+json`, cifrado. La casa la ve recién cuando el comprador la acepta. El Libro verifica: firma del vendedor (vía resolver), `buyer` igual al que acepta, `house` igual a la propia, vigencia, y que no haya sido aceptada antes (409).
 
 **Comisión de referido** (`referrer`, opcional): el vendedor firma en la cotización que le paga `share` (en basis points) a quien trajo el trato. La comisión **sale de lo que recibe el vendedor**, no se suma al precio: el comprador paga igual y la casa cobra igual. Al liquidar (el `transfer` del spot o el `release` del escrow), el asiento pasa a cuatro líneas —comprador, vendedor, casa, referidor— y sigue sumando cero. El Libro exige `share` entero y `> 0`, que `fee + share ≤ 10000` bps (el vendedor nunca queda en negativo), y que el referidor no sea el propio vendedor. La distribución se paga sola: nadie la factura aparte, se asienta en el mismo movimiento.
 
 ## 16. Operaciones
 
-Se envían como sobre a `libro@<casa>` con `type: task`, `media: application/chasqui.libro+json`, sin cifrar (la casa debe leerlo), `body: { op, ... }`. La respuesta llega al buzón de cada parte como `type: receipt` de `libro@<casa>` con `media: application/chasqui.recibo+json`. Si la operación falla, el remitente recibe un rebote del postmaster con el código y la razón.
+Se envían como sobre a `libro@<casa>` con `type: task`, `media: application/nyx5.libro+json`, sin cifrar (la casa debe leerlo), `body: { op, ... }`. La respuesta llega al buzón de cada parte como `type: receipt` de `libro@<casa>` con `media: application/nyx5.recibo+json`. Si la operación falla, el remitente recibe un rebote del postmaster con el código y la razón.
 
 | op | quién | efecto |
 |---|---|---|
@@ -383,13 +383,13 @@ Un buzón con `inbox: { policy: "stamp", price, house? }` cobra por recibir. El 
 
 Todo recibo del Libro contiene `{ of, op, op_sha256, from, contract? | mandate? | asiento?, cotizacion_sha256?, chain? }`, va firmado por la casa y se entrega a todas las partes. Junto con el sobre original (firmado por quien operó) y la cotización (firmada por el vendedor), forma una prueba de tres firmas que ninguna parte puede fabricar ni negar. Ese es el instrumento: el chat entre agentes es barato; el recibo es caro y verificable.
 
-## 21. Lo que Chasqui/1 no resuelve todavía (y no finge resolver)
+## 21. Lo que Nyx5/1 no resuelve todavía (y no finge resolver)
 
 - **Reputación entre dominios**: hoy cada receptor decide solo. Una red de reputación compartida (como las listas negras del email) es trabajo futuro.
 - **Privacidad de metadatos**: las estafetas ven quién le escribe a quién. Resolverlo requiere enrutamiento tipo mixnet, fuera de alcance.
 - **Custodia de claves para personas**: la referencia guarda la clave en un archivo. Para humanos hace falta integrar passkeys/WebAuthn o llaves de hardware.
 - **Identidad legal**: `agente@dominio` prueba control del dominio, no quién es la persona. La extensión `person` es un gancho, no una solución.
-- **Adopción**: el protocolo vale lo que valga el número de estafetas. Un solo dominio corriendo Chasqui es una demo; cien es una red.
+- **Adopción**: el protocolo vale lo que valga el número de estafetas. Un solo dominio corriendo Nyx5 es una demo; cien es una red.
 - **Registro global**: resuelto parcialmente por el índice federado (§13): cualquier casa puede operar un buscador verificante, y un agente entra a él solo si pide figurar (`listed`, opt-in). Sigue sin existir un índice "oficial" — a propósito: ningún índice es el índice.
 - **Libros federados**: cada casa tiene su Libro; los tokens de una casa no se mueven a otra. Un foráneo transa en tu casa con una cuenta en tu casa. Conectar libros entre casas es construir un sistema de compensación (SWIFT); queda deliberadamente fuera.
 - **Incentivo real**: entre agentes de un mismo dueño, el token mide pero no incentiva. El incentivo se prueba con el primer tercero que acepta tokens porque puede liquidarlos.

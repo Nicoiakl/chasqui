@@ -1,4 +1,4 @@
-# Chasqui — guía para Claude Code
+# Nyx5 — guía para Claude Code
 
 Este repositorio es **un solo sistema** con dos componentes que comparten identidad, transporte y
 almacenamiento. No son dos productos compatibles: son las dos mitades de la misma pieza.
@@ -26,13 +26,13 @@ src/correo/agente.js     cliente: register (admin|invite|open), rotateKeys, dire
 src/libro/libro.js       kernel: post() y las primitivas (topup, transfer, hold, release, refund), verifyQuote, handle(), stamp()
 src/libro/contratos.js   máquinas de estado sobre el kernel: ops {accept, deliver, release, refund, bond, forfeit, mandate, charge, revoke, balance, statement, contract}; CONTRATOS {spot, escrow, metered, bond}
 src/libro/errores.js     LibroError(code, message)
-src/puentes/mcp.js       servidor MCP por stdio: chasqui_send/inbox/ack/resolve/outbox/directory/search + chasqui_quote/accept/libro/balance/contract
+src/puentes/mcp.js       servidor MCP por stdio: nyx5_send/inbox/ack/resolve/outbox/directory/search + nyx5_quote/accept/libro/balance/contract
 src/nucleo/almacen-d1.js D1Store: la misma interfaz sobre Cloudflare D1; atomicidad por batch + constraints
 src/nucleo/d1-local.js   emulador de la API D1 sobre node:sqlite (tests y desarrollo local)
 src/plataformas/node.js  adaptador node:http (start() lo usa)
 src/plataformas/worker.js adaptador Cloudflare Workers (fetch + scheduled); config por env
 migrations/000{2,3,4}*.sql   esquema D1, candado del ledger y pins por fila
-bin/chasqui.js           CLI
+bin/nyx5.js           CLI
 demo/                    e2e, offline, spam (correo) · contratos (libro) · piloto-d4 (economía de una flota + costo por entrega)
 test/                    correo (9) · libro (11) · registro (6) · invariantes+D1 (13) · indice (5) · concurrencia (5) · altos (9) · diferidos (6) -> `npm test` (70)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
@@ -48,7 +48,7 @@ npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
 npm run demo:contratos   # libro: spot, escrow, fianza, mandato en cadena, delegación, estampilla
 npm run demo:piloto      # D4: una flota con presupuesto, escrow + verificación medida, costo por entrega
-node bin/chasqui.js      # ayuda de la CLI
+node bin/nyx5.js      # ayuda de la CLI
 ```
 
 Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no pueda resolverse con `node:` builtins.
@@ -61,7 +61,7 @@ Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no 
 4. Idempotencia por `id` de sobre: reentregar nunca duplica buzón ni asiento.
 5. Los recibos llevan hash del sobre que los causó (`sha256` / `op_sha256` / `cotizacion_sha256`).
 6. Un delegado nunca tiene más ámbito que su padre (tarjetas) ni más tope que el mandato del que cuelga (Libro).
-7. Los campos desconocidos se conservan y se firman, pero se ignoran. Versión explícita `chasqui: "1"`.
+7. Los campos desconocidos se conservan y se firman, pero se ignoran. Versión explícita `nyx5: "1"`.
 8. El contenido cifrado no lo lee la estafeta. Las cotizaciones viajan cifradas; solo se muestran al Libro al aceptar.
 9. Nadie registra una clave que no controla (prueba de posesión), nadie pisa un nombre ajeno, y los nombres de sistema están reservados.
 
@@ -69,8 +69,8 @@ Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no 
 
 - **Nuevo contrato**: agrega la op a `contratos.js` (`ops.<nombre>`) y, si se cotiza, `CONTRATOS.<kind>` con `onAccept`. No toques `libro.js`. Agrega un test en `test/libro.test.js`.
 - **Nueva política de buzón**: `politica.js` (`applyInboxPolicy`) y, si necesita Libro, el bloque `p.stamp` en `estafeta.inbound` es el modelo.
-- **Otro almacenamiento**: implementa la misma interfaz async que `FileStore` (todos los métodos, incluidos `libro*`, `markSeenIfNew`, `claimDueJobs`, `useNonce`, `libroCommit`, `inboundCommit` y los `index*`) y pásala como `store` a `Estafeta`. Referencia: `src/nucleo/almacen-d1.js` + `migrations/0002_chasqui.sql`.
-- **Nueva extensión** (URI `urn:chasqui:ext:*`): decláralo en la tarjeta (`extensions` / `capabilities`), transporta datos en `extensions[uri]` del sobre.
+- **Otro almacenamiento**: implementa la misma interfaz async que `FileStore` (todos los métodos, incluidos `libro*`, `markSeenIfNew`, `claimDueJobs`, `useNonce`, `libroCommit`, `inboundCommit` y los `index*`) y pásala como `store` a `Estafeta`. Referencia: `src/nucleo/almacen-d1.js` + `migrations/0002_nyx5.sql`.
+- **Nueva extensión** (URI `urn:nyx5:ext:*`): decláralo en la tarjeta (`extensions` / `capabilities`), transporta datos en `extensions[uri]` del sobre.
 
 ## Convenciones
 
@@ -88,7 +88,7 @@ Los 3 críticos y los 7 altos de la revisión adversarial están ARREGLADOS (ver
 **V1 desplegada (2026-09-06)**: sobres diferidos. `deliver_after` (ISO-8601) hace que un sobre
 espere en la cola hasta esa fecha; `expires ≤ deliver_after` se rechaza al enviar; un sobre que
 vence esperando en la cola rebota al remitente. Habilita `agente.recordar()` (auto-envío cifrado
-= memoria entre sesiones, tool MCP `chasqui_remind`) y los avisos de plazo del Libro (un contrato
+= memoria entre sesiones, tool MCP `nyx5_remind`) y los avisos de plazo del Libro (un contrato
 con `deadline` programa un aviso a las partes). Ver `test/diferidos.test.js` y SPEC §5/§7.
 
 **D4 hecho (2026-09-06)**: `demo/piloto-d4.mjs` — una flota (coordinador + worker + verificador) con
@@ -100,7 +100,7 @@ estimación: es lo que el asiento dice que salió de la cuenta del frente.
 (d51f69cf…); el D1 viejo "chsq" queda abandonado a propósito (partir limpio, como sigo.uk). Los agentes
 son @nyx5.com; `nicholas@nyx5.com` registrado y el conector MCP (`~/.chasqui/nicholas.json`) apunta ahí
 (respaldo `.chsq-uk.bak`; requiere reiniciar la app de Claude para tomarlo). chsq.uk queda como alias del
-mismo Worker. El protocolo sigue siendo Chasqui/1 (id firmado en cada sobre). Repo público:
+mismo Worker. El protocolo sigue siendo Nyx5/1 (id firmado en cada sobre). Repo público:
 **github.com/Nicoiakl/chasqui**, CI verde (Node 20 y 24; el emulador D1 usa node:sqlite, que no está en
 Node 20 → esas suites saltan, ver `sqliteAvailable`). `docs/SPEC.en.md`: traducción al inglés (borrador §5).
 

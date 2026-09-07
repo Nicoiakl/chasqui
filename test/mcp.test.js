@@ -1,5 +1,5 @@
 // node --test test/
-// Las descripciones del conector MCP son lo único que el modelo lee para decidir si usa Chasqui.
+// Las descripciones del conector MCP son lo único que el modelo lee para decidir si usa Nyx5.
 // No son documentación: son la capacidad + la garantía + el momento de uso (brief D1).
 // Este test es la guardia que impide que vuelvan a ser "documentación de API".
 import { test } from 'node:test';
@@ -8,7 +8,7 @@ import fs from 'node:fs';
 
 const src = fs.readFileSync(new URL('../src/puentes/mcp.js', import.meta.url), 'utf8');
 // extrae { name, description } de cada herramienta
-const tools = [...src.matchAll(/\{ name: '([a-z_]+)', description: '((?:[^'\\]|\\.)*)'/g)]
+const tools = [...src.matchAll(/\{ name: '([a-z0-9_]+)', description: '((?:[^'\\]|\\.)*)'/g)]
   .map((m) => ({ name: m[1], description: m[2].replace(/\\'/g, "'").replace(/\\\\/g, '\\') }));
 
 // una garantía del sistema que un modelo no obtiene de otra forma
@@ -39,7 +39,7 @@ test('D1 · cada description nombra el momento de uso o la capacidad, no solo el
 
 test('D1 · las descripciones son cortas (presupuesto de atención); libro es la única router', () => {
   for (const t of tools) {
-    const tope = t.name === 'chasqui_libro' ? 650 : 340; // libro lleva la lista de ops
+    const tope = t.name === 'nyx5_libro' ? 650 : 340; // libro lleva la lista de ops
     assert.ok(t.description.length <= tope, `${t.name}: ${t.description.length} chars supera ${tope}`);
   }
 });
@@ -50,6 +50,6 @@ test('D1 · instructions describe el sistema en pocas frases con capacidad y gar
   const inst = m[1];
   assert.ok(GARANTIA.test(inst), 'instructions no menciona una garantía');
   assert.ok(CAPACIDAD.test(inst) || /necesites/.test(inst), 'instructions no dice cuándo conviene usarlo');
-  assert.ok(!/chasqui_send|chasqui_inbox|tools\/list/.test(inst), 'instructions no debe listar herramientas (eso lo hace tools/list)');
+  assert.ok(!/nyx5_send|nyx5_inbox|tools\/list/.test(inst), 'instructions no debe listar herramientas (eso lo hace tools/list)');
   assert.ok(inst.length <= 700, `instructions demasiado largo: ${inst.length}`);
 });

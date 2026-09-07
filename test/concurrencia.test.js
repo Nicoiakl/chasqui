@@ -23,9 +23,9 @@ const d1store = () => { const db = openLocalD1(); db._raw.exec(MIGRACIONES); ret
 // Un sobre de operación del Libro, firmado por quien opera.
 const KA = generateKeys();
 const opEnv = (from, house, body, keys = KA) => signObject({
-  chasqui: '1', id: uuid(), from, to: [`libro@${house}`], created: new Date().toISOString(),
+  nyx5: '1', id: uuid(), from, to: [`libro@${house}`], created: new Date().toISOString(),
   expires: null, thread: null, in_reply_to: null, type: 'task',
-  content: { media: 'application/chasqui.libro+json', body },
+  content: { media: 'application/nyx5.libro+json', body },
 }, keys);
 
 // Dos Libros sobre la MISMA base = dos isolates de Workers atendiendo requests en paralelo.

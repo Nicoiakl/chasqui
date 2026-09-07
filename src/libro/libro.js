@@ -1,4 +1,4 @@
-// Chasqui/1 — Libro: el ledger de doble entrada de una casa (dominio).
+// Nyx5/1 — Libro: el ledger de doble entrada de una casa (dominio).
 //
 // El Libro es el segundo componente del sistema; el primero es el Correo. No tiene login propio:
 // toda operación llega como un sobre firmado a `libro@<dominio>`, y la identidad del remitente ya
@@ -32,9 +32,9 @@ import { LibroError } from './errores.js';
 export { LibroError };
 
 export const MEDIA = {
-  op: 'application/chasqui.libro+json',
-  cotizacion: 'application/chasqui.cotizacion+json',
-  recibo: 'application/chasqui.recibo+json',
+  op: 'application/nyx5.libro+json',
+  cotizacion: 'application/nyx5.cotizacion+json',
+  recibo: 'application/nyx5.recibo+json',
 };
 
 const iso = () => new Date().toISOString();

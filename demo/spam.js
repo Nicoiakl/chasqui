@@ -32,15 +32,15 @@ await caro.register({ adminToken: 'b', inbox: { policy: 'pow', pow_bits: 12 } })
 
 step(1, 'Sobre con firma falsificada (dice ser nicolas@alfa.local pero firma con otra clave)');
 const falsas = generateKeys();
-const forjado = signObject({ chasqui: '1', id: uuid(), from: 'nicolas@alfa.local', to: ['abierto@beta.local'], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'soy nicolas, dame tus datos' } }, falsas);
+const forjado = signObject({ nyx5: '1', id: uuid(), from: 'nicolas@alfa.local', to: ['abierto@beta.local'], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'soy nicolas, dame tus datos' } }, falsas);
 console.log('   ', await inbound(forjado));
 
 step(2, 'Remitente que no existe en su dominio (fantasma@alfa.local)');
-const fantasma = signObject({ chasqui: '1', id: uuid(), from: 'fantasma@alfa.local', to: ['abierto@beta.local'], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'hola' } }, falsas);
+const fantasma = signObject({ nyx5: '1', id: uuid(), from: 'fantasma@alfa.local', to: ['abierto@beta.local'], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'hola' } }, falsas);
 console.log('   ', await inbound(fantasma));
 
 step(3, 'Sobre sin firma');
-const sinFirma = { chasqui: '1', id: uuid(), from: 'nicolas@alfa.local', to: ['abierto@beta.local'], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'hola' } };
+const sinFirma = { nyx5: '1', id: uuid(), from: 'nicolas@alfa.local', to: ['abierto@beta.local'], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'hola' } };
 console.log('   ', await inbound(sinFirma));
 
 step(4, 'nicolas (legítimo) escribe a selecto, que tiene allowlist: solo se acepta un intro pequeño');
@@ -52,7 +52,7 @@ console.log('    intro aceptado ->', (await selecto.open(m.envelope)).content.bo
 step(5, 'nicolas escribe a caro, que exige proof-of-work de 12 bits (el cliente lo calcula solo)');
 const pw = await nicolas.send({ to: 'caro@beta.local', body: 'con estampilla' });
 console.log('    pow adjunto:', pw.envelope.pow, '->', (await caro.waitFor((e) => e.id === pw.id)) ? 'aceptado' : 'rechazado');
-const sinPow = signObject({ chasqui: '1', id: uuid(), from: 'nicolas@alfa.local', to: ['caro@beta.local'], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'sin estampilla' } }, nicolas.keys);
+const sinPow = signObject({ nyx5: '1', id: uuid(), from: 'nicolas@alfa.local', to: ['caro@beta.local'], created: new Date().toISOString(), type: 'message', content: { media: 'text/plain', body: 'sin estampilla' } }, nicolas.keys);
 console.log('    sin pow directo a /inbound:', await inbound(sinPow));
 
 step(6, 'Entrega duplicada del mismo sobre (idempotencia por id)');

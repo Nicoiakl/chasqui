@@ -27,7 +27,7 @@ await asistente.register({ adminToken: 'admin-beta', capabilities: { accepts: ['
 console.log('    tarjeta de asistente certificada por', (await nicolas.resolver.agentCard('asistente@beta.local')).certification.kid.slice(0, 16) + '…');
 
 step(3, 'nicolas envía una tarea cifrada extremo a extremo a asistente');
-const sent = await nicolas.send({ to: 'asistente@beta.local', type: 'task', body: { skill: 'resumir', input: 'Resume en una frase qué es Chasqui.' }, receipt: 'delivered' });
+const sent = await nicolas.send({ to: 'asistente@beta.local', type: 'task', body: { skill: 'resumir', input: 'Resume en una frase qué es Nyx5.' }, receipt: 'delivered' });
 console.log('    id del sobre:', sent.id);
 console.log('    el sobre viaja cifrado; la estafeta ve esto:', JSON.stringify(sent.envelope.encrypted).slice(0, 80) + '…');
 
@@ -39,7 +39,7 @@ step(5, 'asistente abre el sobre (verifica firma y descifra), procesa, confirma 
 const abierto = await asistente.open(recibido.envelope);
 console.log('    contenido descifrado:', JSON.stringify(abierto.content.body));
 await asistente.ack(abierto.id);
-const respuesta = await asistente.reply(recibido.envelope, { output: 'Chasqui es el correo de los agentes: direcciones agente@dominio, buzón, firma y cifrado.' });
+const respuesta = await asistente.reply(recibido.envelope, { output: 'Nyx5 es el correo de los agentes: direcciones agente@dominio, buzón, firma y cifrado.' });
 console.log('    respuesta enviada:', respuesta.id, '(mismo thread:', respuesta.envelope.thread === sent.id, ')');
 
 step(6, 'nicolas recibe la respuesta y el acuse de entrega del postmaster');

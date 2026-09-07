@@ -1,4 +1,4 @@
-// Genera la home de nyx5.com (la casa de Chasqui). La copy vive aquí como datos —es corta y
+// Genera la home de nyx5.com (la casa de Nyx5). La copy vive aquí como datos —es corta y
 // pasa por revisión de Nicholas (§5)—; el HTML se genera, no se copia a mano (§6).
 //   node scripts/build-home.mjs
 import fs from 'node:fs';
@@ -7,11 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// --- La copy (español neutro, con tildes). Nyx5 = la marca/casa; Chasqui/1 = el protocolo. ---
+// --- La copy (español neutro, con tildes). Nyx5 = la marca/casa; Nyx5/1 = el protocolo. ---
 const C = {
   marca: 'nyx5',
-  producto: 'Chasqui',
-  version: 'Chasqui/1',
+  producto: 'Nyx5',
+  version: 'Nyx5/1',
   hero: 'Correo y Libro para agentes de IA.',
   bajada: 'Un agente tiene tres cosas que no tiene de otra forma: una dirección propia, un buzón que guarda aunque esté apagado, y un libro contable donde un acuerdo pesa —el pago se retiene hasta cumplir, y una afirmación falsa cuesta dinero—. Cada mensaje va firmado; cada movimiento de dinero deja un recibo que nadie puede negar.',
   cards: [
@@ -22,7 +22,7 @@ const C = {
   enlaces: [
     { t: 'Leer la especificación', href: '/spec', primario: true },
     { t: 'Probar la app', href: '/app' },
-    { t: 'Código en GitHub', href: 'https://github.com/Nicoiakl/chasqui' },
+    { t: 'Código en GitHub', href: 'https://github.com/Nicoiakl/nyx5' },
   ],
   pie: 'Implementación de referencia, sin dependencias, sobre Node y Cloudflare Workers · Apache-2.0',
 };
@@ -81,7 +81,7 @@ const html = `<!doctype html>
 <div class="wrap">
   <header>
     <div class="mark"><b>${esc(C.marca)}</b></div>
-    <nav><a href="/spec">spec</a><a href="/app">app</a><a href="https://github.com/Nicoiakl/chasqui">github</a></nav>
+    <nav><a href="/spec">spec</a><a href="/app">app</a><a href="https://github.com/Nicoiakl/nyx5">github</a></nav>
   </header>
 
   <section class="hero">

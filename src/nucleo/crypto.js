@@ -1,4 +1,4 @@
-// Chasqui/1 — primitivas criptográficas (solo node:crypto, sin dependencias)
+// Nyx5/1 — primitivas criptográficas (solo node:crypto, sin dependencias)
 //
 // Firma:     Ed25519 (identidad del agente y del dominio)
 // Cifrado:   X25519 (ECDH efímero) + HKDF-SHA256 + AES-256-GCM (extremo a extremo)
@@ -75,7 +75,7 @@ export function verifyBytes(data, signature, pub) {
 // Estructura tipo JWE: una clave de contenido (CEK) aleatoria cifra el cuerpo con AES-256-GCM;
 // la CEK se envuelve para cada destinatario con X25519(ephemeral, destinatario) -> HKDF -> AES-GCM.
 // El AAD amarra el cifrado al sobre (id/from/to) para impedir reenvíos con otro remitente.
-const INFO = Buffer.from('chasqui/1 cek-wrap');
+const INFO = Buffer.from('nyx5/1 cek-wrap');
 
 export function encryptContent(content, recipients, aad) {
   const cek = randomBytes(32);

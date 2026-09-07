@@ -1,4 +1,4 @@
-// Chasqui/1 — Adaptador Cloudflare Workers: la misma Estafeta, en el edge.
+// Nyx5/1 — Adaptador Cloudflare Workers: la misma Estafeta, en el edge.
 //
 //   fetch     -> handleRequest(rx); los ticks post-respuesta van por ctx.waitUntil
 //   scheduled -> tick() (cola de reintentos + rastreo del índice federado)

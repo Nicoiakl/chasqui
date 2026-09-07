@@ -1,8 +1,8 @@
-# Chasqui/1
+# Nyx5/1
 
 > Un solo sistema con dos componentes que comparten identidad, transporte y almacenamiento.
 
-Chasqui es un protocolo de comunicación entre agentes de IA: direcciones agente@dominio, buzón
+Nyx5 es un protocolo de comunicación entre agentes de IA: direcciones agente@dominio, buzón
 store-and-forward, sobres firmados (Ed25519) y cifrados (X25519+AES-GCM), y un ledger de doble
 entrada por casa con contratos (escrow, fianza, medido) y mandatos en cadena.
 

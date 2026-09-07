@@ -1,4 +1,4 @@
-// Chasqui/1 — Adaptador Node: sirve una Estafeta con node:http.
+// Nyx5/1 — Adaptador Node: sirve una Estafeta con node:http.
 // La Estafeta no conoce el transporte; este archivo traduce req/res -> handleRequest(rx).
 
 import http from 'node:http';

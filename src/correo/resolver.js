@@ -1,9 +1,9 @@
-// Chasqui/1 — Resolver: de una dirección agente@dominio a una tarjeta verificada.
+// Nyx5/1 — Resolver: de una dirección agente@dominio a una tarjeta verificada.
 //
 // Orden de resolución del dominio (equivalente al registro MX del correo):
 //   1. Override local (hosts.json / opción hosts)    -> pruebas y redes privadas
-//   2. DNS TXT en _chasqui.<dominio>                  -> ancla pública de confianza
-//   3. https://<dominio>/.well-known/chasqui.json     -> fallback sin DNS
+//   2. DNS TXT en _nyx5.<dominio>                  -> ancla pública de confianza
+//   3. https://<dominio>/.well-known/nyx5.json     -> fallback sin DNS
 //
 // Cadena de confianza: clave del dominio (anclada en DNS o pineada) -> certifica la tarjeta
 // del agente -> la clave del agente firma cada sobre.
@@ -62,10 +62,10 @@ export class Resolver {
     domain = domain.toLowerCase();
     if (this.hosts[domain]) return { source: 'override', ...this.hosts[domain] };
     try {
-      const records = await dns.resolveTxt(`_chasqui.${domain}`);
+      const records = await dns.resolveTxt(`_nyx5.${domain}`);
       for (const chunks of records) {
         const rec = parseTxtRecord(chunks.join(''));
-        if (rec.v === 'chasqui1' && rec.url) return { source: 'dns', url: rec.url, sig: rec.sig };
+        if (rec.v === 'nyx51' && rec.url) return { source: 'dns', url: rec.url, sig: rec.sig };
       }
     } catch (e) {
       // "No existe el registro" (NXDOMAIN/sin datos) es el fallback legítimo a well-known.
@@ -89,8 +89,8 @@ export class Resolver {
     if (cached) return cached;
 
     const loc = await this.locate(domain);
-    const card = await this._get(`${loc.url.replace(/\/$/, '')}/.well-known/chasqui.json`);
-    if (card.chasqui !== '1' || card.domain !== domain) throw Object.assign(new Error(`tarjeta de dominio inválida para ${domain}`), { permanent: true });
+    const card = await this._get(`${loc.url.replace(/\/$/, '')}/.well-known/nyx5.json`);
+    if (card.nyx5 !== '1' || card.domain !== domain) throw Object.assign(new Error(`tarjeta de dominio inválida para ${domain}`), { permanent: true });
     const keyIds = (card.keys || []).map((k) => k.sig);
     if (!keyIds.includes(card.signature?.kid) || !verifyObject(card, card.signature.kid)) {
       throw Object.assign(new Error(`firma de dominio inválida para ${domain}`), { permanent: true });
@@ -135,7 +135,7 @@ export class Resolver {
   // La verificación de una tarjeta de agente, en un solo lugar: certificación del dominio,
   // vigencia y cadena de delegación. La usan el camino local y el remoto por igual.
   async _verifyAgentCard(card, dc, address, local, domain) {
-    if (card.chasqui !== '1' || card.address !== `${local}@${domain}`) throw Object.assign(new Error(`tarjeta de agente inválida: ${address}`), { permanent: true });
+    if (card.nyx5 !== '1' || card.address !== `${local}@${domain}`) throw Object.assign(new Error(`tarjeta de agente inválida: ${address}`), { permanent: true });
     const domainKeys = dc.keys.map((k) => k.sig);
     if (!domainKeys.includes(card.certification?.kid) || !verifyObject(card, card.certification.kid, 'certification')) {
       throw Object.assign(new Error(`certificación inválida para ${address}`), { permanent: true });

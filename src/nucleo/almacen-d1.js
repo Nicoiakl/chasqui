@@ -1,6 +1,6 @@
-// Chasqui/1 — D1Store: la misma interfaz que FileStore, sobre Cloudflare D1 (o el emulador
+// Nyx5/1 — D1Store: la misma interfaz que FileStore, sobre Cloudflare D1 (o el emulador
 // d1-local.js en tests). Async real, y la atomicidad que FileStore le debe al proceso único
-// aquí la dan las transacciones (db.batch) y las constraints del esquema (0002_chasqui.sql):
+// aquí la dan las transacciones (db.batch) y las constraints del esquema (0002_nyx5.sql):
 //   - un asiento concurrente con el mismo n -> el batch entero falla cerrado (PK diario.n)
 //   - una op reentregada -> INSERT choca con PK ops.id y el Libro responde el resultado cacheado
 //   - una cotización re-aceptada -> UNIQUE contratos.quote_id
@@ -17,33 +17,33 @@ export class D1Store {
   constructor(db) { this.db = db; }
 
   // --- dominio ---
-  async getDomain() { return p(await this.db.prepare('SELECT doc FROM chasqui_domain WHERE id = 1').first()); }
-  async putDomain(v) { await this.db.prepare('INSERT INTO chasqui_domain (id, doc) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(j(v)).run(); }
+  async getDomain() { return p(await this.db.prepare('SELECT doc FROM nyx5_domain WHERE id = 1').first()); }
+  async putDomain(v) { await this.db.prepare('INSERT INTO nyx5_domain (id, doc) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(j(v)).run(); }
   async putDomainIfAbsent(v) {
-    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_domain (id, doc) VALUES (1, ?)').bind(j(v)).run();
+    const r = await this.db.prepare('INSERT OR IGNORE INTO nyx5_domain (id, doc) VALUES (1, ?)').bind(j(v)).run();
     return r.meta.changes === 1;
   }
 
   // --- agentes ---
-  async getAgent(local) { return p(await this.db.prepare('SELECT doc FROM chasqui_agents WHERE local = ?').bind(local).first()); }
-  async putAgent(local, v) { await this.db.prepare('INSERT INTO chasqui_agents (local, doc, updated) VALUES (?, ?, ?) ON CONFLICT(local) DO UPDATE SET doc = excluded.doc, updated = excluded.updated').bind(local, j(v), iso()).run(); }
+  async getAgent(local) { return p(await this.db.prepare('SELECT doc FROM nyx5_agents WHERE local = ?').bind(local).first()); }
+  async putAgent(local, v) { await this.db.prepare('INSERT INTO nyx5_agents (local, doc, updated) VALUES (?, ?, ?) ON CONFLICT(local) DO UPDATE SET doc = excluded.doc, updated = excluded.updated').bind(local, j(v), iso()).run(); }
   // Alta atómica: true si este llamador creó el nombre. Dos altas concurrentes del mismo nombre
   // ya no se pisan la clave (ni duplican el regalo de bienvenida).
   async putAgentIfAbsent(local, v) {
-    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_agents (local, doc, updated) VALUES (?, ?, ?)').bind(local, j(v), iso()).run();
+    const r = await this.db.prepare('INSERT OR IGNORE INTO nyx5_agents (local, doc, updated) VALUES (?, ?, ?)').bind(local, j(v), iso()).run();
     return r.meta.changes === 1;
   }
-  async listAgents() { return (await this.db.prepare('SELECT local FROM chasqui_agents ORDER BY local').all()).results.map((r) => r.local); }
+  async listAgents() { return (await this.db.prepare('SELECT local FROM nyx5_agents ORDER BY local').all()).results.map((r) => r.local); }
 
   // --- invitaciones ---
-  async getInvite(code) { return p(await this.db.prepare('SELECT doc FROM chasqui_invitations WHERE code = ?').bind(code).first()); }
-  async putInvite(inv) { await this.db.prepare('INSERT INTO chasqui_invitations (code, doc) VALUES (?, ?) ON CONFLICT(code) DO UPDATE SET doc = excluded.doc').bind(inv.code, j(inv)).run(); }
-  async listInvites() { return (await this.db.prepare('SELECT doc FROM chasqui_invitations').all()).results.map((r) => JSON.parse(r.doc)); }
+  async getInvite(code) { return p(await this.db.prepare('SELECT doc FROM nyx5_invitations WHERE code = ?').bind(code).first()); }
+  async putInvite(inv) { await this.db.prepare('INSERT INTO nyx5_invitations (code, doc) VALUES (?, ?) ON CONFLICT(code) DO UPDATE SET doc = excluded.doc').bind(inv.code, j(inv)).run(); }
+  async listInvites() { return (await this.db.prepare('SELECT doc FROM nyx5_invitations').all()).results.map((r) => JSON.parse(r.doc)); }
   // Consumo atómico de un uso: la condición viaja EN el UPDATE, así que diez canjes en paralelo
   // de una invitación de un uso dejan pasar exactamente uno.
   async consumeInvite(code, atIso) {
     const r = await this.db.prepare(`
-      UPDATE chasqui_invitations
+      UPDATE nyx5_invitations
       SET doc = json_set(json_set(doc, '$.used', json_extract(doc, '$.used') + 1), '$.last_used', ?)
       WHERE code = ? AND json_extract(doc, '$.used') < json_extract(doc, '$.uses')`).bind(atIso, code).run();
     if (r.meta.changes !== 1) return null;
@@ -51,44 +51,44 @@ export class D1Store {
   }
 
   // --- deduplicación ---
-  async getSeen(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_seen WHERE id = ?').bind(id).first()); }
-  async putSeen(id, rec) { await this.db.prepare('INSERT INTO chasqui_seen (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(id, j({ id, at: iso(), ...rec })).run(); }
+  async getSeen(id) { return p(await this.db.prepare('SELECT doc FROM nyx5_seen WHERE id = ?').bind(id).first()); }
+  async putSeen(id, rec) { await this.db.prepare('INSERT INTO nyx5_seen (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(id, j({ id, at: iso(), ...rec })).run(); }
   async markSeenIfNew(id, meta = {}) {
-    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_seen (id, doc) VALUES (?, ?)').bind(id, j({ id, at: iso(), ...meta })).run();
+    const r = await this.db.prepare('INSERT OR IGNORE INTO nyx5_seen (id, doc) VALUES (?, ?)').bind(id, j({ id, at: iso(), ...meta })).run();
     return r.meta.changes === 1;
   }
 
   // --- buzones ---
   async putMail(local, envelope, meta = {}) {
     const received = iso();
-    await this.db.prepare('INSERT INTO chasqui_mailbox (local, id, doc, received) VALUES (?, ?, ?, ?) ON CONFLICT(local, id) DO NOTHING')
+    await this.db.prepare('INSERT INTO nyx5_mailbox (local, id, doc, received) VALUES (?, ?, ?, ?) ON CONFLICT(local, id) DO NOTHING')
       .bind(local, envelope.id, j({ ...meta, received, envelope }), received).run();
   }
   async listMail(local) {
-    return (await this.db.prepare('SELECT doc FROM chasqui_mailbox WHERE local = ? AND acked IS NULL ORDER BY received, id').bind(local).all()).results.map((r) => JSON.parse(r.doc));
+    return (await this.db.prepare('SELECT doc FROM nyx5_mailbox WHERE local = ? AND acked IS NULL ORDER BY received, id').bind(local).all()).results.map((r) => JSON.parse(r.doc));
   }
   async ackMail(local, id) {
-    const r = await this.db.prepare('UPDATE chasqui_mailbox SET acked = ? WHERE local = ? AND id = ? AND acked IS NULL').bind(iso(), local, id).run();
+    const r = await this.db.prepare('UPDATE nyx5_mailbox SET acked = ? WHERE local = ? AND id = ? AND acked IS NULL').bind(iso(), local, id).run();
     return r.meta.changes === 1;
   }
 
   // --- cola de salida ---
   _jobRow(job) { return [job.id, j(job), job.next_attempt, job.status, job.claimed_until || 0]; }
   async enqueue(job) {
-    await this.db.prepare('INSERT INTO chasqui_queue (id, doc, next_attempt, status, claimed_until) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc, next_attempt = excluded.next_attempt, status = excluded.status, claimed_until = excluded.claimed_until')
+    await this.db.prepare('INSERT INTO nyx5_queue (id, doc, next_attempt, status, claimed_until) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc, next_attempt = excluded.next_attempt, status = excluded.status, claimed_until = excluded.claimed_until')
       .bind(...this._jobRow(job)).run();
   }
-  async listQueue() { return (await this.db.prepare('SELECT doc FROM chasqui_queue').all()).results.map((r) => JSON.parse(r.doc)); }
+  async listQueue() { return (await this.db.prepare('SELECT doc FROM nyx5_queue').all()).results.map((r) => JSON.parse(r.doc)); }
   async updateJob(job) { await this.enqueue(job); }
-  async removeJob(id) { await this.db.prepare('DELETE FROM chasqui_queue WHERE id = ?').bind(id).run(); }
+  async removeJob(id) { await this.db.prepare('DELETE FROM nyx5_queue WHERE id = ?').bind(id).run(); }
   async claimDueJobs(nowMs, max = 20) {
     const nowIso = new Date(nowMs).toISOString();
     const until = nowMs + 60_000;
     // Reclamo atómico: un solo UPDATE marca y devuelve; dos ticks concurrentes no comparten trabajo.
     const r = await this.db.prepare(`
-      UPDATE chasqui_queue SET status = 'inflight', claimed_until = ?
+      UPDATE nyx5_queue SET status = 'inflight', claimed_until = ?
       WHERE id IN (
-        SELECT id FROM chasqui_queue
+        SELECT id FROM nyx5_queue
         WHERE next_attempt <= ? AND (status IN ('queued','retrying') OR (status = 'inflight' AND claimed_until < ?))
         LIMIT ?
       ) RETURNING doc`).bind(until, nowIso, nowMs, max).all();
@@ -97,24 +97,24 @@ export class D1Store {
 
   // --- outbox ---
   async putOutbox(local, entry) {
-    await this.db.prepare('INSERT INTO chasqui_outbox (local, job, doc) VALUES (?, ?, ?) ON CONFLICT(local, job) DO UPDATE SET doc = excluded.doc').bind(local, entry.job, j(entry)).run();
+    await this.db.prepare('INSERT INTO nyx5_outbox (local, job, doc) VALUES (?, ?, ?) ON CONFLICT(local, job) DO UPDATE SET doc = excluded.doc').bind(local, entry.job, j(entry)).run();
   }
-  async listOutbox(local) { return (await this.db.prepare('SELECT doc FROM chasqui_outbox WHERE local = ?').bind(local).all()).results.map((r) => JSON.parse(r.doc)); }
+  async listOutbox(local) { return (await this.db.prepare('SELECT doc FROM nyx5_outbox WHERE local = ?').bind(local).all()).results.map((r) => JSON.parse(r.doc)); }
 
   // --- nonces ---
   async useNonce(key, tsMs) {
-    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_nonces (key, ts) VALUES (?, ?)').bind(key, tsMs).run();
+    const r = await this.db.prepare('INSERT OR IGNORE INTO nyx5_nonces (key, ts) VALUES (?, ?)').bind(key, tsMs).run();
     return r.meta.changes === 1;
   }
-  async pruneNonces(beforeMs) { await this.db.prepare('DELETE FROM chasqui_nonces WHERE ts < ?').bind(beforeMs).run(); }
+  async pruneNonces(beforeMs) { await this.db.prepare('DELETE FROM nyx5_nonces WHERE ts < ?').bind(beforeMs).run(); }
 
   // --- pins (una fila por dominio: el primero gana y ningún isolate pisa lo que otro aprendió) ---
   async getPins() {
-    const r = await this.db.prepare('SELECT domain, kid FROM chasqui_pin').all();
+    const r = await this.db.prepare('SELECT domain, kid FROM nyx5_pin').all();
     return Object.fromEntries(r.results.map((x) => [x.domain, x.kid]));
   }
   async putPin(domain, kid) {
-    const r = await this.db.prepare('INSERT OR IGNORE INTO chasqui_pin (domain, kid, at) VALUES (?, ?, ?)').bind(domain, kid, iso()).run();
+    const r = await this.db.prepare('INSERT OR IGNORE INTO nyx5_pin (domain, kid, at) VALUES (?, ?, ?)').bind(domain, kid, iso()).run();
     return r.meta.changes === 1;
   }
   // Compat: recibe el mapa completo pero NUNCA borra; cada pin se agrega si no existía.
@@ -122,34 +122,34 @@ export class D1Store {
 
   // ===== Libro =====
   async libroState() {
-    const row = await this.db.prepare('SELECT seq, balances FROM chasqui_libro_state WHERE id = 1').first();
+    const row = await this.db.prepare('SELECT seq, balances FROM nyx5_libro_state WHERE id = 1').first();
     return row ? { seq: row.seq, balances: JSON.parse(row.balances) } : { seq: 0, balances: {} };
   }
-  async libroPutState(v) { await this.db.prepare('UPDATE chasqui_libro_state SET seq = ?, balances = ? WHERE id = 1').bind(v.seq, j(v.balances)).run(); }
+  async libroPutState(v) { await this.db.prepare('UPDATE nyx5_libro_state SET seq = ?, balances = ? WHERE id = 1').bind(v.seq, j(v.balances)).run(); }
   async libroAppend(asiento) { await this.db.batch(this._asientoStmts(asiento)); }
   _asientoStmts(asiento) {
     return [
-      this.db.prepare('INSERT INTO chasqui_libro_diario (n, id, doc) VALUES (?, ?, ?)').bind(asiento.n, asiento.id, j(asiento)),
-      ...asiento.lines.map((l) => this.db.prepare('INSERT INTO chasqui_libro_lineas (n, account, delta) VALUES (?, ?, ?)').bind(asiento.n, l.account, l.delta)),
+      this.db.prepare('INSERT INTO nyx5_libro_diario (n, id, doc) VALUES (?, ?, ?)').bind(asiento.n, asiento.id, j(asiento)),
+      ...asiento.lines.map((l) => this.db.prepare('INSERT INTO nyx5_libro_lineas (n, account, delta) VALUES (?, ?, ?)').bind(asiento.n, l.account, l.delta)),
     ];
   }
-  async libroJournal() { return (await this.db.prepare('SELECT doc FROM chasqui_libro_diario ORDER BY n').all()).results.map((r) => JSON.parse(r.doc)); }
-  async libroGetContract(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_libro_contratos WHERE id = ?').bind(id).first()); }
+  async libroJournal() { return (await this.db.prepare('SELECT doc FROM nyx5_libro_diario ORDER BY n').all()).results.map((r) => JSON.parse(r.doc)); }
+  async libroGetContract(id) { return p(await this.db.prepare('SELECT doc FROM nyx5_libro_contratos WHERE id = ?').bind(id).first()); }
   _contractStmt(c) {
-    return this.db.prepare('INSERT INTO chasqui_libro_contratos (id, quote_id, doc) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc, quote_id = excluded.quote_id').bind(c.id, c.quote_id || null, j(c));
+    return this.db.prepare('INSERT INTO nyx5_libro_contratos (id, quote_id, doc) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc, quote_id = excluded.quote_id').bind(c.id, c.quote_id || null, j(c));
   }
   async libroPutContract(c) { await this._contractStmt(c).run(); }
-  async libroListContracts() { return (await this.db.prepare('SELECT doc FROM chasqui_libro_contratos').all()).results.map((r) => JSON.parse(r.doc)); }
-  async libroFindContractByQuote(quoteId) { return p(await this.db.prepare('SELECT doc FROM chasqui_libro_contratos WHERE quote_id = ?').bind(quoteId).first()); }
-  async libroGetMandate(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_libro_mandatos WHERE id = ?').bind(id).first()); }
-  _mandateStmt(m) { return this.db.prepare('INSERT INTO chasqui_libro_mandatos (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(m.id, j(m)); }
+  async libroListContracts() { return (await this.db.prepare('SELECT doc FROM nyx5_libro_contratos').all()).results.map((r) => JSON.parse(r.doc)); }
+  async libroFindContractByQuote(quoteId) { return p(await this.db.prepare('SELECT doc FROM nyx5_libro_contratos WHERE quote_id = ?').bind(quoteId).first()); }
+  async libroGetMandate(id) { return p(await this.db.prepare('SELECT doc FROM nyx5_libro_mandatos WHERE id = ?').bind(id).first()); }
+  _mandateStmt(m) { return this.db.prepare('INSERT INTO nyx5_libro_mandatos (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(m.id, j(m)); }
   async libroPutMandate(m) { await this._mandateStmt(m).run(); }
-  async libroListMandates() { return (await this.db.prepare('SELECT doc FROM chasqui_libro_mandatos').all()).results.map((r) => JSON.parse(r.doc)); }
-  async libroGetOp(id) { return p(await this.db.prepare('SELECT doc FROM chasqui_libro_ops WHERE id = ?').bind(id).first()); }
-  async libroPutOp(id, v) { await this.db.prepare('INSERT INTO chasqui_libro_ops (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(id, j(v)).run(); }
+  async libroListMandates() { return (await this.db.prepare('SELECT doc FROM nyx5_libro_mandatos').all()).results.map((r) => JSON.parse(r.doc)); }
+  async libroGetOp(id) { return p(await this.db.prepare('SELECT doc FROM nyx5_libro_ops WHERE id = ?').bind(id).first()); }
+  async libroPutOp(id, v) { await this.db.prepare('INSERT INTO nyx5_libro_ops (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(id, j(v)).run(); }
   async libroStatement(account, limit) {
     const r = await this.db.prepare(`
-      SELECT doc FROM chasqui_libro_diario WHERE n IN (SELECT DISTINCT n FROM chasqui_libro_lineas WHERE account = ?)
+      SELECT doc FROM nyx5_libro_diario WHERE n IN (SELECT DISTINCT n FROM nyx5_libro_lineas WHERE account = ?)
       ORDER BY n DESC LIMIT ?`).bind(account, limit).all();
     return r.results.map((row) => JSON.parse(row.doc)).reverse();
   }
@@ -159,10 +159,10 @@ export class D1Store {
   _libroCommitStmts(bundle) {
     const stmts = [];
     for (const a of bundle.asientos || []) stmts.push(...this._asientoStmts(a));
-    if (bundle.state) stmts.push(this.db.prepare('UPDATE chasqui_libro_state SET seq = ?, balances = ? WHERE id = 1').bind(bundle.state.seq, j(bundle.state.balances)));
+    if (bundle.state) stmts.push(this.db.prepare('UPDATE nyx5_libro_state SET seq = ?, balances = ? WHERE id = 1').bind(bundle.state.seq, j(bundle.state.balances)));
     for (const c of bundle.contracts || []) stmts.push(this._contractStmt(c));
     for (const m of bundle.mandates || []) stmts.push(this._mandateStmt(m));
-    if (bundle.op) stmts.push(this.db.prepare('INSERT INTO chasqui_libro_ops (id, doc) VALUES (?, ?)').bind(bundle.op.id, j(bundle.op.result)));
+    if (bundle.op) stmts.push(this.db.prepare('INSERT INTO nyx5_libro_ops (id, doc) VALUES (?, ?)').bind(bundle.op.id, j(bundle.op.result)));
     return stmts;
   }
   async libroCommit(bundle) {
@@ -178,10 +178,10 @@ export class D1Store {
     for (const lb of bundle.libro || []) stmts.push(...this._libroCommitStmts(lb));
     for (const m of bundle.mails || []) {
       const received = iso();
-      stmts.push(this.db.prepare('INSERT INTO chasqui_mailbox (local, id, doc, received) VALUES (?, ?, ?, ?) ON CONFLICT(local, id) DO NOTHING')
+      stmts.push(this.db.prepare('INSERT INTO nyx5_mailbox (local, id, doc, received) VALUES (?, ?, ?, ?) ON CONFLICT(local, id) DO NOTHING')
         .bind(m.local, m.envelope.id, j({ ...m.meta, received, envelope: m.envelope }), received));
     }
-    if (bundle.seen) stmts.push(this.db.prepare('INSERT INTO chasqui_seen (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc')
+    if (bundle.seen) stmts.push(this.db.prepare('INSERT INTO nyx5_seen (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc')
       .bind(bundle.seen.id, j({ id: bundle.seen.id, at: iso(), ...bundle.seen.rec })));
     if (!stmts.length) return;
     try { await this.db.batch(stmts); }
@@ -200,13 +200,13 @@ export class D1Store {
   }
 
   // ===== Índice federado =====
-  async indexGetHouse(domain) { return p(await this.db.prepare('SELECT doc FROM chasqui_indice_casas WHERE domain = ?').bind(domain).first()); }
-  async indexPutHouse(h) { await this.db.prepare('INSERT INTO chasqui_indice_casas (domain, doc) VALUES (?, ?) ON CONFLICT(domain) DO UPDATE SET doc = excluded.doc').bind(h.domain, j(h)).run(); }
-  async indexListHouses() { return (await this.db.prepare('SELECT doc FROM chasqui_indice_casas').all()).results.map((r) => JSON.parse(r.doc)); }
+  async indexGetHouse(domain) { return p(await this.db.prepare('SELECT doc FROM nyx5_indice_casas WHERE domain = ?').bind(domain).first()); }
+  async indexPutHouse(h) { await this.db.prepare('INSERT INTO nyx5_indice_casas (domain, doc) VALUES (?, ?) ON CONFLICT(domain) DO UPDATE SET doc = excluded.doc').bind(h.domain, j(h)).run(); }
+  async indexListHouses() { return (await this.db.prepare('SELECT doc FROM nyx5_indice_casas').all()).results.map((r) => JSON.parse(r.doc)); }
   async indexReplaceAgents(domain, cards) {
     await this.db.batch([
-      this.db.prepare('DELETE FROM chasqui_indice_agentes WHERE house = ?').bind(domain),
-      ...cards.map((c) => this.db.prepare('INSERT INTO chasqui_indice_agentes (house, address, doc) VALUES (?, ?, ?)').bind(domain, c.address, j(c))),
+      this.db.prepare('DELETE FROM nyx5_indice_agentes WHERE house = ?').bind(domain),
+      ...cards.map((c) => this.db.prepare('INSERT INTO nyx5_indice_agentes (house, address, doc) VALUES (?, ?, ?)').bind(domain, c.address, j(c))),
     ]);
   }
   async indexSearch({ q, capability, accepts, house, limit = 50, offset = 0 } = {}) {
@@ -216,8 +216,8 @@ export class D1Store {
     if (accepts) { where.push("EXISTS (SELECT 1 FROM json_each(doc, '$.capabilities.accepts') WHERE value = ?)"); binds.push(accepts); }
     if (q) { where.push('lower(doc) LIKE ?'); binds.push(`%${String(q).toLowerCase()}%`); }
     const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const total = (await this.db.prepare(`SELECT COUNT(*) AS c FROM chasqui_indice_agentes ${w}`).bind(...binds).first()).c;
-    const rows = await this.db.prepare(`SELECT doc FROM chasqui_indice_agentes ${w} ORDER BY house, address LIMIT ? OFFSET ?`).bind(...binds, limit, offset).all();
+    const total = (await this.db.prepare(`SELECT COUNT(*) AS c FROM nyx5_indice_agentes ${w}`).bind(...binds).first()).c;
+    const rows = await this.db.prepare(`SELECT doc FROM nyx5_indice_agentes ${w} ORDER BY house, address LIMIT ? OFFSET ?`).bind(...binds, limit, offset).all();
     return { total, offset, agents: rows.results.map((r) => JSON.parse(r.doc)) };
   }
 }

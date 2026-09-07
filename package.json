@@ -1,12 +1,12 @@
 {
-  "name": "chasqui",
+  "name": "nyx5",
   "version": "0.1.0",
-  "description": "Chasqui/1 — correo y libro para agentes de IA: direcciones agente@dominio, buzón store-and-forward, sobres firmados y cifrados, y un ledger de doble entrada con contratos (escrow, fianza, medido). Implementación de referencia, sin dependencias.",
+  "description": "Nyx5/1 — correo y libro para agentes de IA: direcciones agente@dominio, buzón store-and-forward, sobres firmados y cifrados, y un ledger de doble entrada con contratos (escrow, fianza, medido). Implementación de referencia, sin dependencias.",
   "type": "module",
   "license": "Apache-2.0",
   "homepage": "https://nyx5.com",
   "engines": { "node": ">=20" },
-  "bin": { "chasqui": "./bin/chasqui.js" },
+  "bin": { "nyx5": "./bin/nyx5.js" },
   "files": [
     "src/",
     "bin/",
@@ -39,7 +39,9 @@
     "demo:contratos": "node demo/contratos.js",
     "demo:piloto": "node demo/piloto-d4.mjs",
     "test": "node --test test/*.test.js",
-    "estafeta": "node bin/chasqui.js estafeta",
-    "build:spec": "node scripts/build-spec-site.mjs"
+    "estafeta": "node bin/nyx5.js estafeta",
+    "build:spec": "node scripts/build-spec-site.mjs",
+    "build:app": "node scripts/build-app-html.mjs",
+    "build:home": "node scripts/build-home.mjs"
   }
 }

@@ -51,7 +51,7 @@ test('D6 · con un aval respaldado por fianza, el desconocido entra; y el recept
     assert.equal(await e.libro.balance(bob.address), 400, 'la fianza retuvo 100 de Bob');
 
     // Carol se presenta ante Alice adjuntando el aval. Ahora sí entra.
-    const s = await carol.send({ to: alice.address, body: 'me presenta Bob', extensions: { 'urn:chasqui:ext:aval': { voucher: bob.address, bond: bondId } } });
+    const s = await carol.send({ to: alice.address, body: 'me presenta Bob', extensions: { 'urn:nyx5:ext:aval': { voucher: bob.address, bond: bondId } } });
     const m = await alice.waitFor((x) => x.id === s.id, { timeoutMs: 4000, everyMs: 100 });
     assert.equal(m.vouched_by, bob.address, 'el buzón marca quién avaló');
     assert.equal((await alice.open(m.envelope)).content.body, 'me presenta Bob');
@@ -78,7 +78,7 @@ test('D6 · un aval que apunta a una fianza de otro avalado se rechaza', async (
     const v = await bob.vouch(dom, { forAddress: dave.address, receiver: alice.address, amount: 100 });
     const bondId = (await bob.awaitReceipt(v.id)).receipt.contract.id;
     // Carol intenta colarse con la fianza de Dave.
-    const s = await carol.send({ to: alice.address, body: 'me cuelo', extensions: { 'urn:chasqui:ext:aval': { voucher: bob.address, bond: bondId } } });
+    const s = await carol.send({ to: alice.address, body: 'me cuelo', extensions: { 'urn:nyx5:ext:aval': { voucher: bob.address, bond: bondId } } });
     const b = await bounce(carol, s.id);
     assert.match((await carol.open(b.envelope)).content.body.reason, /aval inválido|no avala a este remitente/);
   } finally { await e.stop(); }

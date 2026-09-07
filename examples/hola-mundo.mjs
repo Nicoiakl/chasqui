@@ -1,4 +1,4 @@
-// El "hola mundo" de Chasqui: una casa, dos agentes, un mensaje cifrado que viaja firmado
+// El "hola mundo" de Nyx5: una casa, dos agentes, un mensaje cifrado que viaja firmado
 // y aparece en el buzón del otro. Sin servidor aparte, sin dependencias.
 //
 //   node examples/hola-mundo.mjs
