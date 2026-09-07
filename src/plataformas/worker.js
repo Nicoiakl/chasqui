@@ -15,7 +15,7 @@
 
 import { Estafeta } from '../correo/estafeta.js';
 import { D1Store } from '../nucleo/almacen-d1.js';
-import { extractText, resendProvider } from '../puentes/email.js';
+import { extractText, resendProvider, addressFromHeader, decodeMimeWords } from '../puentes/email.js';
 
 let instancia = null;
 function estafetaDesde(env) {
@@ -74,9 +74,11 @@ export default {
     let raw = '';
     try { raw = await new Response(message.raw).text(); } catch { /* sin cuerpo legible */ }
     const r = await estafeta.receiveEmail({
-      from: message.from,
+      // El remitente que se muestra es el del header From (el humano real); message.from es el
+      // return-path del envelope (a veces la dirección de rebote del proveedor), sirve de respaldo.
+      from: addressFromHeader(message.headers.get('from')) || message.from,
       to: message.to,
-      subject: message.headers.get('subject') || '',
+      subject: decodeMimeWords(message.headers.get('subject') || ''),
       text: extractText(raw),
       messageId: (message.headers.get('message-id') || '').replace(/[<>]/g, '').slice(0, 128) || undefined,
     });

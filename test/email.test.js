@@ -88,3 +88,13 @@ test('D3 · extractText saca el texto de multipart, quoted-printable y base64', 
   const plain = ['Content-Type: text/plain', '', 'texto simple'].join('\n');
   assert.equal(extractText(plain), 'texto simple');
 });
+
+test('D3 · decodeMimeWords y addressFromHeader limpian header y remitente', async () => {
+  const { decodeMimeWords, addressFromHeader } = await import('../src/puentes/email.js');
+  assert.equal(decodeMimeWords('=?UTF-8?Q?Prueba_de_ENTRADA_=C2=B7_ok?='), 'Prueba de ENTRADA · ok');
+  assert.equal(decodeMimeWords('=?UTF-8?B?' + Buffer.from('café','utf8').toString('base64') + '?='), 'café');
+  assert.equal(decodeMimeWords('asunto simple'), 'asunto simple');
+  assert.equal(addressFromHeader('Nicholas <nicholasiakl@gmail.com>'), 'nicholasiakl@gmail.com');
+  assert.equal(addressFromHeader('bot@nyx5.com'), 'bot@nyx5.com');
+  assert.equal(addressFromHeader('sin direccion'), null);
+});

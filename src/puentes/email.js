@@ -34,6 +34,31 @@ export function inboundEnvelope({ from, to, subject = '', text = '', messageId }
 function addrDomain(a) { const i = String(a).lastIndexOf('@'); return i > 0 ? a.slice(i + 1) : a; }
 export function isEmailAddress(a) { return typeof a === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a); }
 
+// Saca la dirección de un header "Nombre <a@b.com>" o "a@b.com". Para mostrar al remitente real.
+export function addressFromHeader(h) {
+  if (!h) return null;
+  const m = /<([^>]+)>/.exec(h);
+  const cand = (m ? m[1] : h).trim();
+  return isEmailAddress(cand) ? cand : null;
+}
+
+// Decodifica palabras MIME RFC 2047 en headers: =?UTF-8?Q?...?= y =?UTF-8?B?...?= (asuntos con tildes).
+export function decodeMimeWords(s) {
+  if (!s) return '';
+  return String(s).replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g, (_, cs, enc, txt) => {
+    try {
+      if (enc.toUpperCase() === 'B') return Buffer.from(txt, 'base64').toString('utf8');
+      const bytes = [];
+      const t = txt.replace(/_/g, ' ');
+      for (let i = 0; i < t.length; i++) {
+        if (t[i] === '=' && /^[0-9A-Fa-f]{2}$/.test(t.substr(i + 1, 2))) { bytes.push(parseInt(t.substr(i + 1, 2), 16)); i += 2; }
+        else bytes.push(t.charCodeAt(i) & 0xff);
+      }
+      return Buffer.from(bytes).toString('utf8');
+    } catch { return txt; }
+  }).replace(/\?=\s+=\?/g, '');
+}
+
 // El cuerpo para el proveedor de salida. Reply-To = la dirección Chasqui del agente, para que la
 // respuesta del humano vuelva por ENTRADA a su buzón.
 export function outboundPayload({ fromAgent, to, subject, text }) {
