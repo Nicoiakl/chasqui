@@ -45,8 +45,8 @@ export class Agent {
   // ---------- registro ----------
   // Tres caminos: adminToken (la casa inscribe), invite (código de la casa) o abierto si la casa lo permite.
   // Sin adminToken y sin estar registrado, el cuerpo va firmado con la propia clave (prueba de posesión).
-  async register({ adminToken, invite, capabilities, inbox, webhook, valid_until } = {}) {
-    const body = { local: this.local, sig: this.keys.sig, enc: this.keys.enc, capabilities, inbox, webhook, valid_until };
+  async register({ adminToken, invite, capabilities, inbox, webhook, notify_email, valid_until } = {}) {
+    const body = { local: this.local, sig: this.keys.sig, enc: this.keys.enc, capabilities, inbox, webhook, notify_email, valid_until };
     if (adminToken) this.card = await this._call('POST', '/agents', body, { admin: adminToken });
     else if (this.card) this.card = await this._call('POST', '/agents', body);
     else this.card = await this._call('POST', '/agents', signObject({ ...body, invite: invite || undefined, ts: iso() }, this.keys), { noAuth: true });

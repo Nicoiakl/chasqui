@@ -167,7 +167,7 @@ export class Estafeta {
   }
 
   // ---------- agentes ----------
-  async registerAgent({ local, sig, enc = null, capabilities = {}, inbox = { policy: 'open' }, webhook = null, valid_until = null, delegation = null, welcome = null }) {
+  async registerAgent({ local, sig, enc = null, capabilities = {}, inbox = { policy: 'open' }, webhook = null, notify_email = null, valid_until = null, delegation = null, welcome = null }) {
     local = String(local).toLowerCase();
     const address = `${local}@${this.domain}`;
     parseAddress(address);
@@ -214,11 +214,11 @@ export class Estafeta {
     let creado = true;
     if (!prev) {
       creado = await (this.store.putAgentIfAbsent
-        ? this.store.putAgentIfAbsent(local, { ...card, webhook })
-        : (this.store.putAgent(local, { ...card, webhook }), true));
+        ? this.store.putAgentIfAbsent(local, { ...card, webhook, notify_email })
+        : (this.store.putAgent(local, { ...card, webhook, notify_email }), true));
       if (!creado) throw Object.assign(new Error('ese nombre acaba de ser tomado; solo su dueño o la casa pueden actualizarlo'), { status: 409 });
     } else {
-      await this.store.putAgent(local, { ...card, webhook });
+      await this.store.putAgent(local, { ...card, webhook, notify_email });
     }
     const gift = welcome ?? this.libro.welcome;
     if (creado && !prev && !this.isSystem(local) && !delegation && gift > 0) await this.libro.topup(address, gift, 'regalo de bienvenida', { agent: address });
@@ -233,7 +233,7 @@ export class Estafeta {
     if (!Estafeta.validLocal(local)) return null;
     const rec = await this.store.getAgent(local);
     if (!rec) return null;
-    const { webhook, ...card } = rec;
+    const { webhook, notify_email, ...card } = rec;
     return card;
   }
 
@@ -497,7 +497,7 @@ export class Estafeta {
         seen: { id: env.id, rec: { from: env.from, accepted: union } },
         mails, libro: libroBundles,
       });
-      for (const m of mails) this._push(m.local, env);
+      for (const m of mails) { this._push(m.local, env); this._notifyEmail(m.local, env); }
     }
     for (const rc of recibosPendientes) await this._systemSend('libro', rc.to, { in_reply_to: env.id, thread: rc.thread || env.thread || null, content: { media: MEDIA.recibo, body: rc.body } });
     // Avisos de plazo: sobres del Libro programados para el futuro (un escrow que llega a su
@@ -517,6 +517,25 @@ export class Estafeta {
       const sig = signBytes(`push:${env.id}`, this.keys);
       return this.fetch(rec.webhook, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nyx5-push': `domain=${this.domain}; kid=${this.keys.sig}; sig=${sig}` }, body, signal: AbortSignal.timeout(5000) });
     }).catch((e) => this.log(`webhook ${local} falló: ${e.message} / ${e.cause?.message}`));
+    this._pushes.push(pendiente);
+    return pendiente;
+  }
+  // Aviso por email: si el agente registró `notify_email` y la casa tiene proveedor de salida, le
+  // llega un correo cuando alguien le escribe un mensaje real. No avisa por recibos del Libro ni
+  // rebotes del postmaster (ruido), ni por lo que el propio destinatario se manda por el puente.
+  _notifyEmail(local, env) {
+    if (!this.email.provider) return;
+    const pendiente = Promise.resolve(this.store.getAgent(local)).then(async (rec) => {
+      if (!rec?.notify_email) return;
+      let fromLocal = ''; try { fromLocal = parseAddress(env.from).local; } catch { /* remitente de pasarela */ }
+      if (env.type === 'receipt' || fromLocal === 'libro' || fromLocal === 'postmaster') return;
+      const emailOrig = env.extensions?.['urn:nyx5:ext:email']?.from;
+      if (emailOrig && emailOrig === rec.notify_email) return; // no te avises de tu propio correo
+      const quien = emailOrig || env.from;
+      await this.emailOut({ fromAgent: `${local}@${this.domain}`, to: rec.notify_email,
+        subject: `Tienes un mensaje nuevo en Nyx5 de ${quien}`,
+        text: `${quien} le escribió a ${local}@${this.domain}.\n\nÁbrelo en tu buzón: https://${this.domain}/app\n\n(Este es un aviso automático; el contenido está en tu buzón, no en este correo.)` });
+    }).catch((e) => this.log(`notify_email ${local} falló: ${e.message}`));
     this._pushes.push(pendiente);
     return pendiente;
   }

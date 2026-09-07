@@ -98,3 +98,21 @@ test('D3 · decodeMimeWords y addressFromHeader limpian header y remitente', asy
   assert.equal(addressFromHeader('bot@nyx5.com'), 'bot@nyx5.com');
   assert.equal(addressFromHeader('sin direccion'), null);
 });
+
+test('D3 · notify_email: quien registró un correo recibe un aviso cuando le escriben (no por recibos)', async () => {
+  let captured = null;
+  const provider = async (p) => { captured = p; return { id: 'n1' }; };
+  const { e, url, dom } = await casa({ provider });
+  try {
+    const a = Agent.create(`a@${dom}`, url, { hosts: { [dom]: { url } } });
+    const b = Agent.create(`b@${dom}`, url, { hosts: { [dom]: { url } } });
+    await a.register({ adminToken: 't', notify_email: 'nicholas@gmail.test' });
+    await b.register({ adminToken: 't' });
+    await b.send({ to: a.address, body: 'hola a' });
+    const until = Date.now() + 6000;
+    while (!captured && Date.now() < until) await new Promise((r) => setTimeout(r, 150));
+    assert.ok(captured, 'se disparó el aviso por email');
+    assert.deepEqual(captured.to, ['nicholas@gmail.test']);
+    assert.match(captured.subject, /mensaje nuevo/i);
+  } finally { await e.stop(); }
+});
