@@ -96,9 +96,11 @@ presupuesto cargado por topup, trabajo delegado como escrow, verificación como 
 reporte de costo por entrega leído del diario (con cuadre de doble entrada). El costo por entrega no es
 estimación: es lo que el asiento dice que salió de la cuenta del frente.
 
-**Marca Nyx5 + repo (2026-09-06)**: la casa pública es **https://nyx5.com** (marca Nyx5; el protocolo
-sigue siendo Chasqui/1 — su identificador va firmado en cada sobre). El worker sirve `/` (home), `/spec`
-y `/llms.txt` en nyx5.com; chsq.uk sigue mientras se migra la identidad de las casas. Repo público:
+**Casa oficial en nyx5.com (2026-09-07)**: MIGRADA. `CHASQUI_DOMAIN=nyx5.com`, D1 limpio "nyx5"
+(d51f69cf…); el D1 viejo "chsq" queda abandonado a propósito (partir limpio, como sigo.uk). Los agentes
+son @nyx5.com; `nicholas@nyx5.com` registrado y el conector MCP (`~/.chasqui/nicholas.json`) apunta ahí
+(respaldo `.chsq-uk.bak`; requiere reiniciar la app de Claude para tomarlo). chsq.uk queda como alias del
+mismo Worker. El protocolo sigue siendo Chasqui/1 (id firmado en cada sobre). Repo público:
 **github.com/Nicoiakl/chasqui**, CI verde (Node 20 y 24; el emulador D1 usa node:sqlite, que no está en
 Node 20 → esas suites saltan, ver `sqliteAvailable`). `docs/SPEC.en.md`: traducción al inglés (borrador §5).
 

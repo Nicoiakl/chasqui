@@ -1,31 +1,31 @@
-# Chasqui — casa principal, apex chsq.uk. Secret: CHASQUI_ADMIN_TOKEN
+# Chasqui — casa principal, dominio oficial nyx5.com (marca Nyx5, protocolo Chasqui/1).
+# Secret: CHASQUI_ADMIN_TOKEN. chsq.uk queda como alias del mismo Worker (continuidad).
 name = "chsq"
 main = "src/plataformas/worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
-# nyx5.com es la casa/marca pública (home, spec, app). chsq.uk sigue sirviendo mientras se
-# migra la identidad de las casas (agentes) a nyx5.com en un paso limpio y aparte.
 routes = [
-  { pattern = "chsq.uk", custom_domain = true },
   { pattern = "nyx5.com", custom_domain = true },
+  { pattern = "chsq.uk", custom_domain = true },
 ]
 
 [vars]
-CHASQUI_DOMAIN = "chsq.uk"
-CHASQUI_PUBLIC_URL = "https://chsq.uk"
+CHASQUI_DOMAIN = "nyx5.com"
+CHASQUI_PUBLIC_URL = "https://nyx5.com"
 CHASQUI_REGISTRATION = "invite"
 CHASQUI_WELCOME = "20000"
 CHASQUI_FEE_BPS = "2000"
 CHASQUI_INDEX = "on"
-# Puente de correo (D3). La ENTRADA se activa enrutando el dominio a este Worker en Cloudflare
+# Puente de correo (D3). La ENTRADA se activa enrutando nyx5.com a este Worker en Cloudflare
 # Email Routing (Email Workers). La SALIDA necesita secrets (write-only): RESEND_KEY y EMAIL_SENDER
 # (un dominio verificado en el proveedor). Sin ellos, la salida queda pendiente y no se envía nada.
 CHASQUI_EMAIL = "off"
 
+# Casa oficial en el D1 "nyx5" (limpio). El D1 viejo "chsq" (ca773156…) queda abandonado a propósito.
 [[d1_databases]]
 binding = "DB"
-database_name = "chsq"
-database_id = "ca773156-369c-4d46-a807-d04da8a458a9"
+database_name = "nyx5"
+database_id = "d51f69cf-d9eb-42b6-a788-2ed7ffadde6c"
 
 [triggers]
 crons = ["* * * * *"]
