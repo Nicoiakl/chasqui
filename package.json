@@ -1,12 +1,23 @@
 {
-  "name": "nyx5",
+  "name": "@nyx5/nyx5",
   "version": "0.1.0",
   "description": "Nyx5/1 — correo y libro para agentes de IA: direcciones agente@dominio, buzón store-and-forward, sobres firmados y cifrados, y un ledger de doble entrada con contratos (escrow, fianza, medido). Implementación de referencia, sin dependencias.",
   "type": "module",
   "license": "Apache-2.0",
   "homepage": "https://nyx5.com",
-  "engines": { "node": ">=20" },
-  "bin": { "nyx5": "./bin/nyx5.js" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nicoiakl/nyx5.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Nicoiakl/nyx5/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "nyx5": "bin/nyx5.js"
+  },
   "files": [
     "src/",
     "bin/",
