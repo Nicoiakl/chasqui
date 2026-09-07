@@ -123,10 +123,21 @@ async function enviar(to,texto){
 let DESTINO = localStorage.getItem('nyx5.destino') || '';
 function cuerpo(e){const c=e.content;if(!c)return e.encrypted?'🔒 (cifrado)':'(vacío)';const b=c.body;if(typeof b==='string')return b;if(b&&b.saludo)return b.saludo;return JSON.stringify(b,null,1);}
 const escapar = (s)=>s.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+let vistos=null;
+function notificar(recibidos){
+  const ids=recibidos.map(m=>m.id);
+  if(vistos===null){vistos=new Set(ids);return;} // primera carga: no notifica el historial
+  for(const m of recibidos){ if(vistos.has(m.id))continue; vistos.add(m.id);
+    if(document.hidden && 'Notification' in window && Notification.permission==='granted'){
+      try{const n=new Notification('Nyx5 · '+m.de,{body:(m.texto||'').slice(0,140),tag:m.id});n.onclick=()=>{window.focus();n.close();};}catch{}
+    }
+  }
+}
 async function refrescar(){
   if(!ID)return;
   let msgs; try{msgs=await leerBuzon();}catch{return;}
-  const recibidos=msgs.filter(m=>m.envelope.from!==ID.address).map(m=>({de:m.envelope.from,texto:cuerpo(m.envelope),created:m.envelope.created,mine:false}));
+  const recibidos=msgs.filter(m=>m.envelope.from!==ID.address).map(m=>({id:m.envelope.id,de:m.envelope.from,texto:cuerpo(m.envelope),created:m.envelope.created,mine:false}));
+  notificar(recibidos);
   const mios=enviados().map(m=>({de:'tú',texto:m.body,created:m.created,mine:true}));
   const todo=[...recibidos,...mios].sort((a,b)=>a.created.localeCompare(b.created));
   const feed=$('feed');
@@ -136,8 +147,8 @@ async function refrescar(){
 }
 $('nombre').addEventListener('input',e=>{const v=e.target.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');$('preview').textContent=(v||'tunombre')+'@'+DOMINIO;});
 $('btn-entrar').addEventListener('click',async()=>{
-  const local=$('nombre').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''); const invite=params.get('invite');
-  if(!local)return toast('Escribe un nombre',true); if(!invite)return toast('Falta la invitación',true);
+  const local=$('nombre').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''); const invite=params.get('invite')||undefined;
+  if(!local)return toast('Escribe un nombre',true);
   const btn=$('btn-entrar');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Creando…';
   try{await registrar(local,invite);arrancarBuzon();toast('¡Listo! Ya tienes tu dirección');}
   catch(err){toast(err.message,true);btn.disabled=false;btn.textContent='Crear mi dirección';}
@@ -154,9 +165,10 @@ function arrancarBuzon(){
   if(!DESTINO){DESTINO=(params.get('to')||'').toLowerCase();}
   $('entrar').hidden=true;$('buzon').hidden=false;$('yo').hidden=false;$('yo').innerHTML='<b>'+ID.local+'</b><br>@'+DOMINIO;
   $('destino').textContent=DESTINO||'(toca cambiar)';
+  if('Notification' in window && Notification.permission==='default'){try{Notification.requestPermission();}catch{}}
   refrescar();setInterval(refrescar,4000);
 }
-(async()=>{ if(await cargar()){arrancarBuzon();return;} if(!params.get('invite')){$('entrar-form').hidden=true;$('entrar-noinvite').hidden=false;} else { $('preview').textContent='pauli@'+DOMINIO; } })();
+(async()=>{ if(await cargar()){arrancarBuzon();return;} $('preview').textContent=(params.get('name')||'tunombre')+'@'+DOMINIO; })();
 </script>
 </body>
 </html>

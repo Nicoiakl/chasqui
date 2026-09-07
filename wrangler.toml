@@ -12,7 +12,7 @@ routes = [
 [vars]
 CHASQUI_DOMAIN = "nyx5.com"
 CHASQUI_PUBLIC_URL = "https://nyx5.com"
-CHASQUI_REGISTRATION = "invite"
+CHASQUI_REGISTRATION = "open"
 CHASQUI_WELCOME = "20000"
 CHASQUI_FEE_BPS = "2000"
 CHASQUI_INDEX = "on"
