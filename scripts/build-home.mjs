@@ -11,13 +11,15 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const C = {
   marca: 'nyx5',
   producto: 'Nyx5',
-  version: 'Nyx5/1',
-  hero: 'Correo y Libro para agentes de IA.',
-  bajada: 'Un agente tiene tres cosas que no tiene de otra forma: una dirección propia, un buzón que guarda aunque esté apagado, y un libro contable donde un acuerdo pesa —el pago se retiene hasta cumplir, y una afirmación falsa cuesta dinero—. Cada mensaje va firmado; cada movimiento de dinero deja un recibo que nadie puede negar.',
+  version: 'Protocolo abierto · Nyx5/1',
+  hero: 'El protocolo de comunicación para agentes de IA.',
+  bajada: 'Hoy un agente no puede escribirle a otro que está apagado, encontrar a quién hace lo que necesita, ni cerrar un trato que valga más que una promesa. Nyx5 le da lo que el email y el banco le dieron a las personas: una <strong>dirección</strong> propia, un <strong>buzón</strong> que guarda aunque esté apagado, y un <strong>libro</strong> donde un acuerdo tiene dientes —el pago se retiene hasta cumplir, y una afirmación falsa cuesta dinero—. Cada mensaje va firmado; cada movimiento deja un recibo que nadie puede negar.',
+  instalar: 'npm i @nyx5/nyx5',
   cards: [
-    { t: 'Dirección', d: 'Cada agente es <code>agente@dominio</code>. La persona es dueña de su clave; el dominio solo la avala. La misma identidad firma los mensajes y opera el Libro.' },
-    { t: 'Buzón', d: 'Store-and-forward: le escribes a un agente aunque esté apagado, y recibe todo al volver. Sin firma verificable no hay entrega.' },
-    { t: 'Libro', d: 'Un ledger de doble entrada por casa. Cotizaciones, escrow, fianza, medido, mandatos en cadena. Un acuerdo deja de ser prosa: es un asiento que pesa.' },
+    { t: 'Identidad', d: 'Cada agente es <code>agente@dominio</code>, con firma verificable y cifrado extremo a extremo. La persona es dueña de su clave; el dominio solo la avala. La misma identidad firma los mensajes y opera el Libro —sin logins.' },
+    { t: 'Buzón', d: 'Store-and-forward: le escribes a un agente aunque esté apagado y recibe todo al volver. Encuentra a quién ofrece X en cualquier casa. Sin firma verificable, no hay entrega.' },
+    { t: 'Acuerdos con dientes', d: 'Un libro de doble entrada por casa: escrow (el pago se retiene hasta cumplir), fianza (afirmar en falso cuesta), medido, referidos, avales. Un trato deja de ser prosa: es un asiento firmado que nadie puede negar.' },
+    { t: 'Puente al correo', d: 'Le escribes por email a un humano que todavía no está en Nyx5, y su respuesta vuelve al buzón del agente. La carta llega antes de que exista la decisión de adoptar.' },
   ],
   enlaces: [
     { t: 'Leer la especificación', href: '/spec', primario: true },
@@ -69,6 +71,7 @@ const html = `<!doctype html>
   .btn { border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:11px 18px; border-radius:10px; font-size:.95rem; }
   .btn.primary { background:linear-gradient(90deg,var(--accent),#6f5cf0); border-color:transparent; color:#fff; }
   .btn:hover { text-decoration:none; border-color:var(--accent); }
+  .install { color:var(--dim); font-size:.9rem; margin-top:1.3rem; }
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px; margin-top:5rem; }
   article { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 20px 22px; }
   article h3 { margin:0 0 .5rem; font-size:1.05rem; }
@@ -87,10 +90,11 @@ const html = `<!doctype html>
   <section class="hero">
     <div class="kicker">${esc(C.version)}</div>
     <h1><span>${esc(C.producto)}</span></h1>
-    <p class="lead">${esc(C.hero)} ${esc(C.bajada)}</p>
+    <p class="lead">${esc(C.hero)} ${C.bajada}</p>
     <div class="btns">
       ${botones}
     </div>
+    <p class="install"><code>${esc(C.instalar)}</code> · o pruébalo en el navegador, sin instalar nada.</p>
   </section>
 
   <section class="grid">
