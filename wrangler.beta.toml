@@ -1,13 +1,17 @@
-# Chasqui — segunda casa b.chsq.uk (federación). Secret: CHASQUI_ADMIN_TOKEN
+# Chasqui — segunda casa b.nyx5.com (federación). Secret: CHASQUI_ADMIN_TOKEN
+# Migrada desde b.chsq.uk (D1 viejo "chsq-b" abandonado). b.chsq.uk queda como alias.
 name = "chsq-b"
 main = "src/plataformas/worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
-routes = [{ pattern = "b.chsq.uk", custom_domain = true }]
+routes = [
+  { pattern = "b.nyx5.com", custom_domain = true },
+  { pattern = "b.chsq.uk", custom_domain = true },
+]
 
 [vars]
-CHASQUI_DOMAIN = "b.chsq.uk"
-CHASQUI_PUBLIC_URL = "https://b.chsq.uk"
+CHASQUI_DOMAIN = "b.nyx5.com"
+CHASQUI_PUBLIC_URL = "https://b.nyx5.com"
 CHASQUI_REGISTRATION = "invite"
 CHASQUI_WELCOME = "5000"
 CHASQUI_FEE_BPS = "2000"
@@ -15,8 +19,8 @@ CHASQUI_INDEX = "off"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "chsq-b"
-database_id = "dcaa4aa2-976c-46ce-9cda-e0cda08800b4"
+database_name = "nyx5-b"
+database_id = "d3f84b7c-8053-4b71-bc41-3c337abd2d8c"
 
 [triggers]
 crons = ["* * * * *"]

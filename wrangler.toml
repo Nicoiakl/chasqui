@@ -19,7 +19,8 @@ CHASQUI_INDEX = "on"
 # Puente de correo (D3). La ENTRADA se activa enrutando nyx5.com a este Worker en Cloudflare
 # Email Routing (Email Workers). La SALIDA necesita secrets (write-only): RESEND_KEY y EMAIL_SENDER
 # (un dominio verificado en el proveedor). Sin ellos, la salida queda pendiente y no se envía nada.
-CHASQUI_EMAIL = "off"
+CHASQUI_EMAIL = "on"
+EMAIL_SENDER = "no-reply@nyx5.com"
 
 # Casa oficial en el D1 "nyx5" (limpio). El D1 viejo "chsq" (ca773156…) queda abandonado a propósito.
 [[d1_databases]]
