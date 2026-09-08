@@ -66,7 +66,7 @@ export class Estafeta {
     this.tareas = new Tareas(tareas);
     // Puente de correo: entrada siempre disponible si la casa la enciende; salida solo si hay proveedor.
     // `email.provider` es una función async(payload) (ver src/puentes/email.js); sin ella, la salida queda pendiente.
-    this.email = { enabled: !!(email.enabled || email.provider), provider: email.provider || null };
+    this.email = { footer: email.footer === true, enabled: !!(email.enabled || email.provider), provider: email.provider || null };
     this.extensions = extensions || [
       'urn:nyx5:ext:mcp', 'urn:nyx5:ext:a2a', 'urn:nyx5:ext:libro',
       ...(this.index.enabled ? ['urn:nyx5:ext:indice'] : []),
@@ -737,7 +737,9 @@ export class Estafeta {
   // agente, para que la respuesta vuelva por ENTRADA). Sin proveedor, queda pendiente: no se inventa canal.
   async emailOut({ fromAgent, to, subject, text }) {
     if (!isEmailAddress(to)) return { ok: false, code: 400, reason: 'destino de correo inválido' };
-    const payload = outboundPayload({ fromAgent, to, subject, text });
+    // El pie viaja solo si la casa lo enciende (`email.footer`). Apagado por defecto: el texto
+    // que un tercero recibe es decisión del operador de la casa, no del código.
+    const payload = outboundPayload({ fromAgent, to, subject, text, footer: this.email.footer === true, domain: this.domain });
     if (!this.email.provider) return { ok: false, code: 503, pending: true, reason: 'el puente de correo no tiene proveedor de salida configurado' };
     try { const r = await this.email.provider(payload); return { ok: true, code: 202, provider: r?.id || null }; }
     catch (e) { return { ok: false, code: 502, reason: `el proveedor de correo falló: ${e.message}` }; }

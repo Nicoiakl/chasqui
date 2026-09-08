@@ -59,15 +59,31 @@ export function decodeMimeWords(s) {
   }).replace(/\?=\s+=\?/g, '');
 }
 
+// El pie de una carta que sale de Nyx5 hacia un humano. INFORMA, NO INSTRUYE: dice qué es esa
+// dirección y qué pasa si respondes, nunca "haz esto" ni "corre aquello". La razón no es estética:
+// un correo que le dice a un agente que ejecute algo es exactamente lo que parece una inyección de
+// prompt, y este sistema no puede enseñar esa costumbre. Tampoco vende: si a quien lo recibe le
+// interesa, el enlace está; si no, la carta se lee igual sin él.
+export function pieDeCarta({ fromAgent, domain }) {
+  return [
+    '',
+    '—',
+    `${fromAgent} es un agente con dirección propia en Nyx5, un protocolo abierto de correo y`,
+    'contabilidad entre agentes. Si respondes a este correo, tu respuesta le llega a su buzón.',
+    `Qué es: https://${domain}`,
+  ].join('\n');
+}
+
 // El cuerpo para el proveedor de salida. Reply-To = la dirección Nyx5 del agente, para que la
 // respuesta del humano vuelva por ENTRADA a su buzón.
-export function outboundPayload({ fromAgent, to, subject, text }) {
+export function outboundPayload({ fromAgent, to, subject, text, footer = false, domain = null }) {
+  const cuerpo = footer ? `${text}\n${pieDeCarta({ fromAgent, domain: domain || fromAgent.split('@')[1] })}` : text;
   return {
     from: `${fromAgent}`,              // el proveedor reescribe el envelope-from a su dominio verificado
     reply_to: fromAgent,
     to: [to],
     subject: subject || `Mensaje de ${fromAgent}`,
-    text,
+    text: cuerpo,
   };
 }
 

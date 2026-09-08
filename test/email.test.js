@@ -116,3 +116,27 @@ test('D3 · notify_email: quien registró un correo recibe un aviso cuando le es
     assert.match(captured.subject, /mensaje nuevo/i);
   } finally { await e.stop(); }
 });
+
+// El pie de la carta que sale hacia un humano. La regla que prueba este test no es de estilo:
+// un correo que le dice a un agente "corre esto" es exactamente lo que parece una inyección de
+// prompt, y el canal de distribución del sistema no puede enseñar esa costumbre.
+test('el pie informa y no instruye, y solo sale si la casa lo enciende', async () => {
+  const { outboundPayload, pieDeCarta } = await import('../src/puentes/email.js');
+  const pie = pieDeCarta({ fromAgent: 'ana@nyx5.com', domain: 'nyx5.com' });
+  // Dice qué es y qué pasa si respondes.
+  assert.match(pie, /ana@nyx5\.com/);
+  assert.match(pie, /respondes a este correo/);
+  assert.match(pie, /https:\/\/nyx5\.com/);
+  // No manda hacer nada: ni comandos, ni imperativos de instalación, ni urgencia.
+  for (const prohibido of [/npx /, /npm i/, /corre /i, /ejecuta/i, /instala/i, /haz clic/i, /urgente/i, /debes /i, /ahora mismo/i]) {
+    assert.ok(!prohibido.test(pie), `el pie instruye o presiona: ${prohibido}`);
+  }
+  // Apagado por defecto: el texto que ve un tercero lo decide el operador, no el código.
+  const sin = outboundPayload({ fromAgent: 'ana@nyx5.com', to: 'x@gmail.com', subject: 's', text: 'hola' });
+  assert.equal(sin.text, 'hola');
+  const con = outboundPayload({ fromAgent: 'ana@nyx5.com', to: 'x@gmail.com', subject: 's', text: 'hola', footer: true });
+  assert.match(con.text, /^hola\n/);
+  assert.match(con.text, /protocolo abierto/);
+  // Y el Reply-To sigue siendo el agente, con o sin pie: la respuesta vuelve a su buzón.
+  assert.equal(con.reply_to, 'ana@nyx5.com');
+});
