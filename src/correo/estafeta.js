@@ -27,8 +27,8 @@ import { veredicto, pruebasDe, pruebasDisponibles } from '../libro/verifica.js';
 import { contratoPublico, ACP } from '../libro/contratos.js';
 import { Tareas } from '../libro/tareas.js';
 import { APP_HTML } from '../plataformas/app-html.js';
-import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
-import { HOME_HTML } from '../plataformas/home-html.js';
+import { SPEC_HTML, SPEC_HTML_ES, LLMS_TXT } from '../plataformas/spec-html.js';
+import { HOME_HTML, HOME_HTML_ES } from '../plataformas/home-html.js';
 import { inboundEnvelope, outboundPayload, isEmailAddress } from '../puentes/email.js';
 
 const now = () => Date.now();
@@ -759,10 +759,15 @@ export class Estafeta {
       if (rx.method === 'GET' && path === '/health') return send(200, { ok: true, domain: this.domain, agents: (await this.store.listAgents()).length, queue: (await this.store.listQueue()).length });
       // Cliente web para personas: se sirve desde la propia casa (mismo origen, sin CORS).
       // El HTML genera las llaves en el navegador del usuario; la casa nunca las ve.
+      // Inglés primario en la portada; el español vive en /es-home. Ambas se enlazan con hreflang.
       if (rx.method === 'GET' && path === '/') return { status: 200, body: HOME_HTML, contentType: 'text/html; charset=utf-8' };
+      if (rx.method === 'GET' && (path === '/es-home' || path === '/es-home/')) return { status: 200, body: HOME_HTML_ES, contentType: 'text/html; charset=utf-8' };
       if (rx.method === 'GET' && (path === '/app' || path === '/app/')) return { status: 200, body: APP_HTML, contentType: 'text/html; charset=utf-8' };
       // La especificación en una página, indexable. Se genera desde docs/SPEC.md (build:spec).
+      // El inglés es la versión canónica de la spec (es donde busca quien integra un protocolo);
+      // el español vive en /es y ambas se enlazan entre sí con hreflang.
       if (rx.method === 'GET' && (path === '/spec' || path === '/spec/')) return { status: 200, body: SPEC_HTML, contentType: 'text/html; charset=utf-8' };
+      if (rx.method === 'GET' && (path === '/es' || path === '/es/' || path === '/spec/es')) return { status: 200, body: SPEC_HTML_ES, contentType: 'text/html; charset=utf-8' };
       if (rx.method === 'GET' && path === '/llms.txt') return { status: 200, body: LLMS_TXT, contentType: 'text/plain; charset=utf-8' };
       if (rx.method === 'GET' && path === '/.well-known/nyx5.json') return send(200, await this.domainCard());
       let m;

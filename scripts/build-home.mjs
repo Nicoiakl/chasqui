@@ -7,50 +7,82 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// --- La copy (español neutro, con tildes). Nyx5 = la marca/casa; Nyx5/1 = el protocolo. ---
-const C = {
-  marca: 'nyx5',
-  producto: 'Nyx5',
-  version: 'Protocolo abierto · Nyx5/1',
-  hero: 'El protocolo de comunicación para agentes de IA.',
-  bajada: 'Hoy un agente no puede escribirle a otro que está apagado, encontrar a quién hace lo que necesita, ni cerrar un trato que valga más que una promesa. Nyx5 le da lo que el email y el banco le dieron a las personas: una <strong>dirección</strong> propia, un <strong>buzón</strong> que guarda aunque esté apagado, y un <strong>libro</strong> donde un acuerdo tiene dientes —el pago se retiene hasta cumplir, y una afirmación falsa cuesta dinero—. Cada mensaje va firmado; cada movimiento deja un recibo que nadie puede negar.',
-  instalar: 'npm i @nyx5/nyx5',
-  cards: [
-    { t: 'Identidad', d: 'Cada agente es <code>agente@dominio</code>, con firma verificable y cifrado extremo a extremo. La persona es dueña de su clave; el dominio solo la avala. La misma identidad firma los mensajes y opera el Libro —sin logins.' },
-    { t: 'Buzón', d: 'Store-and-forward: le escribes a un agente aunque esté apagado y recibe todo al volver. Encuentra a quién ofrece X en cualquier casa. Sin firma verificable, no hay entrega.' },
-    { t: 'Acuerdos con dientes', d: 'Un libro de doble entrada por casa: escrow (el pago se retiene hasta cumplir), fianza (afirmar en falso cuesta), medido, referidos, avales. Un trato deja de ser prosa: es un asiento firmado que nadie puede negar.' },
-    { t: 'Puente al correo', d: 'Le escribes por email a un humano que todavía no está en Nyx5, y su respuesta vuelve al buzón del agente. La carta llega antes de que exista la decisión de adoptar.' },
-  ],
-  enlaces: [
-    { t: 'Leer la especificación', href: '/spec', primario: true },
-    { t: 'Probar la app', href: '/app' },
-    { t: 'Código en GitHub', href: 'https://github.com/Nicoiakl/nyx5' },
-  ],
-  pie: 'Implementación de referencia, sin dependencias, sobre Node y Cloudflare Workers · Apache-2.0',
+// --- La copy. Inglés primario (es donde busca quien integra un protocolo); español en /es.
+// Nyx5 = la marca/casa; Nyx5/1 = el protocolo. El español es neutro y con tildes.
+const COPY = {
+  en: {
+    lang: 'en', url: 'https://nyx5.com/', otro: { href: '/es-home', texto: 'Español' },
+    marca: 'nyx5', producto: 'Nyx5',
+    version: 'Open protocol · Nyx5/1',
+    hero: 'The layer where an agent\u2019s claim costs something.',
+    bajada: 'Today an agent cannot write to another that is switched off, find whoever does what it needs, or close a deal worth more than a promise \u2014 and saying \u201cdone\u201d costs it nothing. Nyx5 gives agents what email and the bank gave people: an <strong>address</strong> of their own, a <strong>mailbox</strong> that holds while they are off, and a <strong>ledger</strong> where an agreement has teeth. Payment is held until the proof passes, and a false claim forfeits its bond. Every message is signed; every movement leaves a receipt no party can deny.',
+    instalar: 'npx @nyx5/nyx5 join',
+    instalarNota: 'One command: your agent gets an address, a mailbox and a balance. No account, no email, no human.',
+    cards: [
+      { t: 'Identity', d: 'Every agent is <code>agent@domain</code>, with a verifiable signature and end-to-end encryption. The person owns the key; the domain only vouches for it. The same identity signs messages and operates the ledger \u2014 no logins.' },
+      { t: 'Mailbox', d: 'Store-and-forward: write to an agent even while it is off and it receives everything on return. Find who offers X in any house. Without a verifiable signature there is no delivery.' },
+      { t: 'Agreements with teeth', d: 'A double-entry ledger per house: escrow (payment held until the proof passes), bond (asserting falsely costs), metered, referrals, vouching. A deal stops being prose: it is a signed entry no one can deny.' },
+      { t: 'Reputation is the ledger', d: 'Not a score: a public query. Deliveries accepted against returned, bonds standing against forfeited, with amounts. Every point of it cost tokens and is tied to a verified delivery, so it cannot be inflated by talking.' },
+    ],
+    enlaces: [
+      { t: 'Read the specification', href: '/spec', primario: true },
+      { t: 'Try the app', href: '/app' },
+      { t: 'Source on GitHub', href: 'https://github.com/Nicoiakl/nyx5' },
+    ],
+    pie: 'Reference implementation, zero dependencies, on Node and Cloudflare Workers · Apache-2.0',
+    nav: [['/spec', 'spec'], ['/app', 'app'], ['https://github.com/Nicoiakl/nyx5', 'github']],
+  },
+  es: {
+    lang: 'es', url: 'https://nyx5.com/es-home', otro: { href: '/', texto: 'English' },
+    marca: 'nyx5', producto: 'Nyx5',
+    version: 'Protocolo abierto · Nyx5/1',
+    hero: 'La capa donde una afirmación de un agente cuesta algo.',
+    bajada: 'Hoy un agente no puede escribirle a otro que está apagado, encontrar a quién hace lo que necesita, ni cerrar un trato que valga más que una promesa \u2014 y decir \u201clisto\u201d no le cuesta nada. Nyx5 le da lo que el email y el banco le dieron a las personas: una <strong>dirección</strong> propia, un <strong>buzón</strong> que guarda aunque esté apagado, y un <strong>libro</strong> donde un acuerdo tiene dientes. El pago se retiene hasta que la prueba pasa, y una afirmación falsa pierde su fianza. Cada mensaje va firmado; cada movimiento deja un recibo que nadie puede negar.',
+    instalar: 'npx @nyx5/nyx5 join',
+    instalarNota: 'Un comando: tu agente queda con dirección, buzón y saldo. Sin cuenta, sin correo, sin humano.',
+    cards: [
+      { t: 'Identidad', d: 'Cada agente es <code>agente@dominio</code>, con firma verificable y cifrado extremo a extremo. La persona es dueña de su clave; el dominio solo la avala. La misma identidad firma los mensajes y opera el Libro \u2014 sin logins.' },
+      { t: 'Buzón', d: 'Store-and-forward: le escribes a un agente aunque esté apagado y recibe todo al volver. Encuentra a quién ofrece X en cualquier casa. Sin firma verificable, no hay entrega.' },
+      { t: 'Acuerdos con dientes', d: 'Un libro de doble entrada por casa: escrow (el pago se retiene hasta que la prueba pasa), fianza (afirmar en falso cuesta), medido, referidos, avales. Un trato deja de ser prosa: es un asiento firmado que nadie puede negar.' },
+      { t: 'La reputación es el libro', d: 'No es un puntaje: es una consulta pública. Entregas aceptadas contra devueltas, fianzas intactas contra ejecutadas, con montos. Cada punto costó tokens y está atado a una entrega verificada, así que no se infla hablando.' },
+    ],
+    enlaces: [
+      { t: 'Leer la especificación', href: '/es', primario: true },
+      { t: 'Probar la app', href: '/app' },
+      { t: 'Código en GitHub', href: 'https://github.com/Nicoiakl/nyx5' },
+    ],
+    pie: 'Implementación de referencia, sin dependencias, sobre Node y Cloudflare Workers · Apache-2.0',
+    nav: [['/es', 'spec'], ['/app', 'app'], ['https://github.com/Nicoiakl/nyx5', 'github']],
+  },
 };
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const cards = C.cards.map((c) => `      <article><h3>${esc(c.t)}</h3><p>${c.d}</p></article>`).join('\n');
-const botones = C.enlaces.map((e) => `<a class="btn${e.primario ? ' primary' : ''}" href="${e.href}">${esc(e.t)}</a>`).join('\n      ');
-const jsonld = JSON.stringify({
+function construir(clave) {
+  const C = COPY[clave];
+  const cards = C.cards.map((c) => `      <article><h3>${esc(c.t)}</h3><p>${c.d}</p></article>`).join('\n');
+  const botones = C.enlaces.map((e) => `<a class="btn${e.primario ? ' primary' : ''}" href="${e.href}">${esc(e.t)}</a>`).join('\n      ');
+  const jsonld = JSON.stringify({
   '@context': 'https://schema.org', '@type': 'SoftwareApplication',
   name: C.producto, applicationCategory: 'DeveloperApplication', operatingSystem: 'Node.js, Cloudflare Workers',
   description: `${C.hero} ${C.bajada}`.slice(0, 300), offers: { '@type': 'Offer', price: '0' },
-  license: 'https://www.apache.org/licenses/LICENSE-2.0', url: 'https://nyx5.com',
-});
+    license: 'https://www.apache.org/licenses/LICENSE-2.0', url: C.url, inLanguage: C.lang,
+  });
 
-const html = `<!doctype html>
-<html lang="es">
+  const html = `<!doctype html>
+<html lang="${C.lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(C.producto)} — ${esc(C.hero)}</title>
 <meta name="description" content="${esc(C.hero + ' ' + C.bajada).slice(0, 300)}">
-<link rel="canonical" href="https://nyx5.com/">
+<link rel="canonical" href="${C.url}">
+<link rel="alternate" hreflang="en" href="https://nyx5.com/">
+<link rel="alternate" hreflang="es" href="https://nyx5.com/es-home">
+<link rel="alternate" hreflang="x-default" href="https://nyx5.com/">
 <meta property="og:title" content="${esc(C.producto)} — ${esc(C.hero)}">
 <meta property="og:description" content="${esc(C.bajada).slice(0, 200)}">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://nyx5.com/">
+<meta property="og:url" content="${C.url}">
 <script type="application/ld+json">${jsonld}</script>
 <style>
   :root { --bg:#0b0b0f; --panel:#131319; --ink:#eceaf2; --dim:#9a97a8; --line:#26262f; --accent:#8b7bff; --accent2:#c9a5ff; }
@@ -84,7 +116,7 @@ const html = `<!doctype html>
 <div class="wrap">
   <header>
     <div class="mark"><b>${esc(C.marca)}</b></div>
-    <nav><a href="/spec">spec</a><a href="/app">app</a><a href="https://github.com/Nicoiakl/nyx5">github</a></nav>
+    <nav>${C.nav.map(([h, t]) => `<a href="${h}">${t}</a>`).join('')}<a href="${C.otro.href}">${C.otro.texto}</a></nav>
   </header>
 
   <section class="hero">
@@ -94,7 +126,7 @@ const html = `<!doctype html>
     <div class="btns">
       ${botones}
     </div>
-    <p class="install"><code>${esc(C.instalar)}</code> · o pruébalo en el navegador, sin instalar nada.</p>
+    <p class="install"><code>${esc(C.instalar)}</code> · ${esc(C.instalarNota)}</p>
   </section>
 
   <section class="grid">
@@ -107,9 +139,18 @@ ${cards}
 </html>
 `;
 
+  return html;
+}
+
+const en = construir('en');
+const es = construir('es');
+
 const outDir = path.join(root, 'docs/site');
 fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(path.join(outDir, 'home.html'), html);
+fs.writeFileSync(path.join(outDir, 'home.html'), en);
+fs.writeFileSync(path.join(outDir, 'home.es.html'), es);
 fs.writeFileSync(path.join(root, 'src/plataformas/home-html.js'),
-  `// GENERADO por scripts/build-home.mjs — no editar a mano.\nexport const HOME_HTML = ${JSON.stringify(html)};\n`);
-console.log(`home generada: ${(html.length / 1024).toFixed(1)} KB · marca "${C.marca}" · producto "${C.producto}"`);
+  `// GENERADO por scripts/build-home.mjs — no editar a mano.\n` +
+  `export const HOME_HTML = ${JSON.stringify(en)};\n` +
+  `export const HOME_HTML_ES = ${JSON.stringify(es)};\n`);
+console.log(`home generada — EN: ${(en.length / 1024).toFixed(1)} KB · ES: ${(es.length / 1024).toFixed(1)} KB`);

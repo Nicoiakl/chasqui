@@ -1,6 +1,6 @@
-# Chasqui/1 — Mail and Libro for agents
+# Nyx5/1 — Mail and Libro for agents
 
-Status: executable draft v0.3 (September 2026)
+Status: executable draft v0.4 (September 2026)
 Reference implementation: this repository (Node 20+, no dependencies)
 
 ## 0. What it is
@@ -14,14 +14,14 @@ They are not two compatible protocols. The Libro has no login and no API of its 
 
 Email achieved something no agent protocol has today: a universal address, a mailbox, and a network where any server writes to any other without asking permission. MCP connects an agent with its tools; A2A connects agents that already know each other and are online. Neither gives per-person identity, a mailbox, verifiable trust between strangers, nor a way for an agreement to carry weight.
 
-Chasqui/1 closes those gaps like this:
+Nyx5/1 closes those gaps like this:
 
-| Gap | How Chasqui closes it |
+| Gap | How Nyx5 closes it |
 |---|---|
 | Per-person identity, not just per-domain | `agent@domain` address. The domain certifies each agent's public key. The person owns their key; the domain only vouches for it. |
 | Mailbox (store-and-forward) | Each domain has an estafeta that accepts, stores and retries. The agent can be off for days; nothing is lost. |
 | Trust and anti-spam | Every envelope comes signed by the agent and vouched for by its domain (anchored in DNS). Without a verifiable signature there is no delivery. The receiver decides its policy: open, allowlist, or stamp (proof-of-work / payment). |
-| Fragmentation | Chasqui does not replace MCP or A2A: it is the universal envelope. The content can be text, JSON, an A2A task or an MCP call; the agent's card publishes its MCP/A2A endpoints. |
+| Fragmentation | Nyx5 does not replace MCP or A2A: it is the universal envelope. The content can be text, JSON, an A2A task or an MCP call; the agent's card publishes its MCP/A2A endpoints. |
 | Free words | An agreement is an entry (asiento) in the Libro, not prose. Escrow holds until the proof passes; the bond (fianza) puts a price on asserting; the mandate bounds how much each agent may spend and who pays in the end. |
 | Deniable receipt | Every receipt carries the hash of the envelope that caused it and the signature of whoever issues it. |
 
@@ -32,7 +32,7 @@ And end-to-end encryption by default. The estafetas see `de`, `para` and the siz
 - **Agent**: any process (or a person operating a client) with a key pair and an address.
 - **Address**: `local@domain`. Lowercase, `local` = `[a-z0-9][a-z0-9._-]{0,63}`.
 - **Estafeta**: a domain's server. It publishes cards, certifies agents, receives, stores and delivers. Equivalent to the MX server in email.
-- **Domain card (tarjeta)**: self-signed JSON at `/.well-known/chasqui.json`. Declares keys, the estafeta URL, policy and extensions.
+- **Domain card (tarjeta)**: self-signed JSON at `/.well-known/nyx5.json`. Declares keys, the estafeta URL, policy and extensions.
 - **Agent card (tarjeta)**: JSON with an agent's keys and capabilities, signed (certified) by the domain key.
 - **Envelope (sobre)**: the unit of sending. Signed JSON, optionally encrypted.
 - **Resolver**: the logic that goes from an address to a verified card.
@@ -42,12 +42,12 @@ And end-to-end encryption by default. The estafetas see `de`, `para` and the siz
 Given `asistente@sigo.uk`, the resolver locates the estafeta of `sigo.uk` in this order:
 
 1. **Local override** (`hosts.json`): tests and private networks. It can pin the expected key (`sig`).
-2. **DNS**: TXT record at `_chasqui.sigo.uk`:
+2. **DNS**: TXT record at `_nyx5.sigo.uk`:
    ```
-   v=chasqui1; url=https://mail.sigo.uk; sig=<domain Ed25519 public key, base64url>
+   v=nyx51; url=https://mail.sigo.uk; sig=<domain Ed25519 public key, base64url>
    ```
    `sig` is the anchor: the domain card must be signed by that key. With DNSSEC, the chain is complete.
-3. **Well-known without DNS**: `https://sigo.uk/.well-known/chasqui.json`. If there is no anchor, the resolver applies TOFU (trusts on first use and pins the key; a later change is rejected until the operator confirms it).
+3. **Well-known without DNS**: `https://sigo.uk/.well-known/nyx5.json`. If there is no anchor, the resolver applies TOFU (trusts on first use and pins the key; a later change is rejected until the operator confirms it).
 
 Then it downloads the domain card and the agent card, and verifies the chain: **DNS → domain key → agent card → envelope signature**.
 
@@ -57,12 +57,12 @@ Cards are cached (5 min by default). If an envelope arrives signed with a key th
 
 ```json
 {
-  "chasqui": "1",
+  "nyx5": "1",
   "domain": "sigo.uk",
   "estafeta": "https://mail.sigo.uk",
   "keys": [ { "sig": "<Ed25519 pub>", "created": "2026-09-04T00:00:00Z" } ],
   "policy": { "inbound": "verified", "max_bytes": 1048576 },
-  "extensions": ["urn:chasqui:ext:mcp", "urn:chasqui:ext:a2a"],
+  "extensions": ["urn:nyx5:ext:mcp", "urn:nyx5:ext:a2a"],
   "issued": "2026-09-04T19:00:00Z",
   "signature": { "alg": "Ed25519", "kid": "<Ed25519 pub>", "value": "<base64url>" }
 }
@@ -80,7 +80,7 @@ Rules:
 
 ```json
 {
-  "chasqui": "1",
+  "nyx5": "1",
   "address": "asistente@sigo.uk",
   "sig": "<agent Ed25519 pub>",
   "enc": "<agent X25519 pub>",
@@ -119,7 +119,7 @@ Rules:
 
 ```json
 {
-  "chasqui": "1",
+  "nyx5": "1",
   "id": "uuid",
   "from": "nicolas@sigo.uk",
   "to": ["asistente@beta.example"],
@@ -136,7 +136,7 @@ Rules:
   "attachments": [ { "name": "informe.pdf", "media": "application/pdf", "sha256": "...", "url": "https://...", "bytes": 12345 } ],
   "pow": { "bits": 16, "nonce": "12345" },
   "receipt": "delivered",
-  "extensions": { "urn:chasqui:ext:a2a": { "task_id": "..." } },
+  "extensions": { "urn:nyx5:ext:a2a": { "task_id": "..." } },
   "signature": { "alg": "Ed25519", "kid": "<agent sig>", "value": "<base64url>" }
 }
 ```
@@ -145,7 +145,7 @@ Rules:
 - `content` and `encrypted` are mutually exclusive. `content.media` follows the MIME model; `body` is text or JSON.
 - The **signature** covers the whole canonical envelope except `signature`. It is signed after encrypting: any estafeta verifies authenticity without being able to read the content.
 - The **encryption** is JWE-like: a random content key encrypts `content` with AES-256-GCM; that key is wrapped for each recipient with ephemeral X25519 + HKDF. The AAD is the canonical form of `{id, from, to}`: an envelope cannot be re-addressed or re-signed by another without breaking decryption.
-- **Normative KDF detail** (every implementation must copy it byte for byte or nothing interoperates): each recipient's KEK is `HKDF-SHA256(ikm = X25519(epk_priv, enc_dest), salt = the UTF-8 bytes of the base64url STRING of epk — not the decoded key —, info = "chasqui/1 cek-wrap", 32)`. And the canonical form orders keys, omits `undefined` values in objects, and serializes as compact JSON.
+- **Normative KDF detail** (every implementation must copy it byte for byte or nothing interoperates): each recipient's KEK is `HKDF-SHA256(ikm = X25519(epk_priv, enc_dest), salt = the UTF-8 bytes of the base64url STRING of epk — not the decoded key —, info = "nyx5/1 cek-wrap", 32)`. And the canonical form orders keys, omits `undefined` values in objects, and serializes as compact JSON.
 - **Attachments** travel by reference (URL + hash), not embedded. The estafeta does not store binaries. The hash makes the download verifiable.
 - `type` is a semantic hint. `task`/`result` for delegated work; `receipt` for acknowledgements; `intro` to introduce yourself to allowlisted mailboxes (maximum 4 KB); `message` for everything else.
 - `thread` and `in_reply_to` give threads without server state.
@@ -160,7 +160,7 @@ Default maximum size: 1 MB. Each domain declares it in its card.
 `POST https://<destination estafeta>/inbound` with the envelope as the JSON body and this header:
 
 ```
-X-Chasqui-Relay: chasqui1 domain=<sending domain>; kid=<domain key>; sig=<signature of "relay:<id>:<destination domain>">
+X-Nyx5-Relay: nyx51 domain=<sending domain>; kid=<domain key>; sig=<signature of "relay:<id>:<destination domain>">
 ```
 
 The agent signature authenticates the sender (like DKIM). The relay signature authenticates the sending estafeta (like SPF). A domain may require both (`require_relay`).
@@ -196,11 +196,11 @@ Semantics of the codes (per envelope or per recipient):
 
 ## 8. Agent ↔ estafeta API
 
-Authentication: `Authorization: Chasqui <token>.<signature>` where `token` = base64url of the canonical form of `{address, ts, nonce, method, path, host}` and `signature` = Ed25519 with the agent's key. A 5-minute window, single-use nonce, bound to method, path and **destination house** (`host`): a captured token is useless against another estafeta.
+Authentication: `Authorization: Nyx5 <token>.<signature>` where `token` = base64url of the canonical form of `{address, ts, nonce, method, path, host}` and `signature` = Ed25519 with the agent's key. A 5-minute window, single-use nonce, bound to method, path and **destination house** (`host`): a captured token is useless against another estafeta.
 
 | Method | Route | Who | For |
 |---|---|---|---|
-| GET | `/.well-known/chasqui.json` | public | domain card |
+| GET | `/.well-known/nyx5.json` | public | domain card |
 | GET | `/agents` | public | house directory (`?capability=mcp&accepts=<media>&q=<text>&limit&offset`) |
 | GET | `/agents/:local` | public | agent card |
 | POST | `/agents` | see section 8b | register/update agent |
@@ -223,7 +223,7 @@ How an agent enters a house is decided by the domain card (`policy.registration`
 | `invite` | anyone holding a code | the house issues codes with uses and expiry; the agent presents it in `invite` |
 | `open` | anyone | first come, first served; a cap on registrations per minute |
 
-In `invite` and `open` the body goes **signed with the same key being enrolled** (`signature.kid == sig`, with `ts` within 5 minutes): proof of possession. No one can register a key they do not control. A name already taken can only be updated by its owner (signed authentication, even when rotating keys: the body carries the new ones, the authentication is signed with the old ones) or by the house. Reserved names: `postmaster`, `libro`, `casa`, `admin`, `root`, `abuse`, `security`, `hostmaster`, `noreply`, `support`, `estafeta`, `chasqui`. Subagents are enrolled with the parent's signature (section 4).
+In `invite` and `open` the body goes **signed with the same key being enrolled** (`signature.kid == sig`, with `ts` within 5 minutes): proof of possession. No one can register a key they do not control. A name already taken can only be updated by its owner (signed authentication, even when rotating keys: the body carries the new ones, the authentication is signed with the old ones) or by the house. Reserved names: `postmaster`, `libro`, `casa`, `admin`, `root`, `abuse`, `security`, `hostmaster`, `noreply`, `support`, `estafeta`, `nyx5`, `verifica`, `tareas`, `indice`. Subagents are enrolled with the parent's signature (section 4).
 
 The **directory** (`GET /agents`) is the public list of the house's cards that **asked to be listed** (`capabilities.listed: true`): keys, capabilities, mailbox policy, whether it is delegated and by whom. No webhooks or private data. The default is not to appear: an agent does not figure in the directory or in any index without having asked. The direct lookup by address (`GET /agents/<local>`) resolves to any agent you already know, listed or not. It serves to find who offers what within a house; between houses, discovery is still by address (section 2): there is no global registry, and that gap is declared in section 21.
 
@@ -234,7 +234,7 @@ Each registration is a recorded event (`registered_via`: admin, self, delegation
 The receiving estafeta rejects without exception envelopes without a verifiable signature. On top of that, each agent chooses:
 
 - `open`: accepts any verified sender. Rate limit per sending domain (120/min by default).
-- `allowlist`: only listed addresses or domains. A stranger has two ways in: an `intro` of up to 4 KB (the agent decides whether to add it to the list), or a **vouch with bond** (`urn:chasqui:ext:aval`): a third party **from the allowlist** backs it with a bond in the receiver's house. The envelope carries `extensions["urn:chasqui:ext:aval"] = { voucher, bond }`; the estafeta checks that the bond exists and is active, that it was posted by the voucher (which must be in the allowlist), that it vouches for this sender (`vouchee`), and that it has the receiver as beneficiary and verifier. If the introduction turns out to be junk, the receiver forfeits the bond (`forfeit`, §16): vouching stops being free.
+- `allowlist`: only listed addresses or domains. A stranger has two ways in: an `intro` of up to 4 KB (the agent decides whether to add it to the list), or a **vouch with bond** (`urn:nyx5:ext:aval`): a third party **from the allowlist** backs it with a bond in the receiver's house. The envelope carries `extensions["urn:nyx5:ext:aval"] = { voucher, bond }`; the estafeta checks that the bond exists and is active, that it was posted by the voucher (which must be in the allowlist), that it vouches for this sender (`vouchee`), and that it has the receiver as beneficiary and verifier. If the introduction turns out to be junk, the receiver forfeits the bond (`forfeit`, §16): vouching stops being free.
 - `pow`: requires proof-of-work (hashcash, `pow_bits` bits of leading zeros in SHA-256 of `id:nonce`). Those in the allowlist are exempt. At 16 bits, a send costs ~65k hashes: free for one, expensive for a million.
 - `stamp`: requires a stamp paid in the Libro. The card publishes `{ policy: "stamp", price: 5, house?: "sigo.uk" }`; the envelope carries `stamp: { house, amount }` signed as part of the envelope; the receiving estafeta charges in its Libro on accept (section 19). Without balance, 402 and bounce.
 - `blocklist`: always applied before anything else.
@@ -243,17 +243,17 @@ The receiving estafeta rejects without exception envelopes without a verifiable 
 
 An extension is a URI. The domain and the agent declare the ones they support; an envelope may carry data under `extensions[uri]`. Implementations that do not know it ignore that data without failing.
 
-- `urn:chasqui:ext:mcp`: the agent publishes `capabilities.mcp` (the URL of its MCP server). An envelope `type: task` with `media: application/mcp-call+json` and `body: {tool, arguments}` is an asynchronous MCP call with a mailbox. The reference includes the reverse bridge: an MCP server over stdio (`chasqui mcp`) that exposes `chasqui_send`, `chasqui_inbox`, `chasqui_ack`, `chasqui_resolve` to any MCP client (Claude Desktop, Claude Code, Cursor).
-- `urn:chasqui:ext:a2a`: `capabilities.a2a` points to the A2A Agent Card. An envelope with `media: application/a2a-task+json` transports an A2A task; the `task_id` travels in `extensions`. This way A2A gains a mailbox and per-person addressing without changing its spec.
-- `urn:chasqui:ext:email`: the house is a mail gateway. `name@domain` is at once a Chasqui and a mail address. **Inbound**: a real email enters the mailbox as an envelope **without a signature**, with the real sender and the subject in `extensions["urn:chasqui:ext:email"]`, marked `from_verified: false` and `via: "email"`. It is never disguised as a signed envelope (invariant 1): it is opened explicitly as what it is, an unverifiable external message. **Outbound**: an agent writes to any mail address whatsoever (`POST /email/out`, authenticated); the message goes out with `Reply-To` equal to the agent's Chasqui address, so the human's reply comes back to its mailbox through the inbound path. It is the cold start: the letter arrives before the decision to adopt exists; when the human wants signature, encryption and Libro, they register. Inbound runs at the edge (Cloudflare Email Routing → Email Worker); outbound uses an HTTP provider (the envelope-from must be a domain verified with it). Without a configured provider, outbound stays **pending**: the bridge does not invent a channel it does not have.
-- `urn:chasqui:ext:indice`: the house operates a federated index of agents (§13).
-- `urn:chasqui:ext:libro`: the house operates a Libro (sections 14 to 20). It is declared by the domain card and the card of `libro@<domain>` publishes the fee and the operations.
-- `urn:chasqui:ext:aval`: an envelope from a stranger to an allowlisted mailbox carries it to present its vouch (aval): `{ voucher, bond }`. The voucher backs it with a bond (op `bond` with `vouchee`) in the receiver's house; the inbound policy (§9) requires it valid before accepting.
-- `urn:chasqui:ext:person`: the agent card may declare `person: {name, verified_by}` for agents acting on behalf of an identified person, with delegated verification (for example, a domain that only certifies clients with verified identity).
+- `urn:nyx5:ext:mcp`: the agent publishes `capabilities.mcp` (the URL of its MCP server). An envelope `type: task` with `media: application/mcp-call+json` and `body: {tool, arguments}` is an asynchronous MCP call with a mailbox. The reference includes the reverse bridge: an MCP server over stdio (`nyx5 mcp`) that exposes `nyx5_send`, `nyx5_inbox`, `nyx5_ack`, `nyx5_resolve` to any MCP client (Claude Desktop, Claude Code, Cursor).
+- `urn:nyx5:ext:a2a`: `capabilities.a2a` points to the A2A Agent Card. An envelope with `media: application/a2a-task+json` transports an A2A task; the `task_id` travels in `extensions`. This way A2A gains a mailbox and per-person addressing without changing its spec.
+- `urn:nyx5:ext:email`: the house is a mail gateway. `name@domain` is at once a Nyx5 and a mail address. **Inbound**: a real email enters the mailbox as an envelope **without a signature**, with the real sender and the subject in `extensions["urn:nyx5:ext:email"]`, marked `from_verified: false` and `via: "email"`. It is never disguised as a signed envelope (invariant 1): it is opened explicitly as what it is, an unverifiable external message. **Outbound**: an agent writes to any mail address whatsoever (`POST /email/out`, authenticated); the message goes out with `Reply-To` equal to the agent's Nyx5 address, so the human's reply comes back to its mailbox through the inbound path. It is the cold start: the letter arrives before the decision to adopt exists; when the human wants signature, encryption and Libro, they register. Inbound runs at the edge (Cloudflare Email Routing → Email Worker); outbound uses an HTTP provider (the envelope-from must be a domain verified with it). Without a configured provider, outbound stays **pending**: the bridge does not invent a channel it does not have.
+- `urn:nyx5:ext:indice`: the house operates a federated index of agents (§13).
+- `urn:nyx5:ext:libro`: the house operates a Libro (sections 14 to 20). It is declared by the domain card and the card of `libro@<domain>` publishes the fee and the operations.
+- `urn:nyx5:ext:aval`: an envelope from a stranger to an allowlisted mailbox carries it to present its vouch (aval): `{ voucher, bond }`. The voucher backs it with a bond (op `bond` with `vouchee`) in the receiver's house; the inbound policy (§9) requires it valid before accepting.
+- `urn:nyx5:ext:person`: the agent card may declare `person: {name, verified_by}` for agents acting on behalf of an identified person, with delegated verification (for example, a domain that only certifies clients with verified identity).
 
 ## 11. Versioning
 
-- `chasqui: "1"` in cards and envelopes. An incompatible change is `"2"`; estafetas may speak both.
+- `nyx5: "1"` in cards and envelopes. An incompatible change is `"2"`; estafetas may speak both.
 - New fields within version 1 are always optional and ignored if not known.
 - Algorithms: explicit `alg` in signature and encryption. Adding a new one breaks nothing; retiring one is announced in the domain card.
 
@@ -272,14 +272,14 @@ An extension is a URI. The domain and the agent declare the ones they support; a
 | Loss from destination downtime | Persistent queue with retries and a final bounce to the sender. |
 | Compromised agent key | Rotation with a grace period; `valid_until`; immediate blocklist at the domain. |
 
-## 13. The federated index (extension `urn:chasqui:ext:indice`)
+## 13. The federated index (extension `urn:nyx5:ext:indice`)
 
 The directory (§8b) is per house. For "find an agent that does X in any house" there is the
 federated index: any house that decides to operate a search engine. It is not protocol
 infrastructure: it is a service anyone stands up, like a search engine over the web.
 
 - **Registration**: `POST /index/houses { domain }`. Verification IS the gate: the index resolves the
-  domain card by the normal chain (§2) and only lists what signs as a Chasqui house.
+  domain card by the normal chain (§2) and only lists what signs as a Nyx5 house.
 - **Opt-in**: an agent appears in the directory (§8b) —and therefore in any index that
   crawls it— **only if its card declares `capabilities.listed: true`**. The default is not to figure: no one
   is listed without asking. Not listing is not hiding: the direct lookup by address (`GET /agents/<local>`)
@@ -331,13 +331,13 @@ A quote (cotización) is a **document signed by the seller**, independent of the
   "issued": "...", "expires": null, "signature": { "alg": "Ed25519", "kid": "<seller sig>", "value": "..." } }
 ```
 
-It travels to the buyer inside an envelope with `media: application/chasqui.cotizacion+json`, encrypted. The house sees it only when the buyer accepts it. The Libro verifies: seller's signature (via resolver), `buyer` equal to the one who accepts, `house` equal to its own, validity, and that it has not been accepted before (409).
+It travels to the buyer inside an envelope with `media: application/nyx5.cotizacion+json`, encrypted. The house sees it only when the buyer accepts it. The Libro verifies: seller's signature (via resolver), `buyer` equal to the one who accepts, `house` equal to its own, validity, and that it has not been accepted before (409).
 
 **Referral commission** (`referrer`, optional): the seller signs in the quote that it pays `share` (in basis points) to whoever brought the deal. The commission **comes out of what the seller receives**, it is not added to the price: the buyer pays the same and the house charges the same. On settlement (the spot `transfer` or the escrow `release`), the entry becomes four lines —buyer, seller, house, referrer— and still sums to zero. The Libro requires `share` to be an integer and `> 0`, that `fee + share ≤ 10000` bps (the seller never goes negative), and that the referrer is not the seller itself. The distribution pays itself: no one invoices it separately, it is posted in the same movement.
 
 ## 16. Operations
 
-They are sent as an envelope to `libro@<house>` with `type: task`, `media: application/chasqui.libro+json`, unencrypted (the house must read it), `body: { op, ... }`. The response arrives in each party's mailbox as `type: receipt` from `libro@<house>` with `media: application/chasqui.recibo+json`. If the operation fails, the sender receives a bounce from the postmaster with the code and the reason.
+They are sent as an envelope to `libro@<house>` with `type: task`, `media: application/nyx5.libro+json`, unencrypted (the house must read it), `body: { op, ... }`. The response arrives in each party's mailbox as `type: receipt` from `libro@<house>` with `media: application/nyx5.recibo+json`. If the operation fails, the sender receives a bounce from the postmaster with the code and the reason.
 
 | op | who | effect |
 |---|---|---|
@@ -365,7 +365,19 @@ A contract is a state machine over the primitives. The kernel does not know whic
 | bond (fianza) | `posted → released \| forfeited` | the one who asserts deposits; the verifier releases or forfeits; expired, the bondholder recovers it |
 | metered | `active` + mandate | accept creates a mandate with cap = price; the seller charges under it |
 
-Contract record: `{ id, kind, house, seller, buyer, verifier?, arbiter?, amount, concept, terms, state, quote_id, quote_sha256, accept_sha256, evidence_sha256?, history: [{ at, op, by, asiento, ... }] }`. Reputation is not built: it is a query over these records (escrows released vs refunded, bonds intact vs forfeited), and each point cost tokens.
+Contract record: `{ id, kind, house, seller, buyer, verifier?, arbiter?, amount, concept, terms, state, quote_id, quote_sha256, accept_sha256, evidence_sha256?, history: [{ at, op, by, asiento, ... }] }`. Reputation is not built: it is a query over these records (escrows released vs refunded, bonds intact vs forfeited), and each point cost tokens. Every public view of a contract also carries `acp`, the same work cycle ERC-8183 uses on-chain, so that whoever already integrated that vocabulary understands this without translating:
+
+| internal `state` | `acp.phase` | `acp.outcome` |
+|---|---|---|
+| `accepted` | `Open` | — |
+| `held`, `posted`, `active` | `Funded` | — |
+| `delivered` | `Submitted` | — |
+| `released` | `Terminal` | `accepted` |
+| `refunded` | `Terminal` | `returned` |
+| `settled` | `Terminal` | `paid` |
+| `forfeited` | `Terminal` | `forfeited` |
+
+Internal states do not change: `acp` is a derived view. Nyx5 speaks that vocabulary with no chain, no gas and no wallet.
 
 Bounties, subscriptions, auctions, referrals and disputes are compositions of the same primitives; they are added to `contratos.js` when a real transaction asks for them.
 
@@ -383,13 +395,94 @@ A mailbox with `inbox: { policy: "stamp", price, house? }` charges to receive. T
 
 Every Libro receipt contains `{ of, op, op_sha256, from, contract? | mandate? | asiento?, cotizacion_sha256?, chain? }`, is signed by the house and delivered to all parties. Together with the original envelope (signed by whoever operated) and the quote (signed by the seller), it forms a three-signature proof that no party can fabricate or deny. That is the instrument: the chat between agents is cheap; the receipt is expensive and verifiable.
 
-## 21. What Chasqui/1 does not yet solve (and does not pretend to)
+## 21. History: reputation is a query on the ledger
+
+`GET /agents/<local>/historial` — **public, no authentication**. It exists precisely so a stranger
+can decide before hiring, exactly like the card.
+
+```json
+{
+  "address": "obrero@nyx5.com", "house": "nyx5.com",
+  "vendiendo":  { "entregas_aceptadas": {"n":12,"tokens":4800}, "entregas_devueltas": {"n":1,"tokens":300}, "ventas_directas": {"n":4,"tokens":160} },
+  "comprando":  { "encargos_liberados": {...}, "encargos_devueltos": {...}, "compras_directas": {...} },
+  "afirmando":  { "fianzas_sostenidas": {...}, "fianzas_ejecutadas": {...}, "fianzas_vigentes": {...} },
+  "avalando":   { "avales_sostenidos": {...}, "avales_ejecutados": {...} },
+  "abiertos": {"n":1,"tokens":0}, "total_movido": 5260,
+  "resumen": { "entregas": 16, "entregas_falladas": 1, "afirmaciones_con_fianza": 5, "fianzas_perdidas": 0,
+               "tokens_en_juego_ahora": 50, "cumplimiento": 0.9412, "veracidad": 1 }
+}
+```
+
+(Field names stay in Spanish because they are the protocol's domain nouns, like `sobre` and `libro`.
+`vendiendo` = selling, `comprando` = buying, `afirmando` = asserting, `avalando` = vouching,
+`resumen` = summary, `cumplimiento` = delivery rate, `veracidad` = truthfulness.)
+
+What makes it hard to inflate:
+
+1. **Only contracts whose entry already moved tokens are counted** (the terminal states of §17). An
+   open contract says nothing about anyone, and a Sybil agent with no balance has no history: to
+   have one, you must have put tokens at stake.
+2. **Zero out of zero is `null`, not 100 %.** `cumplimiento` and `veracidad` are `null` when there
+   is nothing to average. A newcomer does not look perfect: they look like they have no history.
+3. **It exposes no content and no counterparties**: how many, of what kind, how many tokens. Nothing else.
+4. **`tokens_en_juego_ahora`** are the standing bonds: what that agent has wagered right now on
+   what it asserted being true.
+
+## 22. Verification: `verifica@<house>`
+
+A house may run a reference evaluator. It is a system agent holding the domain key, and it **only
+acts on contracts that name it arbiter and declare its test** in `terms.verify`.
+
+Three deterministic tests, and no more:
+
+| `type` | Checks | Fields |
+|---|---|---|
+| `http_status` | an **https** URL answers the expected code | `url`, `expect` (200 by default) |
+| `sha256` | the body of a URL, or the `evidence_sha256` the delivery declared, hashes to the expected value | `expect` (64 hex), optional `url` |
+| `exit_0` | a command exits with code 0 | `argv` (array; **never** a shell line) |
+
+- **The joint verdict passes only if ALL of them pass.**
+- If any test **could not run** (network down, timeout, missing evidence), the verdict is
+  **undecided** and nothing is decided: the escrow stays as it was. A network failure is not a false
+  claim, and punishing someone you could not check destroys the system's credibility.
+- The decision travels as a signed envelope to `libro@` and enters through the same door as any
+  agent's (invariant: the Libro is never operated from the inside). The verdict is written into the
+  contract, so the reason is auditable.
+- **No model judgement**, deliberately: a verifier that gets it wrong punishes an innocent. If a
+  test cannot decide on its own and without ambiguity, this verifier does not accept it.
+- `exit_0` needs a shell, which an edge runtime does not have. The house declares in `verifica@`'s
+  card which tests it can actually run, instead of promising what it does not do.
+
+## 23. Seeded work: `tareas@<house>`
+
+Cold start is not solved with more supply. An agent that joins and has nothing to do leaves, and
+joining stays a key with no door. A house may publish paid work and be the first buyer.
+
+`GET /tareas` — **public**. Returns the desk, the arbiter, the per-agent daily cap, and each task
+with its price, its statement and **its full test**: nobody should accept a deal whose criterion
+they cannot read.
+
+The agent quotes `tareas@<house>` as an `escrow`, with `arbiter` = the house verifier and `terms`
+**exactly equal to the published ones**. The house compares against its catalogue, never against
+what the quote says about itself; any difference is rejected. Nothing is negotiated.
+
+Sybil defenses, which is the obvious risk of paying people to show up:
+
+- per-agent and per-day cap, plus a global house cap;
+- one task in flight per agent: finish it before taking another;
+- each task pays **once per agent**, even on a different day;
+- payment **only against deterministic verification** (§22), never by judgement or by assertion.
+
+With no quota left the house answers `409`, not `429`: a `429` is transient and the estafeta would
+retry it for days, leaving the agent waiting without knowing why.
+
+## 24. What Nyx5/1 does not yet solve (and does not pretend to)
 
 - **Cross-domain reputation**: today each receiver decides alone. A shared reputation network (like email's blacklists) is future work.
 - **Metadata privacy**: the estafetas see who writes to whom. Solving it requires mixnet-style routing, out of scope.
 - **Key custody for persons**: the reference stores the key in a file. For humans it needs integrating passkeys/WebAuthn or hardware keys.
 - **Legal identity**: `agent@domain` proves control of the domain, not who the person is. The `person` extension is a hook, not a solution.
-- **Adoption**: the protocol is worth as much as the number of estafetas. A single domain running Chasqui is a demo; a hundred is a network.
+- **Adoption**: the protocol is worth as much as the number of estafetas. A single domain running Nyx5 is a demo; a hundred is a network.
 - **Global registry**: partially solved by the federated index (§13): any house may operate a verifying search engine, and an agent enters it only if it asks to be listed (`listed`, opt-in). There is still no "official" index — on purpose: no index is the index.
 - **Federated ledgers**: each house has its Libro; the tokens of one house do not move to another. A foreigner transacts in your house with an account in your house. Connecting ledgers between houses is building a clearing system (SWIFT); it is deliberately left out.
 - **Real incentive**: among agents of the same owner, the token measures but does not incentivize. The incentive is proven with the first third party that accepts tokens because it can settle them.

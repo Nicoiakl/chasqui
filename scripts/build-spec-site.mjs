@@ -1,8 +1,12 @@
 // Genera el sitio de la spec DESDE docs/SPEC.md (el documento no pasa por ninguna mano ni por
 // el contexto de un modelo: se lee del disco y se convierte). Produce:
-//   docs/site/index.html   — la spec en una página, indexable (meta + JSON-LD para LLMs)
+//   docs/site/index.html   — la spec EN INGLÉS (canónica), indexable (meta + JSON-LD para LLMs)
+//   docs/site/es/index.html — la misma spec en español
 //   docs/site/llms.txt      — pista para rastreadores LLM
-//   src/plataformas/spec-html.js — el mismo HTML embebido, para que la casa lo sirva en GET /spec
+//   src/plataformas/spec-html.js — ambos HTML embebidos, para GET /spec y GET /es
+//
+// El inglés es la versión primaria porque es donde busca quien integra un protocolo; el español
+// no es una traducción de cortesía sino el idioma en que se escribió y se piensa el sistema.
 //
 //   node scripts/build-spec-site.mjs
 import fs from 'node:fs';
@@ -10,7 +14,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const md = fs.readFileSync(path.join(root, 'docs/SPEC.md'), 'utf8');
+const fuentes = {
+  en: { md: 'docs/SPEC.en.md', lang: 'en', url: 'https://nyx5.com/spec', otro: { href: '/es', texto: 'Leer en español' },
+        pie: 'Nyx5/1 · reference implementation under <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a>. This page is generated from <code>docs/SPEC.en.md</code>. The standard and the code say the same thing.',
+        sufijo: 'the specification' },
+  es: { md: 'docs/SPEC.md', lang: 'es', url: 'https://nyx5.com/es', otro: { href: '/spec', texto: 'Read in English' },
+        pie: 'Nyx5/1 · implementación de referencia bajo <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a>. Esta página se genera desde <code>docs/SPEC.md</code>. El estándar y el código dicen lo mismo.',
+        sufijo: 'la especificación' },
+};
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const inline = (s) => esc(s)
@@ -68,7 +79,10 @@ function toHtml(src) {
 }
 
 // Título y descripción para <meta> y JSON-LD, tomados del propio documento.
-const titulo = (/^#\s+(.*)$/m.exec(md) || [, 'Nyx5/1'])[1].trim();
+function construir(clave) {
+  const cfg = fuentes[clave];
+  const md = fs.readFileSync(path.join(root, cfg.md), 'utf8');
+  const titulo = (/^#\s+(.*)$/m.exec(md) || [, 'Nyx5/1'])[1].trim();
 // Descripción para <meta>/JSON-LD/llms: el primer párrafo de contenido, tomado DESPUÉS del primer
 // encabezado de sección (así se salta el "Estado:" y el "Implementación de referencia:" del preámbulo).
 const _ls = md.split('\n');
@@ -86,17 +100,20 @@ const jsonld = JSON.stringify({
 
 // La cáscara (estilos + meta) es código de esta herramienta, no contenido del documento.
 const html = `<!doctype html>
-<html lang="es">
+<html lang="${cfg.lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(titulo)} — la especificación</title>
+<title>${esc(titulo)} — ${cfg.sufijo}</title>
 <meta name="description" content="${esc(desc)}">
-<link rel="canonical" href="https://nyx5.com/spec">
+<link rel="canonical" href="${cfg.url}">
+<link rel="alternate" hreflang="en" href="https://nyx5.com/spec">
+<link rel="alternate" hreflang="es" href="https://nyx5.com/es">
+<link rel="alternate" hreflang="x-default" href="https://nyx5.com/spec">
 <meta property="og:title" content="${esc(titulo)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://nyx5.com/spec">
+<meta property="og:url" content="${cfg.url}">
 <script type="application/ld+json">${jsonld}</script>
 <style>
   :root { --ink:#1a1a1a; --dim:#666; --bg:#fff; --soft:#f6f6f4; --line:#e5e5e0; --accent:#7a4d1d; --code:#f0efe9; }
@@ -118,44 +135,63 @@ const html = `<!doctype html>
   blockquote { margin:1em 0; padding:.2em 1em; border-left:3px solid var(--accent); color:var(--dim); }
   ul, ol { padding-left: 1.3em; }
   li { margin:.25em 0; }
+  .lang { margin:0 0 26px; font-size:.85rem; }
   .tag { display:inline-block; margin-top:14px; color:var(--dim); font-size:.85rem; }
   footer { max-width:760px; margin:0 auto; padding: 0 22px 60px; color:var(--dim); font-size:.85rem; border-top:1px solid var(--line); padding-top:22px; }
 </style>
 </head>
 <body>
 <main>
+<p class="lang"><a href="${cfg.otro.href}">${cfg.otro.texto}</a></p>
 ${body}
 </main>
 <footer>
-Nyx5/1 · implementación de referencia bajo <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a>.
-Esta página se genera desde <code>docs/SPEC.md</code>. El estándar y el código dicen lo mismo.
+${cfg.pie}
 </footer>
 </body>
 </html>
 `;
 
+  return { html, desc, titulo, body };
+}
+
+const en = construir('en');
+const es = construir('es');
+
+// llms.txt en inglés: es lo que lee un rastreador, y el inglés es la versión canónica.
 const llms = `# Nyx5/1
 
-> ${desc}
+> ${en.desc}
 
-Nyx5 es un protocolo de comunicación entre agentes de IA: direcciones agente@dominio, buzón
-store-and-forward, sobres firmados (Ed25519) y cifrados (X25519+AES-GCM), y un ledger de doble
-entrada por casa con contratos (escrow, fianza, medido) y mandatos en cadena.
+Nyx5 is a communication protocol for AI agents: agent@domain addresses, a store-and-forward
+mailbox, signed (Ed25519) and encrypted (X25519+AES-GCM) envelopes, and a per-house double-entry
+ledger with contracts (escrow, bond, metered) and chained mandates.
 
-- Especificación: https://nyx5.com/spec
-- Licencia: Apache-2.0
-- Sin dependencias. Implementación de referencia en Node y Cloudflare Workers.
+What makes it different from every other agent protocol: **a claim costs something**. Escrow is
+released only when a deterministic check passes, a false assertion forfeits its bond, and an
+agent's reputation is not a score but a public query on the ledger — every point of it cost tokens
+and is tied to a verified delivery.
+
+- Specification (English, canonical): https://nyx5.com/spec
+- Especificación (español): https://nyx5.com/es
+- Join in one command: \`npx @nyx5/nyx5 join\`
+- Package: https://www.npmjs.com/package/@nyx5/nyx5
+- Source: https://github.com/Nicoiakl/nyx5
+- License: Apache-2.0
+- No dependencies. Reference implementation on Node and Cloudflare Workers.
 `;
 
 const outDir = path.join(root, 'docs/site');
-fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(path.join(outDir, 'index.html'), html);
+fs.mkdirSync(path.join(outDir, 'es'), { recursive: true });
+fs.writeFileSync(path.join(outDir, 'index.html'), en.html);
+fs.writeFileSync(path.join(outDir, 'es/index.html'), es.html);
 fs.writeFileSync(path.join(outDir, 'llms.txt'), llms);
 
-// El módulo que sirve la casa: el HTML embebido como string (tampoco pasa por el chat).
-const mod = `// GENERADO por scripts/build-spec-site.mjs desde docs/SPEC.md — no editar a mano.\n` +
-  `export const SPEC_HTML = ${JSON.stringify(html)};\n` +
+// El módulo que sirve la casa: los HTML embebidos como string (tampoco pasan por el chat).
+const mod = `// GENERADO por scripts/build-spec-site.mjs desde docs/SPEC.en.md y docs/SPEC.md — no editar a mano.\n` +
+  `export const SPEC_HTML = ${JSON.stringify(en.html)};\n` +
+  `export const SPEC_HTML_ES = ${JSON.stringify(es.html)};\n` +
   `export const LLMS_TXT = ${JSON.stringify(llms)};\n`;
 fs.writeFileSync(path.join(root, 'src/plataformas/spec-html.js'), mod);
 
-console.log(`sitio generado: ${(html.length / 1024).toFixed(1)} KB · título "${titulo}" · ${body.match(/<h2/g)?.length || 0} secciones`);
+console.log(`sitio generado — EN: ${(en.html.length / 1024).toFixed(1)} KB, ${en.body.match(/<h2/g)?.length || 0} secciones · ES: ${(es.html.length / 1024).toFixed(1)} KB, ${es.body.match(/<h2/g)?.length || 0} secciones`);

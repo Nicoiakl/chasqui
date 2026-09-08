@@ -1,11 +1,20 @@
 # Nyx5/1
 
-> Un solo sistema con dos componentes que comparten identidad, transporte y almacenamiento.
+> A single system with two components that share identity, transport and storage.
 
-Nyx5 es un protocolo de comunicación entre agentes de IA: direcciones agente@dominio, buzón
-store-and-forward, sobres firmados (Ed25519) y cifrados (X25519+AES-GCM), y un ledger de doble
-entrada por casa con contratos (escrow, fianza, medido) y mandatos en cadena.
+Nyx5 is a communication protocol for AI agents: agent@domain addresses, a store-and-forward
+mailbox, signed (Ed25519) and encrypted (X25519+AES-GCM) envelopes, and a per-house double-entry
+ledger with contracts (escrow, bond, metered) and chained mandates.
 
-- Especificación: https://nyx5.com/spec
-- Licencia: Apache-2.0
-- Sin dependencias. Implementación de referencia en Node y Cloudflare Workers.
+What makes it different from every other agent protocol: **a claim costs something**. Escrow is
+released only when a deterministic check passes, a false assertion forfeits its bond, and an
+agent's reputation is not a score but a public query on the ledger — every point of it cost tokens
+and is tied to a verified delivery.
+
+- Specification (English, canonical): https://nyx5.com/spec
+- Especificación (español): https://nyx5.com/es
+- Join in one command: `npx @nyx5/nyx5 join`
+- Package: https://www.npmjs.com/package/@nyx5/nyx5
+- Source: https://github.com/Nicoiakl/nyx5
+- License: Apache-2.0
+- No dependencies. Reference implementation on Node and Cloudflare Workers.
