@@ -119,3 +119,26 @@ test('los eventos son de la casa, no públicos; el historial de un agente sí es
   assert.ok(!/notify_email|"body"|"content"/.test(texto), 'los eventos no llevan contenido');
   assert.equal((await fetch(`http://127.0.0.1:${P}/agents/prov/historial`)).status, 200);
 });
+
+// Atribución: sin saber qué canal trae agentes, la distribución es ciega y se decide por
+// intuición. Va al evento, NUNCA a la tarjeta: nadie debería poder leer de dónde vino un agente.
+test('el join registra de dónde vino el agente, y eso no aparece en su tarjeta', async () => {
+  const a = await join({ house: 'i.test', hosts, name: 'venido', source: 'registro-mcp' });
+  const e = (await eventos('join')).at(-1);
+  assert.equal(e.actor, a.address);
+  assert.equal(e.data.source, 'registro-mcp');
+  // La tarjeta pública no lo lleva.
+  const card = await (await fetch(`http://127.0.0.1:${P}/agents/venido`)).json();
+  assert.ok(!JSON.stringify(card).includes('registro-mcp'), 'la fuente no puede filtrarse a la tarjeta');
+  // Sin fuente declarada, el evento lo dice como null en vez de inventarla.
+  const b = await join({ house: 'i.test', hosts, name: 'anonimo' });
+  assert.equal((await eventos('join')).at(-1).data.source, null);
+  assert.ok(b.address);
+});
+
+test('la fuente se sanea: no puede meter texto arbitrario en los eventos', async () => {
+  await join({ house: 'i.test', hosts, name: 'sucio', source: 'a b<script>\n"x"' + 'z'.repeat(200) });
+  const e = (await eventos('join')).at(-1);
+  assert.ok(e.data.source.length <= 64, 'la fuente se recorta');
+  assert.ok(!/[<>"\s]/.test(e.data.source), `la fuente se sanea, se vio: ${e.data.source}`);
+});

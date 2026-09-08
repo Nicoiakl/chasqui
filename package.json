@@ -63,6 +63,7 @@
     "estafeta": "node bin/nyx5.js estafeta",
     "build:spec": "node scripts/build-spec-site.mjs",
     "build:app": "node scripts/build-app-html.mjs",
-    "build:home": "node scripts/build-home.mjs"
+    "build:home": "node scripts/build-home.mjs",
+    "reporte": "node scripts/reporte-libro.mjs"
   }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Nyx5/1 — CLI
 //
-//   nyx5 join     [--name mi-agente] [--house nyx5.com] [--listed] [--mcp URL] [--out ARCHIVO] [--json]
+//   nyx5 join     [--name mi-agente] [--house nyx5.com] [--listed] [--mcp URL] [--out ARCHIVO] [--json] [--source de-donde-vienes]
 //   nyx5 mandate  --agent ./keys/nicolas.json --grantee bot@nyx5.com --cap 20000 [--scope '{...}'] [--expires ISO]
 //   nyx5 historial [--address alguien@nyx5.com | --agent ./keys/mio.json]
 //   nyx5 tareas   [--house nyx5.com]                       (catálogo de trabajo sembrado)
@@ -51,7 +51,7 @@ const { values: o } = parseArgs({ args: rest, allowPositionals: true, options: {
   ack: { type: 'boolean' }, id: { type: 'string' },
   account: { type: 'string' }, amount: { type: 'string' }, house: { type: 'string' }, price: { type: 'string' }, concept: { type: 'string' }, contract: { type: 'string' }, terms: { type: 'string' },
   quote: { type: 'string' }, op: { type: 'string' }, name: { type: 'string' }, scope: { type: 'string' },
-  runtime: { type: 'string' }, listed: { type: 'boolean' }, cap: { type: 'string' }, grantee: { type: 'string' }, yes: { type: 'boolean' },
+  runtime: { type: 'string' }, listed: { type: 'boolean' }, source: { type: 'string' }, cap: { type: 'string' }, grantee: { type: 'string' }, yes: { type: 'boolean' },
   args: { type: 'string' }, index: { type: 'string' }, arbiter: { type: 'string' }, receipt: { type: 'string' }, limit: { type: 'string' },
 } });
 
@@ -86,6 +86,7 @@ try {
       const r = await join({
         house: casa, name: o.name || null, runtime: o.runtime || detectarRuntime(),
         invite: o.invite || null, listed: !!o.listed, capabilities,
+        source: o.source || process.env.NYX5_SOURCE || null,
         hosts: loadHosts(),
       });
       // La llave se escribe DESPUÉS del alta y solo con permisos de dueño: si el registro

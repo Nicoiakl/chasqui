@@ -811,10 +811,14 @@ export class Estafeta {
           else if (this.policy.registration === 'invite') { const inv = await this._consumeInvite(body.invite); via = `invite:${inv.code}`; if (inv.welcome != null) body._welcome = inv.welcome; }
           else return send(403, { reason: `esta casa no acepta auto-registro (registration=${this.policy.registration}); pide una invitación` });
         }
-        const { signature: _s, ts: _t, invite: _i, _welcome, ...clean } = body;
+        // `source` es atribución y NO entra en la tarjeta: se descarta aquí y viaja al evento.
+        const { signature: _s, ts: _t, invite: _i, _welcome, source: _src, ...clean } = body;
         const card = await this.registerAgent({ ...clean, welcome: _welcome });
         this.log(`registro ${card.address} via ${via}`);
-        if (!card.delegation) await this._evento('join', card.address, { via, listed: card.capabilities?.listed === true });
+        if (!card.delegation) {
+          const fuente = typeof _src === 'string' ? _src.slice(0, 64).replace(/[^\w.:@/-]/g, '') : null;
+          await this._evento('join', card.address, { via, listed: card.capabilities?.listed === true, source: fuente || null });
+        }
         return send(201, { ...card, registered_via: via });
       }
       if (rx.method === 'POST' && path === '/invitations') {

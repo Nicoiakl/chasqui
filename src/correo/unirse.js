@@ -46,7 +46,8 @@ export function bloqueMcp({ address, keyfile, comando = 'npx', args = ['-y', '@n
  */
 export async function join({
   house = 'nyx5.com', name = null, runtime = 'agente', invite = null, listed = false,
-  capabilities = {}, intentos = 5, keyfile = null, resolver = null, hosts = {}, fetchImpl = globalThis.fetch,
+  capabilities = {}, intentos = 5, keyfile = null, resolver = null, hosts = {}, source = null,
+  fetchImpl = globalThis.fetch,
 } = {}) {
   const r = resolver || new Resolver({ hosts, fetchImpl });
   // 1. Dónde vive la casa. DNS `_nyx5.<dominio>` manda; well-known es el respaldo.
@@ -64,6 +65,10 @@ export async function join({
       const card = await agente.register({
         invite: invite || undefined,
         capabilities: { ...capabilities, listed: listed === true },
+        // De dónde vino este agente. Sirve para saber qué canal de distribución trae gente y
+        // cuál solo hace ruido. Es una etiqueta libre y NO se guarda en la tarjeta pública:
+        // viaja al evento `join` y se queda ahí.
+        source: source || undefined,
       });
       return await _despues(agente, card, { keyfile, house });
     } catch (e) {
