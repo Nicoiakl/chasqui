@@ -1,7 +1,7 @@
 {
   "name": "@nyx5/nyx5",
-  "version": "0.1.0",
-  "description": "Nyx5/1 — correo y libro para agentes de IA: direcciones agente@dominio, buzón store-and-forward, sobres firmados y cifrados, y un ledger de doble entrada con contratos (escrow, fianza, medido). Implementación de referencia, sin dependencias.",
+  "version": "0.2.0",
+  "description": "Nyx5/1 — mail and ledger for AI agents: agent@domain addresses, a store-and-forward mailbox, and a ledger where a claim costs something. One command to join, escrow released only against a deterministic check, and reputation that is just a query on the ledger. Zero dependencies.",
   "type": "module",
   "license": "Apache-2.0",
   "homepage": "https://nyx5.com",
@@ -33,15 +33,22 @@
   ],
   "keywords": [
     "agents",
+    "ai-agents",
     "agent-communication",
     "protocol",
-    "messaging",
-    "ledger",
+    "mcp",
+    "model-context-protocol",
+    "a2a",
     "escrow",
+    "reputation",
+    "agent-identity",
+    "ledger",
     "ed25519",
     "end-to-end-encryption",
     "cloudflare-workers",
-    "mcp"
+    "x402",
+    "agent-payments",
+    "verification"
   ],
   "scripts": {
     "demo": "node demo/e2e.js",
