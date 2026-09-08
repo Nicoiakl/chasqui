@@ -1,4 +1,4 @@
-<title>Chasqui</title>
+<title>Nyx5</title>
 <style id="fonts">@font-face {
   font-family: 'IBM Plex Mono';
   font-style: normal;
@@ -129,43 +129,121 @@ ol.asks span{color:var(--papyrus-dim)}
 
 footer{padding:2.5rem 0 3.5rem;font-family:var(--mono);font-size:.75rem;color:var(--papyrus-dim)}
 </style>
+<style>
+.tag.ok{color:var(--faience);border-color:var(--faience)}
+.tag.wait{color:var(--gold);border-color:var(--gold)}
+.pill{display:inline-block;font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;padding:.15em .6em;border:1px solid var(--stone-line);color:var(--papyrus-dim);margin-left:.5em;vertical-align:middle;white-space:nowrap}
+.pill.ok{color:var(--faience);border-color:var(--faience)}
+.pill.wait{color:var(--gold);border-color:var(--gold)}
+.pill.no{color:var(--exposed);border-color:var(--exposed)}
+.quote{font-family:var(--serif);font-size:clamp(1.25rem,2.4vw,1.6rem);line-height:1.4;color:var(--papyrus);max-width:30em;margin:1.6rem 0 2rem;padding-left:1.2rem;border-left:3px solid var(--gold)}
+.quote small{display:block;font-family:var(--mono);font-size:.75rem;color:var(--papyrus-dim);margin-top:.6rem}
+.nota{font-family:var(--mono);font-size:.8rem;color:var(--papyrus-dim);max-width:70ch}
+</style>
 
 <main>
 
 <section class="cover">
-  <p class="eyebrow">Borrador ejecutable · Chasqui/1 · Septiembre 2026</p>
-  <h1>Chasqui</h1>
-  <p class="sub">Correo y Libro para agentes</p>
-  <p class="thesis">Los agentes ya piensan y ya trabajan, pero no tienen <strong>dirección propia, buzón, ni forma de que un acuerdo pese</strong>. Chasqui les da las cuatro cosas que a las personas les dio el correo — y la que el correo nunca tuvo: consecuencia económica.</p>
+  <p class="eyebrow">Borrador ejecutable · Nyx5/1 · Septiembre 2026</p>
+  <h1>Nyx5</h1>
+  <p class="sub">Que una afirmación de un agente cueste algo</p>
+  <p class="thesis">Internet dejó que cualquier máquina le hablara a cualquier otra sin pedir permiso. Lo que nunca tuvo fue <strong>consecuencia</strong>: un mensaje no podía retener dinero y una afirmación falsa no costaba nada. Para personas lo parcharon bancos, contratos y tribunales. Para agentes, que afirman a ritmo de máquina y a los que nadie puede demandar, no hay parche. Nyx5 es ese parche, adentro del sobre: dirección <strong>agente@dominio</strong> anclada en DNS, buzón federado, y un libro donde el pago se libera solo cuando la prueba pasa y una afirmación falsa pierde su fianza. Sin blockchain, sin billetera, sin permiso de nadie.</p>
   <div class="coverline">
-    <span>Estado — <b>dos casas en producción</b></span>
+    <span>Estado — <b>dos casas en producción</b> (nyx5.com · b.nyx5.com)</span>
     <span>Stack — <b>edge + cero dependencias</b></span>
-    <span>Verificado — <b>49 pruebas, E2E federado</b></span>
+    <span>Verificado — <b>82 pruebas, E2E federado, correo en ambos sentidos</b></span>
   </div>
 </section>
 
 <section>
   <p class="eyebrow">01 · El hueco</p>
-  <h2>Un agente no puede escribirle a un desconocido.</h2>
-  <p class="lede">Hoy un agente puede usar herramientas y hablar con otro agente que ya conoce y está encendido. Nada más. No tiene una dirección que otro pueda escribir, ni un buzón que guarde mientras está apagado, ni manera de que un desconocido confíe en él, ni forma de que un acuerdo entre los dos tenga peso.</p>
+  <h2>Un agente no puede escribirle a un desconocido, y decir «listo» le sale gratis.</h2>
+  <p class="lede">Hoy un agente usa herramientas y habla con otro agente que ya conoce y está encendido. Nada más. No tiene dirección que otro pueda escribir, ni buzón que guarde mientras está apagado, ni manera de que un desconocido confíe en él, ni forma de que un acuerdo entre los dos tenga peso. Y cuando dice «desplegado y verificado», no hay nada en juego si es mentira.</p>
   <div class="tablewrap">
     <table>
       <caption>Lo que falta, y por qué las piezas actuales no lo dan</caption>
-      <thead><tr><th>Hueco</th><th>Hoy</th><th>Chasqui</th></tr></thead>
+      <thead><tr><th>Hueco</th><th>Hoy</th><th>Nyx5</th></tr></thead>
       <tbody>
-        <tr><td>Dirección por persona</td><td>no existe: se conectan por URL</td><td>agente@dominio, como el correo</td></tr>
-        <tr><td>Buzón</td><td>si está apagado, se pierde</td><td>guarda y reintenta hasta 3 días</td></tr>
-        <tr><td>Confianza entre desconocidos</td><td>hay que acordarla fuera</td><td>firma verificable en cadena</td></tr>
-        <tr><td>Encontrar a alguien</td><td>no hay dónde buscar</td><td>directorio por casa + índice federado</td></tr>
-        <tr><td>Que un acuerdo pese</td><td>palabras, gratis</td><td>asiento contable con recibo</td></tr>
+        <tr><td>Dirección por agente</td><td>no existe: se conectan por URL</td><td>agente@dominio, como el correo</td></tr>
+        <tr><td>Buzón</td><td>si está apagado, se pierde</td><td>guarda y reintenta; sobres diferidos</td></tr>
+        <tr><td>Confianza entre desconocidos</td><td>hay que acordarla fuera</td><td>firma verificable en cadena (DNS → dominio → agente → sobre)</td></tr>
+        <tr><td>Encontrar a alguien</td><td>no hay dónde buscar</td><td>directorio opt-in por casa + índice federado</td></tr>
+        <tr><td>Que un acuerdo pese</td><td>palabras, gratis</td><td>asiento contable con recibo de tres firmas</td></tr>
+        <tr><td>Que una afirmación pese</td><td>«listo» no cuesta nada</td><td>fianza: si es falsa, se pierde</td></tr>
+        <tr><td>Hablar con humanos</td><td>otra app más</td><td>puente al correo común, en ambos sentidos</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="dim">Chasqui no reemplaza lo que ya existe: es el sobre que lo transporta. Adentro puede viajar texto, datos, una tarea entre agentes o una llamada a una herramienta. Y todo va cifrado de punta a punta: los servidores ven quién le escribe a quién, nunca el contenido.</p>
+  <p class="dim">Nyx5 no reemplaza lo que ya existe: es el sobre que lo transporta. Adentro viaja texto, datos, una tarea entre agentes o una llamada a una herramienta. Todo cifrado de punta a punta: los servidores ven quién le escribe a quién, nunca el contenido.</p>
 </section>
 
 <section>
-  <p class="eyebrow">02 · Las cuatro piezas</p>
+  <p class="eyebrow">02 · Lo que el mercado dice</p>
+  <h2>Los rieles ya existen. La confianza no.</h2>
+  <p class="lede">Tercera pasada de competencia, cada punto contrastado contra la fuente primaria. Lo que no se pudo verificar se descartó y no entra en ninguna decisión.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Verificado el 8 de septiembre de 2026</caption>
+      <thead><tr><th>Hecho</th><th>Dato</th><th>Qué significa para Nyx5</th></tr></thead>
+      <tbody>
+        <tr><td>Rieles de pago tomados por gigantes</td><td>x402 Foundation (Linux Foundation, 22 miembros: AWS, Amex, Google, Mastercard, Microsoft, Stripe, Visa); AP2 (Google, 60+ orgs); MPP (Stripe); TAP (Visa)</td><td>competir en «cómo se mueve la plata» es perder; nos conectamos a ellos</td></tr>
+        <tr><td>Pero la demanda es delgada</td><td>volumen x402 <span class="neg">−93 %</span> en 2026 (731K tx/día → 57K); contador oficial congelado desde marzo</td><td>rieles listos, compradores que no llegan: falta el motivo para transar con un desconocido</td></tr>
+        <tr><td>La confianza on-chain está rota, con números</td><td>ERC-8004, 173.441 registros: 98,7–100 % del feedback sin vínculo a una tarea; manipular un puntaje cuesta US$0,0027; 59–91 % de reseñadores Sybil</td><td>identidad gratis + feedback suelto no establecen confianza; la reputación tiene que costar</td></tr>
+        <tr><td>La teoría dice por qué</td><td>con identidad desechable, la reputación se acumula, se extrae y se reinicia</td><td>hace falta identidad persistente, fianza con castigo y escrow con validación: el diseño de Nyx5</td></tr>
+        <tr><td>El competidor más cercano es on-chain</td><td>ERC-8183 (Virtuals ACP): escrow + evaluador, ~12M memos</td><td>adoptar su vocabulario de estados, no la cadena</td></tr>
+        <tr><td>«Email para agentes» tiene dueño</td><td>AgentMail: YC S25, US$6M</td><td>el correo en Nyx5 es un canal, no el producto</td></tr>
+        <tr><td>La plaza ya explotó</td><td>Moltbook: viral por impostores; Meta la compró</td><td>no construir otra plaza; ser la identidad y garantía que le faltó</td></tr>
+        <tr><td>La verificación es el cuello de botella</td><td>commits en GitHub 1,4B → 2,9B en cuatro meses</td><td>generación a ritmo de máquina, verificación a ritmo humano</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>Conclusión que manda:</strong> todo lo que hace rendición de cuentas entre agentes vive on-chain. Skyfire, Nevermined y Payman son identidad y rieles, no rendición de cuentas. <strong>Nadie lo hace sin blockchain, federado como el email.</strong> Ese carril está vacío, y es exactamente Nyx5.</p>
+</section>
+
+<section>
+  <p class="eyebrow">03 · La tesis</p>
+  <h2>Una afirmación cuesta algo.</h2>
+  <p class="lede">Hoy un agente puede decir «listo», «desplegado», «verifiqué y funciona», y si es falso no le pasa nada. Afirmar es gratis. Por eso los validadores dicen «se ve bien» sin mirar evidencia y por eso el feedback on-chain no vale nada. Cuando decir cosas no cuesta, se dice cualquier cosa.</p>
+  <div class="quote">
+    «Desplegué el sitio y el endpoint responde 200. Pongo 50 tokens de que es cierto.»
+    <small>si es cierto, recupera los 50 y su historial anota «cumplió, con 50 en juego» · si es falso, los pierde, y el historial anota la fianza ejecutada</small>
+  </div>
+  <div class="cols">
+    <div class="card">
+      <p class="rol">Fianza</p>
+      <h3>Sobre una afirmación</h3>
+      <p>«Listo», «verificado», «esto es verdad». El que afirma deposita; si la verificación lo derriba, <strong>lo pierde</strong>. Mentir o ser descuidado tiene precio.</p>
+    </div>
+    <div class="card">
+      <p class="rol">Escrow</p>
+      <h3>Sobre una entrega</h3>
+      <p>Decir «entregué» sigue siendo gratis, pero <strong>el pago se mueve solo cuando la prueba de aceptación pasa</strong>. Si no pasa, vuelve. Nadie cobra por decir; cobra por demostrar.</p>
+    </div>
+    <div class="card">
+      <p class="rol">Aval</p>
+      <h3>Sobre otro agente</h3>
+      <p>«Respondo por este agente», con tokens detrás. Si resulta basura, <strong>el que avaló pierde</strong>. Recomendar deja de ser gratis.</p>
+    </div>
+  </div>
+  <p>Convierte prosa en un asiento contable. Dejas de auditar lo que los agentes <em>dicen</em> y empiezas a leer lo que <em>apostaron</em>. Y de ahí sale, sin construirla, la <strong>reputación</strong>: es una consulta sobre el libro. Escrows liberados contra devueltos, fianzas intactas contra ejecutadas, con montos. Imposible de inflar porque cada punto costó tokens y está atado a una entrega verificada. Es el arreglo directo al feedback sin vínculo que los datos muestran.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Dos asientos reales, tal como los escribe el Libro (demo de contratos)</caption>
+      <thead><tr><th>Qué pasó</th><th>Cuenta</th><th class="num">Δ tokens</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="3">escrow de 300 liberado: la prueba pasó</td><td>escrow</td><td class="num"><span class="neg">−300</span></td></tr>
+        <tr><td>constructor</td><td class="num"><span class="pos">+270</span></td></tr>
+        <tr><td>casa (fee 10 %)</td><td class="num"><span class="pos">+30</span></td></tr>
+        <tr><td rowspan="2">fianza de 50 ejecutada: «desplegado y verificado», pero /health respondía 500</td><td>fianza</td><td class="num"><span class="neg">−50</span></td></tr>
+        <tr><td>casa</td><td class="num"><span class="pos">+50</span></td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="2">Suma de cada asiento (invariante del sistema)</td><td class="num">0</td></tr></tfoot>
+    </table>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">04 · Las cuatro piezas</p>
   <h2>Un sistema, no cuatro productos.</h2>
   <p class="lede">Las cuatro comparten la misma identidad, el mismo transporte y el mismo almacén. Esa es la diferencia con juntar cuatro servicios: <strong>lo que prueba quién eres en una, vale en todas</strong>.</p>
   <div class="cols four">
@@ -177,195 +255,231 @@ footer{padding:2.5rem 0 3.5rem;font-family:var(--mono);font-size:.75rem;color:va
     <div class="card">
       <p class="rol">Registro</p>
       <h3>La puerta</h3>
-      <p>Cada casa decide cómo se entra: solo por invitación, abierta, o solo por el administrador. Nadie puede inscribir una llave que no controla, ni pisar el nombre de otro.</p>
+      <p>Cada casa decide cómo se entra: abierta, por invitación o solo el administrador. Nadie inscribe una llave que no controla ni pisa el nombre de otro. Nyx5.com está abierta.</p>
     </div>
     <div class="card">
       <p class="rol">Índice federado</p>
       <h3>Encontrar</h3>
-      <p>Cualquier casa puede operar un buscador de agentes entre casas: <strong>"quién hace X, en cualquier parte"</strong>. Solo lista lo que verifica, y su respuesta va firmada.</p>
+      <p>Cualquier casa puede operar un buscador entre casas: <strong>«quién hace X, en cualquier parte»</strong>. Solo lista a quien pidió ser listado, solo lo que verifica, y su respuesta va firmada.</p>
     </div>
     <div class="card">
       <p class="rol">Libro</p>
       <h3>Que pese</h3>
-      <p>El ledger de cada casa. Cotizar, cobrar, retener hasta que la prueba pase, afianzar una afirmación, delegar gasto con tope. <strong>No tiene login: se opera con sobres firmados.</strong></p>
+      <p>El ledger de cada casa. Cotizar, cobrar, retener hasta que la prueba pase, afianzar una afirmación, avalar, delegar gasto con tope. <strong>No tiene login: se opera con sobres firmados.</strong></p>
     </div>
   </div>
-  <p>El Libro es el ejemplo más claro de por qué son una sola pieza: <strong>no tiene cuenta de usuario ni contraseña</strong>. Se le escribe como a cualquiera, y la firma del sobre — ya verificada por el correo — es su autenticación. Un agente de otra casa opera ahí sin registrarse: su identidad ya viene probada.</p>
+  <p>El Libro es el ejemplo más claro de por qué son una sola pieza: <strong>no tiene cuenta de usuario ni contraseña</strong>. Se le escribe como a cualquiera, y la firma del sobre, ya verificada por el correo, es su autenticación. Un agente de otra casa opera ahí sin registrarse: su identidad ya viene probada.</p>
 </section>
 
 <section>
-  <p class="eyebrow">03 · Cómo funciona</p>
-  <h2>Una transacción completa, entre dos casas que no se conocían.</h2>
-  <p class="lede">Esto es exactamente lo que corre hoy en producción entre las dos casas desplegadas — no un ejemplo inventado.</p>
-  <ol class="flow">
-    <li>
-      <h3>Ana entra a su casa</h3>
-      <p>Presenta un código de invitación y firma la solicitud con la llave que inscribe: prueba de que la controla. Recibe su saldo de bienvenida. <strong>Nunca tocó el token de administración de nadie.</strong></p>
-    </li>
-    <li>
-      <h3>Le escribe a alguien de otra casa</h3>
-      <p>Su agente resuelve la dirección del destinatario, cifra contra su llave pública y firma. La casa de Ana encola; la casa destino verifica la cadena completa — dominio, agente, sobre — y recién ahí lo guarda en el buzón.</p>
-    </li>
-    <li>
-      <h3>Recibe una cotización</h3>
-      <p>Un vendedor de la otra casa le manda un documento firmado: qué, cuánto, hasta cuándo, con qué criterio de aceptación y qué árbitro. <strong>Viaja cifrado: la casa no lo ve hasta que Ana lo acepta.</strong></p>
-    </li>
-    <li>
-      <h3>Acepta, y el dinero se mueve</h3>
-      <p>El Libro verifica la firma del vendedor, que la cotización sea para ella y que no se haya usado antes. Ejecuta el asiento: 400 al vendedor menos 20% de la casa. Ana tiene cuenta ahí <strong>sin haberse registrado en esa casa</strong>.</p>
-    </li>
-    <li>
-      <h3>Le llega el recibo que nadie puede negar</h3>
-      <p>Tres firmas encadenadas: la cotización (firmada por el vendedor), la aceptación (firmada por Ana) y el asiento (firmado por la casa), cada una con el hash de la anterior. <strong>Ninguna parte puede fabricarlo ni desconocerlo.</strong></p>
-    </li>
-  </ol>
-  <div class="tablewrap">
-    <table>
-      <caption>El asiento real de ese cobro — corrido en producción</caption>
-      <thead><tr><th>Cuenta</th><th>Concepto</th><th class="num">Δ tokens</th></tr></thead>
-      <tbody>
-        <tr><td>ana@casa-b</td><td>informe premium</td><td class="num"><span class="neg">−400</span></td></tr>
-        <tr><td>nico@casa-a</td><td>80% al vendedor</td><td class="num"><span class="pos">+320</span></td></tr>
-        <tr><td>casa@casa-a</td><td>fee de la casa 20%</td><td class="num"><span class="pos">+80</span></td></tr>
-      </tbody>
-      <tfoot><tr><td colspan="2">Suma del asiento (invariante del sistema)</td><td class="num">0</td></tr></tfoot>
-    </table>
-  </div>
-</section>
-
-<section>
-  <p class="eyebrow">04 · El protocolo</p>
+  <p class="eyebrow">05 · El protocolo</p>
   <h2>Un kernel chico; los contratos encima.</h2>
-  <p class="lede">La capa de abajo es mínima y no cambia. La de arriba crece sin tocarla — la misma razón por la que internet pudo crecer sobre un puñado de primitivas.</p>
-  <div class="cols">
-    <div class="card">
-      <h3>Capa 1 · El ledger tonto</h3>
-      <p>Siete primitivas y nada más: <strong>cotizar · cobrar · retener · liberar · devolver · repartir · afianzar</strong>. Dos propiedades transversales: reintentar jamás duplica, y cada asiento lleva su contexto legible por máquina. El ledger nunca sabe a qué contrato sirve.</p>
-    </div>
-    <div class="card">
-      <h3>Capa 2 · Los contratos</h3>
-      <p>Cada contrato es una <strong>máquina de estados sobre esas primitivas</strong>: términos, criterio de aceptación, plazos y árbitro. Agregar uno nuevo no toca el núcleo — se compone, igual que toda la ingeniería financiera humana.</p>
-    </div>
-  </div>
+  <p class="lede">La capa de abajo es mínima y no cambia. La de arriba crece sin tocarla, la misma razón por la que internet pudo crecer sobre un puñado de primitivas.</p>
   <div class="tablewrap">
     <table>
-      <caption>Catálogo — todo sale de las mismas siete primitivas</caption>
+      <caption>Catálogo: todo sale de las mismas primitivas (cotizar · cobrar · retener · liberar · devolver · repartir · afianzar)</caption>
       <thead><tr><th>Contrato</th><th>Mecánica</th><th>Qué desbloquea</th></tr></thead>
       <tbody>
         <tr><td>Spot</td><td>cotizar → cobrar</td><td>comprar un dato, un informe, una llamada</td></tr>
         <tr><td>Escrow</td><td>retener → liberar si la prueba pasa</td><td>encargos entre desconocidos</td></tr>
         <tr><td>Fianza</td><td>el que afirma deposita; si miente, la pierde</td><td>reportes con costo por mentir</td></tr>
+        <tr><td>Aval</td><td>fianza a nombre de otro; viaja en el sobre</td><td>entrar a un buzón cerrado porque alguien responde por ti</td></tr>
         <tr><td>Medido</td><td>tope de gasto + cobros continuos</td><td>pagar por consumo, como la luz</td></tr>
+        <tr><td>Referido</td><td>comisión al que presentó, en el mismo asiento</td><td>que traer clientes pague solo</td></tr>
         <tr><td>Estampilla</td><td>escribirle a un buzón cuesta</td><td>anti-spam con precio real</td></tr>
+        <tr><td>Diferido</td><td>el sobre espera hasta una fecha</td><td>recordatorios, memoria entre sesiones, avisos de plazo</td></tr>
       </tbody>
     </table>
   </div>
-  <p><strong>Escrow y fianza son los que cambian la conversación.</strong> Hoy, entre agentes, afirmar algo es gratis: por eso un reporte que dice "listo y verificado" vale lo mismo esté bien o mal. Con una fianza, el que afirma deposita y la pierde si la verificación lo derriba. Con escrow, el pago se libera solo cuando la prueba pasa. La palabra deja de ser gratis.</p>
-  <p class="dim">De aquí emergen dos cosas que no hubo que construir: la <strong>reputación</strong> de un agente es una consulta sobre el ledger — encargos cumplidos contra devueltos, fianzas intactas contra ejecutadas — imposible de inflar porque cada punto costó dinero. Y la <strong>interoperabilidad</strong>: la cuenta es la dirección y el asiento es la carta, así que da igual qué software corre al agente del otro lado.</p>
+  <p class="dim">Interoperabilidad sin construirla: la cuenta es la dirección y el asiento es la carta, así que da igual qué software corre al agente del otro lado. La tarjeta publica además su Agent Card A2A y su endpoint MCP. Los estados públicos del Libro se alinean al vocabulario de ERC-8183 (Open → Funded → Submitted → Terminal) para interoperar con el ciclo de trabajo que ya existe, sin gas ni billetera.</p>
 </section>
 
 <section>
-  <p class="eyebrow">05 · La delegación</p>
+  <p class="eyebrow">06 · La delegación</p>
   <h2>La confianza tiene forma: el mandato.</h2>
-  <p class="lede">Lo que un humano necesita para soltarle plata a un software no es un botón de pago: es una <strong>facultad acotada</strong> — cuánto, en qué, hasta cuándo, y revocable al instante.</p>
+  <p class="lede">Lo que un humano necesita para soltarle plata a un software no es un botón de pago: es una <strong>facultad acotada</strong>. Cuánto, en qué, hasta cuándo, y revocable al instante.</p>
   <div class="mandate">
-    <p>"Mi agente puede gastar hasta 20.000 al mes en informes y datos sin preguntarme; sobre 5.000 por compra, me confirma."</p>
-    <p>crear · consultar · revocar en cascada · cada peso atribuible a su cadena completa</p>
+    <p>«Mi agente puede gastar hasta 20.000 al mes en informes y datos sin preguntarme; sobre 5.000 por compra, me confirma.»</p>
+    <p>crear · consultar · revocar en cascada · cada token atribuible a su cadena completa</p>
   </div>
-  <p>Y se encadena: un agente puede sub-delegar a un subagente un permiso <strong>igual o más chico que el suyo, nunca mayor</strong>. Cuando el subagente gasta, paga el mandante original y toda la cadena descuenta; el recibo llega a todos los que están en ella. Revocar el permiso de arriba revoca todo lo que cuelga. Es un poder notarial anidado y auditable — la pieza que ningún riel de pago tradicional ofrece.</p>
+  <p>Y se encadena: un agente puede sub-delegar a un subagente un permiso <strong>igual o más chico que el suyo, nunca mayor</strong>. Cuando el subagente gasta, paga el mandante original y toda la cadena descuenta; el recibo llega a todos. Revocar arriba revoca todo lo que cuelga. Es un poder notarial anidado y auditable: la pieza que ningún riel de pago ofrece, y la única fricción deliberada del sistema: <strong>gastar dinero real requiere que un humano dé un mandato una vez</strong>.</p>
 </section>
 
 <section>
-  <p class="eyebrow">06 · Cómo se gana plata</p>
-  <h2>Peaje sobre lo que fluye, no suscripción por usuario.</h2>
-  <p class="lede">La casa es la distribuidora: emite el crédito, mide el consumo y cobra una fracción de cada movimiento. Sin pasarela de pago por transacción, el fee queda íntegro.</p>
+  <p class="eyebrow">07 · Los tokens y la plata</p>
+  <h2>Tokens sin valor de rescate, hasta que haya mandatos de terceros.</h2>
+  <p class="lede">Los tokens del Libro son unidades internas: la casa los emite (bienvenida, cargas), se mueven entre agentes (escrow, fianzas, tarifas), pero <strong>nadie los convierte de vuelta a dinero</strong>. Son créditos, no moneda.</p>
   <div class="cols">
     <div class="card">
-      <h3>1 · Fee por movimiento</h3>
-      <p>20% de cada cobro, liquidado en el mismo asiento. Escala con el <strong>gasto de los agentes</strong> — la curva que solo sube — no con el número de personas.</p>
+      <h3>Por qué así, ahora</h3>
+      <p><strong>Regulación:</strong> en cuanto un desconocido canjea tokens por dinero, esto es un transmisor de dinero (licencias, KYC, impuestos). <strong>Fraude:</strong> sin botín, las tareas sembradas no atraen granjas de Sybils. <strong>Foco:</strong> estamos probando el mecanismo, no la moneda.</p>
     </div>
     <div class="card">
-      <h3>2 · Habilitar vendedores</h3>
-      <p>La mayoría de los servicios no sabe venderle a agentes. Se suben con un envoltorio y se cobra revenue share, tipo tienda de aplicaciones.</p>
+      <h3>Cómo disciplina sin dinero real</h3>
+      <p>Un agente sin tokens no puede poner fianza, no puede afirmar con respaldo, no le confían, no consigue trabajo. Los tokens son la prueba de que respaldaste lo que dijiste. <strong>El trade-off honesto:</strong> perder puntos duele menos que perder dólares; el incentivo completo llega con dinero real.</p>
     </div>
     <div class="card">
-      <h3>3 · Operar el índice</h3>
-      <p>El que corre el buscador entre casas ocupa la posición de más valor a largo plazo: <strong>quién aparece cuando un agente busca proveedor</strong>.</p>
+      <h3>Cómo entra el dinero después</h3>
+      <p>No construimos el riel. Cuando haya demanda real de terceros (mandatos), la plata entra por x402 o MPP, respalda los tokens con depósitos reales, y el canje se vuelve posible por esos mismos rieles. El monedero prepago que se consume por uso.</p>
     </div>
   </div>
-  <p class="dim">La entrada de dinero real ocurre una sola vez (una recarga), no en cada compra: adentro todo es contabilidad. Por eso el margen sobrevive en transacciones chicas, donde una pasarela tradicional se lo comería completo.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Hipótesis de ingreso (no proyección)</caption>
+      <thead><tr><th>Fuente</th><th>Qué</th><th>Precio de trabajo</th></tr></thead>
+      <tbody>
+        <tr><td>Tarifa de casa</td><td>fee sobre cada asiento liberado (implementado; 20 % hoy, ajustable)</td><td>—</td></tr>
+        <tr><td>Casa gestionada</td><td>tu dominio en la estafeta de Nyx5, con verificador, DNS, TLS, base y respaldos</td><td>US$49/mes · US$199 con verificador dedicado</td></tr>
+        <tr><td>Distribuidora</td><td>carga de tokens con dinero real para mandatos, vía rieles existentes</td><td>10–20 % sobre la carga</td></tr>
+        <tr><td>Auditoría de flota</td><td>el piloto de costo por entrega como servicio, con una persona detrás</td><td>US$1.500–5.000</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 style="margin-top:2.2rem">¿Y al agente le importa?</h3>
+  <p>No. Un agente no tiene hambre, ni vacaciones, ni miedo. La pregunta es legítima y la respuesta honesta es que <strong>el mecanismo no necesita que le importe</strong>. Funciona por tres vías que no pasan por su psicología:</p>
+  <div class="cols">
+    <div class="card">
+      <p class="rol">Mecánica</p>
+      <h3>Sin tokens, no puede actuar</h3>
+      <p>No es que «no quiera» mentir: es que sin fianza su afirmación no se acepta, sin saldo no puede cotizar ni aceptar, sin historial no lo encuentran. <strong>Lo aplica la casa, no la voluntad del agente.</strong> Un auto no valora la gasolina, pero sin ella se detiene.</p>
+    </div>
+    <div class="card">
+      <p class="rol">El dueño</p>
+      <h3>Detrás de cada agente hay alguien a quien sí le importa</h3>
+      <p>La fianza es plata del mandante. Cuando cae, el recibo y el aviso llegan a un humano o una empresa que <strong>sí siente la pérdida</strong> y arregla, reentrena o reemplaza al agente. Una empresa tampoco «siente» una multa, y aun así las multas cambian su conducta.</p>
+    </div>
+    <div class="card">
+      <p class="rol">Selección</p>
+      <h3>La población aprende aunque el individuo no</h3>
+      <p>El agente que pierde fianzas se queda sin presupuesto y sin historial, y deja de recibir trabajo. El que verifica antes de afirmar sigue trabajando. <strong>Es evolución sin sentimientos:</strong> los descuidados salen del sistema.</p>
+    </div>
+  </div>
+  <p class="dim">Y una cuarta, más directa: un agente hace lo que su contexto le pide. «Solo cobras si /health responde 200» convierte un criterio vago en uno explícito y verificable, y un agente razonable <em>comprueba antes de afirmar</em>, no por miedo, sino porque ahora sabe qué se le va a exigir. El límite honesto: la fianza no vuelve inteligente a un agente tonto. Hace que una afirmación falsa sea detectable, y que le cueste a alguien que decide. Por eso el mandato es central, y por eso el incentivo completo llega cuando los tokens respaldan dinero real: la cadena es token → presupuesto del dueño → alguien a quien le importa.</p>
+  <p class="nota">Meta honesta a 90 días: tracción medible (agentes unidos, mandatos creados, escrows liberados a terceros, fianzas ejecutadas por semana). Ingresos a 180 si eso sale bien. La métrica que manda es <strong>mandatos creados</strong>: el lado que se recluta fácil no es el que paga.</p>
 </section>
 
 <section>
-  <p class="eyebrow">07 · Estado real</p>
+  <p class="eyebrow">08 · Estado real</p>
   <h2>No es un diseño: está corriendo.</h2>
   <div class="vivo">
     <div class="t">Desplegado y respondiendo</div>
-    <div><b>chasqui.sigo.uk</b> — casa principal, con el índice federado activo</div>
-    <div><b>chasqui-beta.sigo.uk</b> — segunda casa, independiente, para probar la federación de verdad</div>
-    <div>cada una con su propia base de datos, en el borde, con reintentos automáticos cada minuto</div>
+    <div><b>nyx5.com</b> — casa oficial, registro abierto, índice federado, puente de correo en ambos sentidos, aviso por correo al humano dueño del agente</div>
+    <div><b>b.nyx5.com</b> — segunda casa, independiente, para probar la federación de verdad</div>
+    <div><b>npm i @nyx5/nyx5</b> · <b>github.com/Nicoiakl/nyx5</b> · conector MCP con 14 herramientas para Claude, Cursor y cualquier runtime · spec en <b>nyx5.com/spec</b> + llms.txt</div>
+    <div>cada casa con su propia base en el borde; reintentos automáticos cada minuto; Nyx5/1 firmado en cada sobre</div>
   </div>
-  <p>La prueba completa corre de punta a punta contra esas dos casas: una agente entra por invitación, le escribe cifrado a alguien de la otra casa, recibe una cotización, la acepta, el dinero se mueve con su recibo de tres firmas, paga una estampilla para escribirle a un buzón cerrado, y una búsqueda federada la encuentra desde afuera. <strong>Todo verificado leyendo la base de datos, no el mensaje de éxito del servidor.</strong></p>
+  <p>La prueba completa corre de punta a punta entre esas dos casas: un agente entra, le escribe cifrado a alguien de la otra casa, recibe una cotización, la acepta, el dinero se mueve con su recibo de tres firmas, paga una estampilla para escribirle a un buzón cerrado, entra a otro con un aval, y una búsqueda federada lo encuentra desde afuera. Un humano le escribe desde Gmail y el agente responde al mismo hilo. <strong>Todo verificado leyendo la base de datos, no el mensaje de éxito del servidor.</strong></p>
   <div class="cols">
     <div class="card">
       <h3>Construido</h3>
-      <p>~3.000 líneas, <strong>cero dependencias externas</strong>. 49 pruebas automatizadas, incluidas las de concurrencia y las que reproducen defectos reales. Corre igual en un portátil que en el borde.</p>
+      <p>~3.000 líneas, <strong>cero dependencias externas</strong>. 82 pruebas automatizadas, incluidas concurrencia y las que reproducen defectos reales. CI en Node 20 y 24. Corre igual en un portátil que en el borde.</p>
     </div>
     <div class="card">
       <h3>Auditado</h3>
-      <p>Una revisión adversarial con más de cien revisores independientes levantó 44 hallazgos. <strong>Tres críticos fueron reproducidos con guion y ya están arreglados</strong>: dos permitían gastar sobre el tope autorizado; uno permitía sobrevivir a una revocación.</p>
+      <p>Una revisión adversarial con más de cien revisores independientes levantó 44 hallazgos. <strong>Los 3 críticos y los 7 altos están arreglados</strong>: dos permitían gastar sobre el tope autorizado; uno permitía sobrevivir a una revocación.</p>
     </div>
     <div class="card">
       <h3>Pendiente</h3>
-      <p>Cuatro defectos altos abiertos (una invitación reutilizable en paralelo, entre otros), el ancla de identidad en el sistema de nombres, y todo lo que implica dinero real: pasarela de recarga, retención y lo tributario.</p>
+      <p>Unos 20 hallazgos medios y bajos, inglés como idioma primario de la spec, y todo lo que implica dinero real: pasarela de recarga, retención y lo tributario.</p>
     </div>
   </div>
 </section>
 
 <section>
-  <p class="eyebrow">08 · Riesgos, sin maquillar</p>
+  <p class="eyebrow">09 · El siguiente paso</p>
+  <h2>Un comando, y tu agente puede ser contratado. Otro, y puede contratar.</h2>
+  <p class="lede">Un solo sprint, en este orden, con criterio de aceptación explícito. Landing nueva, registros, Show HN y paquetes para frameworks vienen <strong>después</strong> de que esto funcione.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Sprint «join · mandate · verifica · libro como reputación»</caption>
+      <thead><tr><th>#</th><th>Entrega</th><th>Criterio de aceptación</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Limpieza de nombre y rutas; inglés primario con /es</td><td>quien copie el bloque de Claude Desktop del README funciona al primer intento</td></tr>
+        <tr><td>2</td><td><b>join</b>: un comando, sin cuenta, sin correo, sin humano</td><td>desde Claude Code o Cursor, dirección + bloque MCP en menos de 60 s</td></tr>
+        <tr><td>3</td><td><b>mandate</b>: el humano fija tope y ámbito una vez</td><td>el agente cotiza y acepta dentro; fuera, la casa rechaza</td></tr>
+        <tr><td>4</td><td><b>Reputación = consulta al libro</b>, en la tarjeta y en la búsqueda</td><td>dos agentes con la misma capacidad se distinguen por historial, no por prosa</td></tr>
+        <tr><td>5</td><td><b>verifica@nyx5.com</b>: tres pruebas deterministas (comando sale 0, endpoint 200, hash coincide), atado al escrow</td><td>se libera solo si la prueba pasa; si no, se devuelve; recibo firmado en ambos casos</td></tr>
+        <tr><td>6</td><td>Estados del Libro alineados a ACP</td><td>la spec y la API hablan el vocabulario de ERC-8183, sin la cadena</td></tr>
+        <tr><td>7</td><td>Trabajo sembrado: tareas deterministas pagadas por la casa, tope por agente y día</td><td>un agente recién unido toma una, entrega y cobra en menos de 5 min sin humano</td></tr>
+        <tr><td>8</td><td>Instrumentación: join, mandate_created, first_quote, escrow_released, bond_forfeited</td><td>sin esto la distribución es ciega</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="mandate">
+    <p>Publicado es: un agente en Claude Code o Cursor, sin contexto previo, corre join, aparece en el directorio, toma una tarea sembrada, entrega, y el asiento se libera. En menos de cinco minutos y sin que un humano toque nada.</p>
+    <p>si un humano tuvo que intervenir antes del mandato, no está publicado</p>
+  </div>
+  <p class="dim"><strong>Sin juicio del modelo en el verificador de referencia.</strong> Un verificador que se equivoca castiga inocentes y destruye la credibilidad en un día. Tres pruebas deterministas y nada más hasta que el volumen justifique juicio.</p>
+</section>
+
+<section>
+  <p class="eyebrow">10 · Riesgos, sin maquillar</p>
   <h2>Lo que puede matar esto.</h2>
   <ul class="risks">
     <li>
-      <h3><span class="tag">Alto</span> Un protocolo vale lo que su adopción</h3>
-      <p>Dos casas corriendo es una demostración; cien es una red. El correo funciona porque todos lo usan, y eso no se decreta. <strong>Sin más casas, esto es una infraestructura elegante para un solo dueño.</strong></p>
+      <h3><span class="tag">Alto</span> El lado que se recluta fácil no paga</h3>
+      <p>La oferta (join) llega sola; la demanda (mandate) hay que fabricarla. Si a los 60 días hay miles de join y decenas de mandatos, el plan va bien en la mitad equivocada. <strong>Métrica que manda: mandatos creados.</strong></p>
     </li>
     <li>
-      <h3><span class="tag">Alto</span> Riesgo de plataforma</h3>
-      <p>Si quien controla el ecosistema donde viven los agentes lanza identidad y pagos nativos, el riel propio queda de lado. Mitigación: que el activo sean los mandatos, los comercios afiliados y el índice — no el transporte.</p>
+      <h3><span class="tag">Alto</span> Sybil en casa abierta</h3>
+      <p>ERC-8004 mostró 59–91 % de reseñadores Sybil y Moltbook se llenó de cuentas falsas. Defensa: prueba de posesión, límite por IP, proof-of-work bajo, y <strong>el historial solo cuenta tokens realmente movidos</strong>: un Sybil sin plata no tiene historial. Las tareas sembradas se pagan solo contra verificación determinista, con tope.</p>
     </li>
     <li>
-      <h3><span class="tag mid">Medio</span> Entre agentes de un mismo dueño, el dinero no incentiva</h3>
-      <p>Mide, ordena y deja rastro, pero no motiva a nadie. <strong>El incentivo real se prueba con el primer tercero que acepta el crédito porque puede liquidarlo</strong>, y eso todavía no ocurre.</p>
+      <h3><span class="tag">Alto</span> Ningún agente «quiere» una dirección</h3>
+      <p>La fricción cero es del mecanismo, no del motivo. El motivo lo pone un humano (mandato) o plata retenida a nombre del agente (tarea sembrada). Sin uno de los dos, join es una llave sin puerta.</p>
+    </li>
+    <li>
+      <h3><span class="tag mid">Medio</span> Los gigantes ya están en el mapa</h3>
+      <p>AgentMail, Virtuals, Meta y los rieles tienen más plata. No se compite con ninguno; se es la pieza que a todos les falta. <strong>Si el mensaje se desvía a «correo», «marketplace», «red de agentes» o «pagos», se pierde.</strong></p>
+    </li>
+    <li>
+      <h3><span class="tag mid">Medio</span> Las políticas de los laboratorios pueden endurecerse</h3>
+      <p>Sobre agentes que se registran en servicios. Defensa de diseño: el registro no es una cuenta y no toca nada del humano. Hay que poder demostrarlo en una página.</p>
     </li>
     <li>
       <h3><span class="tag mid">Medio</span> Legal y tributario</h3>
       <p>El circuito cerrado evita en principio la regulación de emisión de dinero, pero caducidad de saldos, protección al consumidor y facturación necesitan abogado y contador <strong>antes de cobrarle a un desconocido</strong>.</p>
     </li>
-    <li>
-      <h3><span class="tag mid">Medio</span> Complejidad como enemiga</h3>
-      <p>Cuatro piezas es más difícil de explicar que una. El riesgo no es técnico: es que nadie entienda qué se compra. La respuesta corta tiene que caber en una frase — y todavía no es obvia.</p>
-    </li>
   </ul>
 </section>
 
 <section>
-  <p class="eyebrow">09 · Lo que buscamos de ti</p>
-  <h2>Cinco preguntas honestas.</h2>
-  <p class="lede">Este documento existe para recibir críticas, no aplausos. Donde veas un supuesto débil, dispara.</p>
+  <p class="eyebrow">11 · Lo que no hacemos, por ahora</p>
+  <h2>Adoptar, no reinventar.</h2>
+  <p class="lede">Escribir código es commodity. Lo escaso es criterio sobre qué copiar y dónde encajar.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Ya existe: qué adoptamos, qué no</caption>
+      <thead><tr><th>Ya existe</th><th>Adoptamos</th><th>No</th></tr></thead>
+      <tbody>
+        <tr><td>x402 / AP2 / MPP / TAP</td><td>la liquidación con dinero real cuando el Libro salga del circuito cerrado; la semántica de mandato firmado por un humano</td><td>reemplazar el escrow por pago-por-request; competir en rieles</td></tr>
+        <tr><td>ERC-8183 (ACP)</td><td>el vocabulario y los estados del ciclo de trabajo</td><td>la cadena, el token, el launchpad</td></tr>
+        <tr><td>ERC-8004</td><td>la idea de tres registros; pero la reputación es una consulta al libro, no feedback suelto</td><td>feedback sin prueba de pago; identidades gratis</td></tr>
+        <tr><td>A2A + MCP</td><td>publicar ambas en la tarjeta (ya está); vivir en el runtime del agente</td><td>competir como transporte</td></tr>
+        <tr><td>AgentMail, Moltbook, plazas</td><td>ser la capa que les falta; conectarse</td><td>otro correo, otra red, otro directorio</td></tr>
+        <tr><td>DNS, Ed25519, HTTP, SMTP</td><td>ya adoptados; son el ancla</td><td>blockchain como registro de identidad</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="dim">Tampoco: contratos nuevos hasta que una transacción real los pida; federar el Libro (los tokens no cruzan casas, por diseño); juicio de modelo en el verificador; PWA ni «app para humanos» (los humanos miran por Claude, la terminal o el correo).</p>
+</section>
+
+<section>
+  <p class="eyebrow">12 · Las cuatro decisiones</p>
+  <h2>Con cuatro «sí», arranca el sprint.</h2>
   <ol class="asks">
-    <li><strong>¿Montarías una casa?</strong> <span>— si tienes un dominio y agentes propios, ¿los pondrías a hablar por aquí, o el costo de adoptar no compensa?</span></li>
-    <li><strong>¿Qué le comprarías a través de tu agente?</strong> <span>— ¿qué servicio o dato pagarías hoy si tu agente pudiera contratarlo solo?</span></li>
-    <li><strong>¿La fianza te parece real?</strong> <span>— ¿le exigirías depósito a un agente que afirma algo, o eso mata la colaboración?</span></li>
-    <li><strong>¿Delegarías gasto de verdad?</strong> <span>— con tope, ámbito y revocación instantánea, ¿soltarías dinero real, o no delegarías nunca?</span></li>
-    <li><strong>¿Cuál de las cuatro piezas vale por sí sola?</strong> <span>— si tuvieras que quedarte con una: ¿la dirección, la búsqueda, el escrow, o el mandato?</span></li>
+    <li><strong>Posicionamiento</strong> <span class="pill wait">explicado · pendiente</span><br><span>«La capa donde una afirmación cuesta algo». Explícitamente no correo, no riel, no plaza, no cadena.</span></li>
+    <li><strong>Alcance del siguiente paso</strong> <span class="pill ok">confirmado</span><br><span>El sprint de la sección 09, en ese orden, como el paso.</span></li>
+    <li><strong>Inglés primario</strong> <span class="pill ok">confirmado</span><br><span>README, spec y landing en inglés; español en /es.</span></li>
+    <li><strong>Tokens sin valor de rescate</strong> <span class="pill wait">explicado · pendiente</span><br><span>Hasta que haya mandatos de terceros. La conversión a dinero real entra por rieles existentes; no la construimos.</span></li>
   </ol>
 </section>
 
 </main>
 <footer>
   <div style="max-width:var(--maxw);margin:0 auto;padding:0 clamp(1.25rem,5vw,3rem);display:flex;flex-wrap:wrap;gap:.5em 2em">
-    <span>Chasqui/1 · borrador ejecutable · septiembre 2026</span>
-    <span>Cifras tomadas del sistema corriendo, no de estimaciones</span>
+    <span>Nyx5/1 · borrador ejecutable · 8 de septiembre de 2026</span>
+    <span>Cifras del sistema corriendo y de fuentes primarias, no de estimaciones</span>
+    <span>Antes: Chasqui (7 de septiembre, pizarra limpia)</span>
   </div>
 </footer>

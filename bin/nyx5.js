@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Nyx5/1 — CLI
 //
+//   nyx5 join     [--name mi-agente] [--house nyx5.com] [--listed] [--mcp URL] [--out ARCHIVO] [--json]
+//   nyx5 mandate  --agent ./keys/nicolas.json --grantee bot@nyx5.com --cap 20000 [--scope '{...}'] [--expires ISO]
+//   nyx5 historial [--address alguien@nyx5.com | --agent ./keys/mio.json]
 //   nyx5 estafeta --domain alfa.local --port 4001 --data ./data/alfa --admin-token secreto [--registration admin|invite|open] [--welcome 100] [--fee 0.10]
 //   nyx5 keygen   --address nicolas@alfa.local --estafeta http://127.0.0.1:4001 --out ./keys/nicolas.json
 //   nyx5 register --agent ./keys/nicolas.json --admin-token secreto [--policy open|allowlist|pow|stamp] [--allow a@b,c@d] [--pow-bits 16] [--webhook URL] [--mcp URL] [--a2a URL]
@@ -23,7 +26,7 @@
 //   nyx5 contract --agent ./keys/nicolas.json --id <contrato>
 //   nyx5 delegate --agent ./keys/constructor.json --name tester --scope '{"types":["message","result"],"cap":100}' --out ./keys/tester.json
 //
-// Resolución local: --hosts hosts.json, o CHASQUI_HOSTS, o ./hosts.local.json si existe.
+// Resolución local: --hosts hosts.json, o NYX5_HOSTS, o ./hosts.local.json si existe.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -32,6 +35,8 @@ import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 import { Resolver } from '../src/correo/resolver.js';
 import { runMcpServer } from '../src/puentes/mcp.js';
+import { join, mandate, bloqueMcp } from '../src/correo/unirse.js';
+import os from 'node:os';
 
 const [cmd, ...rest] = process.argv.slice(2);
 const { values: o } = parseArgs({ args: rest, allowPositionals: true, options: {
@@ -44,25 +49,108 @@ const { values: o } = parseArgs({ args: rest, allowPositionals: true, options: {
   ack: { type: 'boolean' }, id: { type: 'string' },
   account: { type: 'string' }, amount: { type: 'string' }, house: { type: 'string' }, price: { type: 'string' }, concept: { type: 'string' }, contract: { type: 'string' }, terms: { type: 'string' },
   quote: { type: 'string' }, op: { type: 'string' }, name: { type: 'string' }, scope: { type: 'string' },
+  runtime: { type: 'string' }, listed: { type: 'boolean' }, cap: { type: 'string' }, grantee: { type: 'string' }, yes: { type: 'boolean' },
   args: { type: 'string' }, index: { type: 'string' }, arbiter: { type: 'string' }, receipt: { type: 'string' }, limit: { type: 'string' },
 } });
 
 const need = (k) => { if (!o[k]) { console.error(`falta --${k}`); process.exit(2); } return o[k]; };
 const loadHosts = () => {
-  const file = o.hosts || process.env.CHASQUI_HOSTS || (fs.existsSync('hosts.local.json') ? 'hosts.local.json' : null);
+  const file = o.hosts || (process.env.NYX5_HOSTS || process.env.CHASQUI_HOSTS) || (fs.existsSync('hosts.local.json') ? 'hosts.local.json' : null);
   if (!file && ['send', 'inbox', 'card', 'directory'].includes(cmd)) console.error('aviso: sin hosts.local.json en este cwd; la resolución irá por DNS/well-known');
   return file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
 };
 const loadAgent = () => Agent.load(need('agent'), { hosts: loadHosts() });
-const warnHosts = (h) => { if (!Object.keys(h).length && !process.env.CHASQUI_HOSTS) console.error('aviso: sin hosts.local.json en este directorio; la resolución irá por DNS/well-known'); return h; };
+const warnHosts = (h) => { if (!Object.keys(h).length && !(process.env.NYX5_HOSTS || process.env.CHASQUI_HOSTS)) console.error('aviso: sin hosts.local.json en este directorio; la resolución irá por DNS/well-known'); return h; };
 const print = (v) => console.log(JSON.stringify(v, null, 2));
+// Raíz del nombre sugerido. Es una pista para que la dirección sea legible, no una
+// afirmación sobre quién corre: nadie la verifica y nada depende de ella.
+const detectarRuntime = () => {
+  const e = process.env;
+  if (e.CLAUDECODE || e.CLAUDE_CODE_ENTRYPOINT) return 'claude';
+  if (e.CURSOR_TRACE_ID || e.CURSOR_AGENT) return 'cursor';
+  if (e.TERM_PROGRAM === 'vscode') return 'vscode';
+  return 'agente';
+};
 
 try {
   switch (cmd) {
+    // ----- Unirse en un paso: sin cuenta, sin correo, sin humano -----
+    case 'join': {
+      const casa = o.house || 'nyx5.com';
+      const capabilities = {};
+      if (o.mcp) capabilities.mcp = o.mcp;
+      if (o.a2a) capabilities.a2a = o.a2a;
+      const dir = o.out ? path.dirname(path.resolve(o.out)) : path.join(os.homedir(), '.nyx5');
+      const r = await join({
+        house: casa, name: o.name || null, runtime: o.runtime || detectarRuntime(),
+        invite: o.invite || null, listed: !!o.listed, capabilities,
+        hosts: loadHosts(),
+      });
+      // La llave se escribe DESPUÉS del alta y solo con permisos de dueño: si el registro
+      // falla, no queda un archivo de llaves huérfano que parezca una identidad válida.
+      const salida = path.resolve(o.out || path.join(dir, `${r.address.split('@')[0]}.json`));
+      fs.mkdirSync(path.dirname(salida), { recursive: true });
+      fs.writeFileSync(salida, JSON.stringify({ address: r.address, estafeta: r.estafeta, keys: r.keys }, null, 2), { mode: 0o600 });
+      const mcpBloque = bloqueMcp({ address: r.address, keyfile: salida });
+      const resumen = {
+        nyx5: '1', address: r.address, house: casa, keyfile: salida,
+        balance: r.balance?.balance ?? null, historial: r.historial?.resumen ?? null,
+        mcp: mcpBloque, mailbox: r.first?.id ? 1 : 0,
+        siguiente: {
+          leer_buzon: `npx @nyx5/nyx5 inbox --agent ${salida}`,
+          mi_historial: `npx @nyx5/nyx5 historial --agent ${salida}`,
+          recibir_presupuesto: `pídele a tu humano: npx @nyx5/nyx5 mandate --agent <su-llave> --grantee ${r.address} --cap 20000`,
+        },
+      };
+      if (o.json) { print(resumen); break; }
+      console.log(`Listo. Tu dirección es ${r.address}`);
+      console.log(`Llave privada: ${salida}  (guárdala como una contraseña; es tu identidad, no una cuenta)`);
+      console.log(`Saldo de bienvenida: ${r.balance?.balance ?? 0} tokens`);
+      console.log(`Buzón: ${r.first?.id ? '1 mensaje (tu sobre de bienvenida)' : 'vacío'}`);
+      console.log('');
+      console.log('Para usarlo desde Claude Desktop, Claude Code o Cursor, agrega esto a la configuración MCP:');
+      console.log(JSON.stringify(mcpBloque.mcpServers ? { mcpServers: mcpBloque.mcpServers } : mcpBloque, null, 2));
+      console.log('');
+      console.log('Siguientes pasos:');
+      for (const [k, v] of Object.entries(resumen.siguiente)) console.log(`  ${k.replace(/_/g, ' ')}: ${v}`);
+      console.log('');
+      console.log(JSON.stringify(resumen));
+      break;
+    }
+    // ----- El humano fija tope y ámbito UNA vez; dentro de eso el agente contrata solo -----
+    case 'mandate': {
+      const a = await loadAgent();
+      const r = await mandate(a, {
+        grantee: need('grantee'), cap: need('cap'),
+        scope: o.scope ? JSON.parse(o.scope) : null, expires: o.expires || null, house: o.house || null,
+      });
+      if (o.json || !r.mandate) { print(r); break; }
+      const m = r.mandate;
+      console.log(`Mandato ${m.id} creado.`);
+      console.log(`  ${m.grantee} puede gastar hasta ${m.cap} tokens de la cuenta de ${m.grantor}.`);
+      if (m.expires) console.log(`  Vence: ${m.expires}`);
+      if (Object.keys(m.scope || {}).length) console.log(`  Ámbito: ${JSON.stringify(m.scope)}`);
+      console.log(`  Revocar en cualquier momento: npx @nyx5/nyx5 libro --agent <tu-llave> --op revoke --args '{"mandate":"${m.id}"}'`);
+      break;
+    }
+    // ----- Reputación = una consulta al libro (pública) -----
+    case 'historial': {
+      if (o.address && !o.agent) {
+        const { local, domain } = (await import('../src/correo/resolver.js')).parseAddress(o.address);
+        const r = new Resolver({ hosts: loadHosts() });
+        const dc = await r.domainCard(domain);
+        const res = await fetch(`${dc._estafeta}/agents/${encodeURIComponent(local)}/historial`);
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.reason || `HTTP ${res.status}`);
+        print(j); break;
+      }
+      const a = await loadAgent();
+      print(await a.historial(o.address || a.address)); break;
+    }
     case 'estafeta': {
       const e = new Estafeta({
         domain: need('domain'), port: Number(o.port || 4000), dataDir: need('data'),
-        adminToken: o['admin-token'] || process.env.CHASQUI_ADMIN_TOKEN || need('admin-token'),
+        adminToken: o['admin-token'] || (process.env.NYX5_ADMIN_TOKEN || process.env.CHASQUI_ADMIN_TOKEN) || need('admin-token'),
         publicUrl: o['public-url'], hosts: loadHosts(),
         policy: { require_relay: !!o['require-relay'], registration: o.registration || 'admin' },
         libro: { welcome: Number(o.welcome || 0), feePct: o.fee != null ? Number(o.fee) : null },
@@ -88,11 +176,11 @@ try {
       const capabilities = {};
       if (o.mcp) capabilities.mcp = o.mcp;
       if (o.a2a) capabilities.a2a = o.a2a;
-      print(await a.register({ adminToken: o['admin-token'] || process.env.CHASQUI_ADMIN_TOKEN, invite: o.invite, inbox, capabilities, webhook: o.webhook }));
+      print(await a.register({ adminToken: o['admin-token'] || (process.env.NYX5_ADMIN_TOKEN || process.env.CHASQUI_ADMIN_TOKEN), invite: o.invite, inbox, capabilities, webhook: o.webhook }));
       break;
     }
     case 'invite': {
-      const res = await fetch(`${need('estafeta')}/invitations`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${o['admin-token'] || process.env.CHASQUI_ADMIN_TOKEN}` }, body: JSON.stringify({ uses: Number(o.uses || 1), expires: o.expires || null, note: o.note || null, welcome: o.welcome != null ? Number(o.welcome) : null }) });
+      const res = await fetch(`${need('estafeta')}/invitations`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${o['admin-token'] || (process.env.NYX5_ADMIN_TOKEN || process.env.CHASQUI_ADMIN_TOKEN)}` }, body: JSON.stringify({ uses: Number(o.uses || 1), expires: o.expires || null, note: o.note || null, welcome: o.welcome != null ? Number(o.welcome) : null }) });
       print(await res.json()); break;
     }
     case 'directory': {
@@ -146,7 +234,7 @@ try {
 
     // ----- Libro -----
     case 'topup': {
-      const res = await fetch(`${need('estafeta')}/libro/topup`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${o['admin-token'] || process.env.CHASQUI_ADMIN_TOKEN}` }, body: JSON.stringify({ account: need('account'), amount: Number(need('amount')), concept: o.concept }) });
+      const res = await fetch(`${need('estafeta')}/libro/topup`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${o['admin-token'] || (process.env.NYX5_ADMIN_TOKEN || process.env.CHASQUI_ADMIN_TOKEN)}` }, body: JSON.stringify({ account: need('account'), amount: Number(need('amount')), concept: o.concept }) });
       print(await res.json()); break;
     }
     case 'balance': print(await (await loadAgent()).balance(o.house)); break;
@@ -175,7 +263,7 @@ try {
       console.log(`agente delegado ${sub.address} creado; claves en ${out}`); break;
     }
     default:
-      console.log(fs.readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 27).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      console.log(fs.readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 31).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
       process.exit(cmd ? 1 : 0);
   }
 } catch (e) {

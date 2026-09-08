@@ -7,7 +7,7 @@ import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 
 const url = 'http://127.0.0.1:4321', hosts = { 'casa.local': { url } };
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-hola-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-hola-'));
 const casa = await new Estafeta({ domain: 'casa.local', port: 4321, dataDir: dir, adminToken: 's', hosts, log: () => {} }).start();
 
 const ana = Agent.create('ana@casa.local', url, { hosts });

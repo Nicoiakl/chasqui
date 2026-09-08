@@ -9,7 +9,7 @@ import path from 'node:path';
 import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-'));
 const hosts = { 'alfa.local': { url: 'http://127.0.0.1:4001' }, 'beta.local': { url: 'http://127.0.0.1:4002' } };
 const step = (n, t) => console.log(`\n[${n}] ${t}`);
 

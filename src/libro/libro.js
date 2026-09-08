@@ -96,11 +96,76 @@ export class Libro {
   async balance(account) { return (await this.store.libroState()).balances[account] || 0; }
   fee(amount) { return Math.floor((amount * this.feeBps) / 10_000); }
   async account(address) {
-    const contracts = (await this.store.libroListContracts()).filter((c) => [c.seller, c.buyer, c.verifier, c.arbiter].includes(address));
+    const { contratoPublico } = await import('./contratos.js');
+    const contracts = (await this.store.libroListContracts()).filter((c) => [c.seller, c.buyer, c.verifier, c.arbiter].includes(address)).map(contratoPublico);
     const mandates = (await this.store.libroListMandates()).filter((m) => m.grantor === address || m.grantee === address);
     return { account: address, balance: await this.balance(address), contracts, mandates };
   }
   async journal() { return this.store.libroJournal(); }
+
+  // ---------- reputación = una consulta al libro ----------
+  // No es un sistema de puntajes aparte: es lo que el libro ya sabe, contado. Por eso no se
+  // puede inflar sin gastar. La defensa contra Sybil es de diseño: SOLO cuentan los contratos
+  // cuyo asiento ya movió tokens (terminales). Un contrato abierto no dice nada de nadie.
+  //
+  // Estados terminales que cuentan, por tipo:
+  //   spot   settled                      entrega pagada
+  //   escrow released | refunded          entrega aceptada | devuelta
+  //   bond   released | forfeited         afirmación sostenida | derribada
+  static TERMINALES = { spot: ['settled'], escrow: ['released', 'refunded'], bond: ['released', 'forfeited'], metered: [] };
+
+  async historial(address) {
+    const todos = await this.store.libroListContracts();
+    const mios = todos.filter((c) => [c.seller, c.buyer].includes(address));
+    const cuenta = () => ({ n: 0, tokens: 0 });
+    const h = {
+      address, house: this.domain,
+      vendiendo: { entregas_aceptadas: cuenta(), entregas_devueltas: cuenta(), ventas_directas: cuenta() },
+      comprando: { encargos_liberados: cuenta(), encargos_devueltos: cuenta(), compras_directas: cuenta() },
+      afirmando: { fianzas_sostenidas: cuenta(), fianzas_ejecutadas: cuenta(), fianzas_vigentes: cuenta() },
+      avalando: { avales_sostenidos: cuenta(), avales_ejecutados: cuenta() },
+      abiertos: cuenta(),
+      desde: null, hasta: null, total_movido: 0,
+    };
+    const sumar = (c, monto) => { c.n += 1; c.tokens += monto; };
+    for (const c of mios) {
+      const terminal = (Libro.TERMINALES[c.kind] || []).includes(c.state);
+      if (!terminal) { sumar(h.abiertos, 0); continue; }
+      const monto = Number(c.amount) || 0;
+      h.total_movido += monto;
+      if (!h.desde || c.created < h.desde) h.desde = c.created;
+      if (!h.hasta || c.created > h.hasta) h.hasta = c.created;
+      if (c.kind === 'bond') {
+        const grupo = c.vouchee ? h.avalando : h.afirmando;
+        const sostenida = c.state === 'released';
+        if (c.vouchee) sumar(sostenida ? grupo.avales_sostenidos : grupo.avales_ejecutados, monto);
+        else sumar(sostenida ? grupo.fianzas_sostenidas : grupo.fianzas_ejecutadas, monto);
+      } else if (c.seller === address) {
+        if (c.kind === 'spot') sumar(h.vendiendo.ventas_directas, monto);
+        else sumar(c.state === 'released' ? h.vendiendo.entregas_aceptadas : h.vendiendo.entregas_devueltas, monto);
+      } else {
+        if (c.kind === 'spot') sumar(h.comprando.compras_directas, monto);
+        else sumar(c.state === 'released' ? h.comprando.encargos_liberados : h.comprando.encargos_devueltos, monto);
+      }
+    }
+    // Fianzas todavía en pie: no son historial cumplido, pero sí tokens en juego ahora mismo.
+    for (const c of mios) if (c.kind === 'bond' && c.state === 'posted' && c.seller === address) sumar(h.afirmando.fianzas_vigentes, Number(c.amount) || 0);
+    // El resumen es lo que un agente lee para decidir en una línea; el detalle queda arriba.
+    const entregadas = h.vendiendo.entregas_aceptadas.n + h.vendiendo.ventas_directas.n;
+    const falladas = h.vendiendo.entregas_devueltas.n;
+    const afirmaciones = h.afirmando.fianzas_sostenidas.n + h.afirmando.fianzas_ejecutadas.n;
+    h.resumen = {
+      entregas: entregadas, entregas_falladas: falladas,
+      afirmaciones_con_fianza: afirmaciones, fianzas_perdidas: h.afirmando.fianzas_ejecutadas.n,
+      tokens_en_juego_ahora: h.afirmando.fianzas_vigentes.tokens,
+      total_movido: h.total_movido,
+      // Sin historial no hay tasa: cero de cero no es 100%, es "todavía nada". Lo decimos así.
+      cumplimiento: entregadas + falladas > 0 ? Number((entregadas / (entregadas + falladas)).toFixed(4)) : null,
+      veracidad: afirmaciones > 0 ? Number((h.afirmando.fianzas_sostenidas.n / afirmaciones).toFixed(4)) : null,
+    };
+    return h;
+  }
+
 
   // ---------- el kernel: un asiento ----------
   // lines: [{ account, delta }]; suma cero; nadie salvo la casa queda negativo.

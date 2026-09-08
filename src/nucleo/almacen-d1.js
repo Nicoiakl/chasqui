@@ -147,6 +147,15 @@ export class D1Store {
   async libroListMandates() { return (await this.db.prepare('SELECT doc FROM nyx5_libro_mandatos').all()).results.map((r) => JSON.parse(r.doc)); }
   async libroGetOp(id) { return p(await this.db.prepare('SELECT doc FROM nyx5_libro_ops WHERE id = ?').bind(id).first()); }
   async libroPutOp(id, v) { await this.db.prepare('INSERT INTO nyx5_libro_ops (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc').bind(id, j(v)).run(); }
+  // ---------- instrumentación ----------
+  async putEvent(e) { await this.db.prepare('INSERT OR IGNORE INTO nyx5_eventos (id, name, ts, actor, data) VALUES (?, ?, ?, ?, ?)').bind(e.id, e.name, e.ts, e.actor || null, j(e.data || {})).run(); }
+  async listEvents({ name = null, since = null, limit = 500 } = {}) {
+    const cond = ['1 = 1']; const bind = [];
+    if (name) { cond.push('name = ?'); bind.push(name); }
+    if (since) { cond.push('ts >= ?'); bind.push(since); }
+    const r = await this.db.prepare(`SELECT id, name, ts, actor, data FROM nyx5_eventos WHERE ${cond.join(' AND ')} ORDER BY ts DESC LIMIT ?`).bind(...bind, Number(limit)).all();
+    return r.results.map((x) => ({ ...x, data: JSON.parse(x.data) })).reverse();
+  }
   async libroStatement(account, limit) {
     const r = await this.db.prepare(`
       SELECT doc FROM nyx5_libro_diario WHERE n IN (SELECT DISTINCT n FROM nyx5_libro_lineas WHERE account = ?)

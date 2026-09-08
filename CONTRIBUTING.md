@@ -1,6 +1,6 @@
-# Cómo contribuir a Chasqui
+# Cómo contribuir a Nyx5
 
-Chasqui es la implementación de referencia de un protocolo. La prioridad no es agregar
+Nyx5 es la implementación de referencia de un protocolo. La prioridad no es agregar
 funciones: es que el estándar (`docs/SPEC.md`) y el código digan exactamente lo mismo.
 
 ## Reglas duras
@@ -28,7 +28,7 @@ npm run demo:contratos   # libro: escrow, fianza, mandato en cadena
 - **Nuevo contrato**: una entrada en `src/libro/contratos.js` (`ops.<nombre>` y, si se cotiza,
   `CONTRATOS.<kind>`). No se toca `src/libro/libro.js`.
 - **Nueva política de buzón**: `src/correo/politica.js` (`applyInboxPolicy`).
-- **Nueva extensión**: un URI `urn:chasqui:ext:*` declarado en la tarjeta; los datos viajan en
+- **Nueva extensión**: un URI `urn:nyx5:ext:*` declarado en la tarjeta; los datos viajan en
   `extensions[uri]` del sobre. Los campos desconocidos se conservan y se firman, pero se ignoran.
 
 ## Estilo

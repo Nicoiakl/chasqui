@@ -245,3 +245,26 @@ export const CONTRATOS = {
   // Bond (fianza) no se cotiza: se deposita directamente con la operación `bond`.
   bond: { quoteable: false },
 };
+
+// ---------- vocabulario público: el ciclo de trabajo de ERC-8183 (ACP), sin la cadena ----------
+// Los estados internos no cambian (romperlos rompería contratos vivos). Lo que se publica hacia
+// afuera habla el vocabulario que ya existe, para que quien integró ACP entienda esto sin traducir.
+//
+//   Open       el trato existe pero el dinero todavía no se movió
+//   Funded     hay tokens retenidos o comprometidos a nombre del trabajo
+//   Submitted  el vendedor entregó y espera evaluación
+//   Terminal   se acabó: liberado, devuelto, pagado o ejecutado
+export const ACP = { accepted: 'Open', held: 'Funded', posted: 'Funded', active: 'Funded', delivered: 'Submitted', released: 'Terminal', refunded: 'Terminal', settled: 'Terminal', forfeited: 'Terminal' };
+// Cómo terminó, para no perder información al agrupar en Terminal.
+export const ACP_DESENLACE = { released: 'accepted', refunded: 'returned', settled: 'paid', forfeited: 'forfeited' };
+
+export function estadoACP(contrato) {
+  const s = contrato?.state;
+  const fase = ACP[s] || 'Open';
+  return { phase: fase, outcome: ACP_DESENLACE[s] || null, state: s };
+}
+
+// Vista pública de un contrato: lo mismo que hay, más el vocabulario ACP. No agrega ni oculta.
+export function contratoPublico(contrato) {
+  return contrato ? { ...contrato, acp: estadoACP(contrato) } : contrato;
+}

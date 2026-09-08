@@ -3,14 +3,16 @@
 //   fetch     -> handleRequest(rx); los ticks post-respuesta van por ctx.waitUntil
 //   scheduled -> tick() (cola de reintentos + rastreo del índice federado)
 //
-// Configuración por variables (wrangler.toml / secrets):
-//   CHASQUI_DOMAIN        dominio de la casa (ej: chasqui.nicholasiakl.workers.dev)
-//   CHASQUI_PUBLIC_URL    URL pública de la estafeta (https://<CHASQUI_DOMAIN>)
-//   CHASQUI_ADMIN_TOKEN   token de administración (secret; write-only)
-//   CHASQUI_REGISTRATION  admin | invite | open        (default invite)
-//   CHASQUI_WELCOME       tokens de regalo de bienvenida (default 0)
-//   CHASQUI_FEE_BPS       fee de la casa en basis points (default 1000 = 10%)
-//   CHASQUI_INDEX         'on' para operar el índice federado (default off)
+// Configuración por variables (wrangler.toml / secrets). Los nombres NYX5_* mandan;
+// los CHASQUI_* se siguen leyendo como respaldo para no romper un despliegue viejo.
+//   NYX5_DOMAIN        dominio de la casa (ej: nyx5.com)
+//   NYX5_PUBLIC_URL    URL pública de la estafeta (https://<NYX5_DOMAIN>)
+//   NYX5_ADMIN_TOKEN   token de administración (secret; write-only)
+//   NYX5_REGISTRATION  admin | invite | open        (default invite)
+//   NYX5_WELCOME       tokens de regalo de bienvenida (default 0)
+//   NYX5_FEE_BPS       fee de la casa en basis points (default 1000 = 10%)
+//   NYX5_INDEX         'on' para operar el índice federado (default off)
+//   NYX5_EMAIL         'on' para habilitar el puente de correo
 //   DB                    binding D1
 
 import { Estafeta } from '../correo/estafeta.js';
@@ -22,15 +24,18 @@ function estafetaDesde(env) {
   if (instancia) return instancia;
   // Salida de correo: solo si hay proveedor + remitente verificado. Sin eso, la salida queda pendiente.
   const provider = resendProvider({ apiKey: env.RESEND_KEY, sender: env.EMAIL_SENDER });
+  // NYX5_* manda; CHASQUI_* queda como respaldo (rename de sep-2026, ver docs/ARQUITECTURA.md).
+  const cfg = (nombre) => env[`NYX5_${nombre}`] ?? env[`CHASQUI_${nombre}`];
+  const domain = cfg('DOMAIN');
   instancia = new Estafeta({
-    domain: env.CHASQUI_DOMAIN,
-    publicUrl: env.CHASQUI_PUBLIC_URL || `https://${env.CHASQUI_DOMAIN}`,
-    adminToken: env.CHASQUI_ADMIN_TOKEN,
+    domain,
+    publicUrl: cfg('PUBLIC_URL') || `https://${domain}`,
+    adminToken: cfg('ADMIN_TOKEN'),
     store: new D1Store(env.DB),
-    policy: { registration: env.CHASQUI_REGISTRATION || 'invite' },
-    libro: { welcome: Number(env.CHASQUI_WELCOME || 0), feeBps: Number(env.CHASQUI_FEE_BPS || 1000) },
-    index: { enabled: env.CHASQUI_INDEX === 'on' },
-    email: { enabled: env.CHASQUI_EMAIL === 'on' || !!provider, provider },
+    policy: { registration: cfg('REGISTRATION') || 'invite' },
+    libro: { welcome: Number(cfg('WELCOME') || 0), feeBps: Number(cfg('FEE_BPS') || 1000) },
+    index: { enabled: cfg('INDEX') === 'on' },
+    email: { enabled: cfg('EMAIL') === 'on' || !!provider, provider },
     log: (...a) => console.log(...a),
   });
   return instancia;

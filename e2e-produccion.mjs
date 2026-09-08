@@ -5,8 +5,8 @@ import { Agent } from './src/correo/agente.js';
 
 const CASA = 'chsq.uk';
 const BETA = 'b.chsq.uk';
-const T1 = process.env.CHASQUI_ADMIN_TOKEN;
-const T2 = process.env.CHASQUI_BETA_ADMIN_TOKEN;
+const T1 = (process.env.NYX5_ADMIN_TOKEN || process.env.CHASQUI_ADMIN_TOKEN);
+const T2 = (process.env.NYX5_BETA_ADMIN_TOKEN || process.env.CHASQUI_BETA_ADMIN_TOKEN);
 if (!T1 || !T2) throw new Error('faltan tokens en .env');
 
 const sello = Date.now().toString(36);

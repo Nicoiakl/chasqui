@@ -21,7 +21,7 @@ import { sha256hex } from '../src/nucleo/crypto.js';
 const DOM = 'pilot.local';
 const URL = 'http://127.0.0.1:4090';
 const hosts = { [DOM]: { url: URL } };
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-d4-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-d4-'));
 
 // La casa: fee 20% (como b.chsq.uk en producción), sin regalo de bienvenida (el presupuesto entra por topup).
 const casa = await new Estafeta({ domain: DOM, port: 4090, dataDir: path.join(tmp, DOM), adminToken: 'p',

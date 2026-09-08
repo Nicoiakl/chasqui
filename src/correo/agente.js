@@ -168,6 +168,15 @@ export class Agent {
   // Lecturas directas (sin pasar por correo) en la casa indicada; por defecto, la propia estafeta.
   async balance(house) { return this._callAt(house, 'GET', `/libro/cuenta/${encodeURIComponent(this.address)}`); }
   async contract(house, id) { return this._callAt(house, 'GET', `/libro/contrato/${encodeURIComponent(id)}`); }
+  // Historial público de cualquier agente (por defecto, el propio): la reputación es el libro.
+  async historial(address = this.address) {
+    const { local, domain } = parseAddress(address);
+    const base = domain === this.domain ? this.estafeta : (await this.resolver.domainCard(domain))._estafeta;
+    const res = await this.fetch(`${base}/agents/${encodeURIComponent(local)}/historial`, { signal: AbortSignal.timeout(10_000) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(json.reason || `HTTP ${res.status}`), { status: res.status });
+    return json;
+  }
   async _callAt(house, method, path) {
     if (!house || house === this.domain) return this._call(method, path);
     const dc = await this.resolver.domainCard(house);

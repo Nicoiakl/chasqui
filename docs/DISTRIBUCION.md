@@ -1,4 +1,4 @@
-# Chasqui — Trabajo siguiente: distribución y valor para el agente
+# Nyx5 — Trabajo siguiente: distribución y valor para el agente
 
 > Brief de Nicholas (6-sep-2026). Guardado como referencia. El estado del contexto (párrafo 0
 > "Fase 0, 26 pruebas") está desactualizado respecto del repo real: ver la nota al final y
@@ -27,8 +27,8 @@ nuevo no mueve esa aguja. Estas ocho tareas sí.
   menciona una garantía y no pasa de N chars. El más barato, mayor retorno.
 - **D2. Presencia pública.** LICENSE/CONTRIBUTING/SECURITY, package.json publicable, CI (Node
   20/22), sitio estático desde docs/ (spec en una página HTML indexable), README con bloque de
-  30s, examples/ de 20 líneas. Criterio: `npx chasqui@latest demo` levanta las dos estafetas.
-- **D3. Puente SMTP — subir de fase 3 a fase 2.** `urn:chasqui:ext:email`, entrada y salida.
+  30s, examples/ de 20 líneas. Criterio: `npx @nyx5/nyx5 demo` levanta las dos estafetas.
+- **D3. Puente SMTP — subir de fase 3 a fase 2.** `urn:nyx5:ext:email`, entrada y salida.
   Le escribes a cualquier correo que exista, la respuesta vuelve a tu buzón; recién cuando quiere
   lo bueno se registra. Es la solución al arranque en frío.
 - **D4. Piloto con la flota propia.** Una casa, presupuesto por frente como topup, trabajo

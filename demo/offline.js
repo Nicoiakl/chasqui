@@ -9,7 +9,7 @@ import path from 'node:path';
 import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-off-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-off-'));
 const hosts = { 'alfa.local': { url: 'http://127.0.0.1:4001' }, 'beta.local': { url: 'http://127.0.0.1:4002' } };
 const mk = (domain, port, token) => new Estafeta({ domain, port, dataDir: path.join(tmp, domain), adminToken: token, hosts, workerIntervalMs: 300, retry: { baseMs: 300, maxMs: 1500 }, log: () => {} });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

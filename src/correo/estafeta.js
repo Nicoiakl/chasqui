@@ -23,6 +23,8 @@ import { Resolver, parseAddress } from './resolver.js';
 import { validateEnvelope, applyInboxPolicy, RateLimiter } from './politica.js';
 import { generateSigningKeys, signObject, verifyObject, signBytes, verifyBytes, canonical, uuid, unb64u, sha256hex } from '../nucleo/crypto.js';
 import { Libro, MEDIA, LibroError } from '../libro/libro.js';
+import { veredicto, pruebasDe, pruebasDisponibles } from '../libro/verifica.js';
+import { contratoPublico, ACP } from '../libro/contratos.js';
 import { APP_HTML } from '../plataformas/app-html.js';
 import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
 import { HOME_HTML } from '../plataformas/home-html.js';
@@ -38,7 +40,7 @@ export class Estafeta {
     port = 4000, host = '127.0.0.1', publicUrl,
     hosts = {}, fetchImpl = globalThis.fetch,
     policy = {}, retry = {}, workerIntervalMs = 1000, libro = {},
-    index = {}, email = {},
+    index = {}, email = {}, verifica = {}, eventos = true,
     extensions = null,
     log = (...a) => console.log(`[estafeta ${domain}]`, ...a),
   }) {
@@ -55,6 +57,10 @@ export class Estafeta {
     this.retry = { baseMs: 1000, maxMs: 60_000, giveUpMs: 3 * 24 * 3600 * 1000, ...retry };
     this.workerIntervalMs = workerIntervalMs;
     this.index = { enabled: false, crawlMinutes: 15, maxHouses: 500, ...index };
+    // verifica@: el evaluador de referencia. `enabled` lo enciende; `maxPorTick` acota lo que
+    // el cron hace en una pasada para no comerse el minuto entero verificando.
+    this.verifica = { enabled: true, maxPorTick: 10, timeoutMs: 10_000, ...verifica };
+    this.eventos = eventos !== false;
     // Puente de correo: entrada siempre disponible si la casa la enciende; salida solo si hay proveedor.
     // `email.provider` es una función async(payload) (ver src/puentes/email.js); sin ella, la salida queda pendiente.
     this.email = { enabled: !!(email.enabled || email.provider), provider: email.provider || null };
@@ -114,9 +120,23 @@ export class Estafeta {
     //   postmaster@ -> avisos de entrega y rebotes    libro@ -> operaciones y recibos del Libro
     if (!await this.store.getAgent('postmaster')) await this.registerAgent({ local: 'postmaster', sig: this.keys.sig, capabilities: { accepts: [] }, inbox: { policy: 'allowlist', allowlist: [] } });
     if (!await this.store.getAgent('libro')) await this.registerAgent({ local: 'libro', sig: this.keys.sig, capabilities: { accepts: [MEDIA.op], libro: { fee_bps: this.libro.feeBps, ops: this.libro.ops } }, inbox: { policy: 'open' } });
+    // verifica@ — el evaluador de referencia de la casa. Tres pruebas deterministas y nada
+    // más: un verificador que se equivoca castiga inocentes. Declara en su tarjeta cuáles
+    // puede correr en ESTE runtime (en el edge no hay shell), para no prometer lo que no hace.
+    if (this.verifica.enabled && !await this.store.getAgent('verifica')) {
+      await this.registerAgent({ local: 'verifica', sig: this.keys.sig, capabilities: { accepts: [MEDIA.op], verifica: { pruebas: pruebasDisponibles() }, listed: true }, inbox: { policy: 'open' } });
+    }
   }
-  isSystem(local) { return local === 'postmaster' || local === 'libro'; }
-  static RESERVED = new Set(['postmaster', 'libro', 'casa', 'admin', 'root', 'abuse', 'security', 'hostmaster', 'noreply', 'no-reply', 'support', 'estafeta', 'nyx5', 'indice']);
+  // Instrumentación: nombre, fecha, actor y números. Nunca contenido de sobres ni datos del
+  // humano. Un fallo al registrar un evento JAMÁS puede voltear la operación que lo produjo:
+  // medir es secundario, mover tokens no.
+  async _evento(name, actor, data = {}) {
+    if (!this.eventos || !this.store.putEvent) return;
+    try { await this.store.putEvent({ id: uuid(), name, ts: iso(), actor: actor || null, data }); }
+    catch (e) { this.log(`evento ${name} no registrado: ${e.message}`); }
+  }
+  isSystem(local) { return local === 'postmaster' || local === 'libro' || local === 'verifica'; }
+  static RESERVED = new Set(['postmaster', 'libro', 'verifica', 'casa', 'admin', 'root', 'abuse', 'security', 'hostmaster', 'noreply', 'no-reply', 'support', 'estafeta', 'nyx5', 'indice']);
 
   // ---------- servicio de registro ----------
   // Invitaciones: la casa emite códigos con usos y vencimiento; un agente los presenta al inscribirse.
@@ -302,6 +322,7 @@ export class Estafeta {
     for (const job of due) await this._deliver(job);
     await this.store.pruneNonces?.(now() - 600_000);
     if (this.index.enabled) await this._indexCrawlIfDue();
+    if (this.verifica.enabled) await this._verificarPendientes();
     await this.flushPushes();
   }
   async _deliver(job) {
@@ -375,6 +396,40 @@ export class Estafeta {
     await this.store.removeJob(job.id); await this._outbox(job, { delivered: delivered.length, failed: failed.length });
   }
 
+  // ----- verifica@: escrows que declararon prueba y nombraron árbitro a la casa -----
+  // El asiento no se mueve por lo que alguien dijo, sino por lo que la prueba devolvió. Y si
+  // la prueba no pudo correr (red caída, timeout), NO se decide: el escrow queda como estaba.
+  async _verificarPendientes() {
+    const arbitro = `verifica@${this.domain}`;
+    let contratos;
+    try { contratos = await this.store.libroListContracts(); } catch { return; }
+    const candidatos = contratos.filter((c) => c.kind === 'escrow' && ['held', 'delivered'].includes(c.state) && c.arbiter === arbitro && pruebasDe(c));
+    for (const c of candidatos.slice(0, this.verifica.maxPorTick)) {
+      // Solo se verifica lo que ya se declaró entregado, salvo que el contrato pida verificar
+      // desde el arranque (terms.verify_on: 'accept'), útil para un endpoint que ya debía estar en pie.
+      if (c.state === 'held' && (c.terms?.verify_on || 'deliver') !== 'accept') continue;
+      const v = await veredicto(pruebasDe(c), { fetchImpl: this.fetch, timeoutMs: this.verifica.timeoutMs, entregado: c.evidence || null });
+      if (v.indeciso) { this.log(`verifica ${c.id}: sin veredicto (${v.razon})`); continue; }
+      // La decisión viaja como sobre firmado a libro@ y entra por `inbound`, la MISMA puerta
+      // que usa cualquier agente (invariante 2). No se toca el Libro por dentro: si la firma
+      // de verifica@ no verifica, la casa se rechaza a sí misma. El veredicto va en el
+      // contenido, así que el porqué queda escrito y auditable en el contrato.
+      const env = signObject({
+        nyx5: '1', id: uuid(), from: `verifica@${this.domain}`, to: [`libro@${this.domain}`],
+        created: iso(), expires: null, thread: c.id, in_reply_to: null, type: 'task',
+        content: { media: MEDIA.op, body: { op: v.pasa ? 'release' : 'refund', contract: c.id, note: v.razon, veredicto: { pasa: v.pasa, razon: v.razon, resultados: v.resultados } } },
+      }, this.keys);
+      // Se espera el resultado antes de mirar el siguiente: así el estado ya cambió y este
+      // contrato no vuelve a elegirse en el mismo tick ni en el siguiente.
+      const r = await this.inbound(env);
+      if (!r.ok) this.log(`verifica ${c.id}: la casa rechazó su propia decisión (${r.code}): ${r.reason}`);
+      else {
+        this.log(`verifica ${c.id}: ${v.pasa ? 'libera' : 'devuelve'} — ${v.razon}`);
+        await this._evento('verificado', `verifica@${this.domain}`, { contract: c.id, pasa: v.pasa, pruebas: (pruebasDe(c) || []).map((x) => x.type), amount: c.amount });
+      }
+    }
+  }
+
   // Sobres emitidos por los agentes de sistema (postmaster@, libro@), firmados con la clave del dominio.
   // Destinatarios locales: directo al buzón. Remotos: por la cola, como cualquier envío.
   async _systemSend(fromLocal, to, { type = 'receipt', content, thread = null, in_reply_to = null, deliverAfter = null }) {
@@ -392,6 +447,20 @@ export class Estafeta {
     }
     for (const [domain, dest] of byDomain) await this.store.enqueue({ id: uuid(), envelope: env, domain, to: dest, from_local: fromLocal, attempts: 0, next_attempt: diferido ? iso(Date.parse(deliverAfter)) : iso(), created: iso(), status: 'queued', log: [] });
     return env;
+  }
+
+  // Los cinco eventos que dicen si el mecanismo se está ejerciendo de verdad, leídos del
+  // resultado de la op (no de lo que alguien dijo que iba a pasar).
+  async _eventoDeOp(env, result) {
+    if (!this.eventos) return;
+    const op = env.content?.body?.op;
+    const c = result?.contract;
+    const m = result?.mandate;
+    if (op === 'mandate' && m) return this._evento('mandate_created', m.grantor, { mandate: m.id, grantee: m.grantee, cap: m.cap, parent: m.parent || null });
+    if (op === 'accept' && c) return this._evento('first_quote', c.buyer, { contract: c.id, kind: c.kind, amount: c.amount, seller: c.seller });
+    if (op === 'release' && c?.kind === 'escrow') return this._evento('escrow_released', c.seller, { contract: c.id, amount: c.amount, by: env.from, arbitrado: env.from === `verifica@${this.domain}` });
+    if (op === 'refund' && c) return this._evento('escrow_refunded', c.buyer, { contract: c.id, amount: c.amount, by: env.from });
+    if (op === 'forfeit' && c) return this._evento('bond_forfeited', c.seller, { contract: c.id, amount: c.amount, by: env.from, vouchee: c.vouchee || null });
   }
 
   // Avisos del postmaster al remitente (rebotes y acuses de entrega). Llevan el hash del sobre original.
@@ -457,6 +526,7 @@ export class Estafeta {
           for (const rc of r.recibos || []) recibosPendientes.push(rc);
           for (const av of r.avisos || []) avisosPendientes.push(av);
           results[to] = r.result;
+          if (!r.duplicate) await this._eventoDeOp(env, r.result);
         } else if (p.stamp) {
           // Una estampilla paga UN buzón: el sobre declara un monto, no un monto por destinatario.
           if (stampUsed) { rejected.push({ to, code: 402, reason: 'la estampilla del sobre ya se usó en otro destinatario' }); continue; }
@@ -647,6 +717,14 @@ export class Estafeta {
       if (rx.method === 'GET' && path === '/llms.txt') return { status: 200, body: LLMS_TXT, contentType: 'text/plain; charset=utf-8' };
       if (rx.method === 'GET' && path === '/.well-known/nyx5.json') return send(200, await this.domainCard());
       let m;
+      // Reputación = una consulta al libro. Es PÚBLICA a propósito: sirve justamente para que
+      // un desconocido decida antes de contratar, igual que la tarjeta. No expone contenido ni
+      // contrapartes: solo cuántas entregas, cuántas fianzas y cuántos tokens se movieron.
+      if (rx.method === 'GET' && (m = /^\/agents\/([^/]+)\/historial$/.exec(path))) {
+        const local = decodeURIComponent(m[1]).toLowerCase();
+        if (!(await this.store.getAgent(local))) return send(404, { reason: 'agente inexistente' });
+        return send(200, await this.libro.historial(`${local}@${this.domain}`));
+      }
       if (rx.method === 'GET' && (m = /^\/agents\/([^/]+)$/.exec(path))) {
         const card = await this.agentCard(decodeURIComponent(m[1]).toLowerCase());
         return card ? send(200, card) : send(404, { reason: 'agente inexistente' });
@@ -680,6 +758,7 @@ export class Estafeta {
         const { signature: _s, ts: _t, invite: _i, _welcome, ...clean } = body;
         const card = await this.registerAgent({ ...clean, welcome: _welcome });
         this.log(`registro ${card.address} via ${via}`);
+        if (!card.delegation) await this._evento('join', card.address, { via, listed: card.capabilities?.listed === true });
         return send(201, { ...card, registered_via: via });
       }
       if (rx.method === 'POST' && path === '/invitations') {
@@ -737,12 +816,23 @@ export class Estafeta {
         const c = await this.store.libroGetContract(decodeURIComponent(m[1]));
         if (!c) return send(404, { reason: 'contrato inexistente' });
         if (![c.seller, c.buyer, c.verifier, c.arbiter].includes(who.address)) return send(403, { reason: 'no eres parte' });
-        return send(200, c);
+        return send(200, contratoPublico(c));
       }
       if (rx.method === 'POST' && path === '/libro/topup') {
         if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa carga saldo' });
         const { account, amount, concept } = rx.body || {};
         return send(201, await this.libro.topup(account, amount, concept || 'carga de la casa'));
+      }
+      // Los eventos son de la casa: dicen cuántos agentes llegaron y si el mecanismo se ejerce.
+      // No son públicos porque juntos dibujan la actividad de la casa; el historial de cada
+      // agente, que es lo que un desconocido necesita, sí lo es.
+      if (rx.method === 'GET' && path === '/eventos') {
+        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa lee sus eventos' });
+        const p = Object.fromEntries(rx.query);
+        const eventos = (await this.store.listEvents?.({ name: p.name || null, since: p.since || null, limit: Number(p.limit || 500) })) || [];
+        const conteo = {};
+        for (const e of eventos) conteo[e.name] = (conteo[e.name] || 0) + 1;
+        return send(200, { conteo, eventos });
       }
       if (rx.method === 'GET' && path === '/libro/diario') {
         if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa lee el diario completo' });

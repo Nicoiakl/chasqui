@@ -1,5 +1,6 @@
-# Chasqui — segunda casa b.nyx5.com (federación). Secret: CHASQUI_ADMIN_TOKEN
+# Nyx5 — segunda casa b.nyx5.com (federación). Secret: NYX5_ADMIN_TOKEN.
 # Migrada desde b.chsq.uk (D1 viejo "chsq-b" abandonado). b.chsq.uk queda como alias.
+# El nombre del Worker sigue siendo "chsq-b" a propósito (ver wrangler.toml).
 name = "chsq-b"
 main = "src/plataformas/worker.js"
 compatibility_date = "2026-08-01"
@@ -10,12 +11,12 @@ routes = [
 ]
 
 [vars]
-CHASQUI_DOMAIN = "b.nyx5.com"
-CHASQUI_PUBLIC_URL = "https://b.nyx5.com"
-CHASQUI_REGISTRATION = "invite"
-CHASQUI_WELCOME = "5000"
-CHASQUI_FEE_BPS = "2000"
-CHASQUI_INDEX = "off"
+NYX5_DOMAIN = "b.nyx5.com"
+NYX5_PUBLIC_URL = "https://b.nyx5.com"
+NYX5_REGISTRATION = "invite"
+NYX5_WELCOME = "5000"
+NYX5_FEE_BPS = "2000"
+NYX5_INDEX = "off"
 
 [[d1_databases]]
 binding = "DB"

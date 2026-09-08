@@ -27,7 +27,7 @@ const writeJson = (p, v) => {
 export class FileStore {
   constructor(dir) {
     this.dir = dir;
-    for (const d of ['agents', 'mailbox', 'queue', 'outbox', 'invitations', 'libro/diario', 'libro/contratos', 'libro/mandatos', 'libro/ops', 'indice/casas', 'indice/agentes']) fs.mkdirSync(path.join(dir, d), { recursive: true });
+    for (const d of ['agents', 'mailbox', 'queue', 'outbox', 'invitations', 'libro/diario', 'libro/contratos', 'libro/mandatos', 'libro/ops', 'eventos', 'indice/casas', 'indice/agentes']) fs.mkdirSync(path.join(dir, d), { recursive: true });
     this.nonces = new Map(); // anti-replay: en FileStore basta memoria (un proceso)
   }
 
@@ -151,6 +151,15 @@ export class FileStore {
   libroListMandates() { const d = path.join(this.dir, 'libro', 'mandatos'); return fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => readJson(path.join(d, f))); }
   libroGetOp(id) { return readJson(path.join(this.dir, 'libro', 'ops', `${id}.json`)); }
   libroPutOp(id, v) { writeJson(path.join(this.dir, 'libro', 'ops', `${id}.json`), v); }
+  // ---------- instrumentación (nombre, fecha, actor y números; nunca contenido) ----------
+  putEvent(e) { writeJson(path.join(this.dir, 'eventos', `${e.id}.json`), e); }
+  listEvents({ name = null, since = null, limit = 500 } = {}) {
+    const d = path.join(this.dir, 'eventos');
+    if (!fs.existsSync(d)) return [];
+    return fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => readJson(path.join(d, f)))
+      .filter((e) => e && (!name || e.name === name) && (!since || e.ts >= since))
+      .sort((a, b) => (a.ts < b.ts ? -1 : 1)).slice(-limit);
+  }
   libroStatement(account, limit) {
     return this.libroJournal().filter((a) => a.lines.some((l) => l.account === account)).slice(-limit);
   }

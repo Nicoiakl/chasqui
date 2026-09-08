@@ -1,6 +1,6 @@
 # Política de seguridad
 
-Chasqui mueve identidad, mensajes cifrados y un ledger. Una vulnerabilidad aquí no es un bug
+Nyx5 mueve identidad, mensajes cifrados y un ledger. Una vulnerabilidad aquí no es un bug
 cualquiera. Agradecemos el reporte responsable.
 
 ## Cómo reportar

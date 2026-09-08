@@ -1,0 +1,105 @@
+// Nyx5/1 — verifica@: el evaluador de referencia de la casa.
+//
+// Tres pruebas DETERMINISTAS y nada más. Sin juicio de modelo, a propósito: un verificador
+// que se equivoca castiga a un inocente y quema la credibilidad del sistema en un día. Si
+// una prueba no puede decidir sola y sin ambigüedad, este verificador no la acepta.
+//
+//   http_status  GET a una URL -> el código es el esperado (200 por defecto)
+//   sha256       el cuerpo de una URL (o el texto entregado) hashea a lo declarado
+//   exit_0       un comando termina con código 0        [solo fuera del edge: necesita shell]
+//
+// El veredicto es una función pura de (prueba, mundo): dos corridas con el mismo mundo dan
+// lo mismo, y la razón siempre viaja con el resultado. Nada de "se ve bien".
+
+import { sha256hex } from '../nucleo/crypto.js';
+
+export const PRUEBAS = ['http_status', 'sha256', 'exit_0'];
+// En Workers no hay shell. Se declara en vez de fallar raro cuando alguien la pida.
+export const conShell = typeof process !== 'undefined' && !!process?.versions?.node;
+export const pruebasDisponibles = () => (conShell ? PRUEBAS : PRUEBAS.filter((p) => p !== 'exit_0'));
+
+const recorta = (s, n = 300) => (typeof s === 'string' && s.length > n ? `${s.slice(0, n)}…` : s);
+
+/**
+ * Corre UNA prueba y devuelve un veredicto con su evidencia.
+ * @returns {Promise<{pasa:boolean, prueba:string, razon:string, evidencia:object}>}
+ */
+export async function correrPrueba(prueba, { fetchImpl = globalThis.fetch, timeoutMs = 10_000, entregado = null } = {}) {
+  const tipo = prueba?.type;
+  if (!PRUEBAS.includes(tipo)) {
+    return { pasa: false, prueba: tipo || '(sin tipo)', razon: `prueba desconocida: ${tipo}. Las que este verificador acepta: ${pruebasDisponibles().join(', ')}`, evidencia: {} };
+  }
+  if (tipo === 'exit_0' && !conShell) {
+    return { pasa: false, prueba: tipo, razon: 'este verificador corre en el edge y no tiene shell; usa http_status o sha256', evidencia: {} };
+  }
+  try {
+    if (tipo === 'http_status') {
+      const esperado = Number(prueba.expect ?? 200);
+      if (!/^https:\/\//.test(prueba.url || '')) return { pasa: false, prueba: tipo, razon: 'la URL a verificar debe ser https', evidencia: { url: prueba.url } };
+      const res = await fetchImpl(prueba.url, { method: prueba.method || 'GET', redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
+      const pasa = res.status === esperado;
+      return { pasa, prueba: tipo, razon: pasa ? `${prueba.url} respondió ${res.status}` : `${prueba.url} respondió ${res.status}, se esperaba ${esperado}`, evidencia: { url: prueba.url, status: res.status, expect: esperado } };
+    }
+    if (tipo === 'sha256') {
+      const esperado = String(prueba.expect || '').toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(esperado)) return { pasa: false, prueba: tipo, razon: 'expect debe ser un sha256 en hexadecimal (64 caracteres)', evidencia: {} };
+      let texto = entregado;
+      if (prueba.url) {
+        if (!/^https:\/\//.test(prueba.url)) return { pasa: false, prueba: tipo, razon: 'la URL a verificar debe ser https', evidencia: { url: prueba.url } };
+        const res = await fetchImpl(prueba.url, { signal: AbortSignal.timeout(timeoutMs) });
+        if (!res.ok) return { pasa: false, prueba: tipo, razon: `${prueba.url} respondió ${res.status}: no hay qué hashear`, evidencia: { url: prueba.url, status: res.status } };
+        texto = await res.text();
+      }
+      if (texto == null) return { pasa: false, prueba: tipo, razon: 'no hay contenido que hashear: falta url en la prueba o evidencia en la entrega', evidencia: {} };
+      const visto = sha256hex(texto);
+      const pasa = visto === esperado;
+      return { pasa, prueba: tipo, razon: pasa ? `el hash coincide (${visto.slice(0, 12)}…)` : `el hash no coincide: se vio ${visto.slice(0, 12)}…, se esperaba ${esperado.slice(0, 12)}…`, evidencia: { sha256: visto, expect: esperado, url: prueba.url || null } };
+    }
+    // exit_0: solo en Node, sin shell interpretado (nada de `sh -c`), con timeout y sin heredar stdio.
+    const { spawn } = await import('node:child_process');
+    const argv = Array.isArray(prueba.argv) ? prueba.argv : null;
+    if (!argv || !argv.length || typeof argv[0] !== 'string') {
+      return { pasa: false, prueba: tipo, razon: 'exit_0 necesita argv: ["comando","arg1",…]; no se acepta una línea de shell', evidencia: {} };
+    }
+    const res = await new Promise((resolve) => {
+      const p = spawn(argv[0], argv.slice(1), { cwd: prueba.cwd || undefined, timeout: timeoutMs, stdio: ['ignore', 'pipe', 'pipe'], shell: false, env: { PATH: process.env.PATH } });
+      let out = '', err = '';
+      p.stdout.on('data', (d) => { out += d; });
+      p.stderr.on('data', (d) => { err += d; });
+      p.on('error', (e) => resolve({ code: null, out, err: e.message }));
+      p.on('close', (code) => resolve({ code, out, err }));
+    });
+    const pasa = res.code === 0;
+    return { pasa, prueba: tipo, razon: pasa ? `\`${argv.join(' ')}\` salió con 0` : `\`${argv.join(' ')}\` salió con ${res.code ?? 'error'}: ${recorta(res.err || res.out, 200) || 'sin salida'}`, evidencia: { argv, code: res.code, stderr: recorta(res.err, 200) } };
+  } catch (e) {
+    // Un fallo de red no es "la afirmación es falsa": es "no se pudo verificar". Se distingue.
+    return { pasa: false, prueba: tipo, razon: `no se pudo verificar: ${e.message}`, evidencia: { error: e.message }, indeciso: true };
+  }
+}
+
+/**
+ * Corre todas las pruebas de un contrato. Veredicto conjunto: pasa solo si TODAS pasan.
+ * Si alguna quedó indecisa (red caída, timeout), el conjunto queda indeciso y NO se decide:
+ * ni liberar ni devolver. Un verificador que decide sin poder mirar es peor que ninguno.
+ */
+export async function veredicto(pruebas, opts = {}) {
+  const lista = Array.isArray(pruebas) ? pruebas : [pruebas];
+  if (!lista.length) return { pasa: false, indeciso: true, razon: 'el contrato no declara pruebas de aceptación', resultados: [] };
+  const resultados = [];
+  for (const p of lista) resultados.push(await correrPrueba(p, opts));
+  const indeciso = resultados.some((r) => r.indeciso);
+  const pasa = !indeciso && resultados.every((r) => r.pasa);
+  const razon = indeciso
+    ? `no se pudo verificar: ${resultados.find((r) => r.indeciso).razon}`
+    : resultados.map((r) => `${r.pasa ? 'OK' : 'FALLA'} ${r.prueba}: ${r.razon}`).join(' · ');
+  return { pasa, indeciso, razon, resultados };
+}
+
+// Un contrato es verificable por la casa si declara pruebas en sus términos y nombra
+// como árbitro al verificador de la casa. Sin ambas cosas, nadie toca ese escrow.
+export function pruebasDe(contrato) {
+  const t = contrato?.terms || {};
+  const p = t.verify ?? t.pruebas ?? null;
+  if (!p) return null;
+  return Array.isArray(p) ? p : [p];
+}

@@ -10,7 +10,7 @@ import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 import { generateKeys, signObject, uuid } from '../src/nucleo/crypto.js';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-spam-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-spam-'));
 const hosts = { 'alfa.local': { url: 'http://127.0.0.1:4001' }, 'beta.local': { url: 'http://127.0.0.1:4002' } };
 const mk = (domain, port, token) => new Estafeta({ domain, port, dataDir: path.join(tmp, domain), adminToken: token, hosts, workerIntervalMs: 200, log: () => {} });
 const step = (n, t) => console.log(`\n[${n}] ${t}`);

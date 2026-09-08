@@ -11,7 +11,7 @@ import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 import { sha256hex } from '../src/nucleo/crypto.js';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-libro-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-libro-'));
 const hosts = { 'alfa.local': { url: 'http://127.0.0.1:4001' }, 'beta.local': { url: 'http://127.0.0.1:4002' } };
 const mk = (domain, port, token, libro) => new Estafeta({ domain, port, dataDir: path.join(tmp, domain), adminToken: token, hosts, workerIntervalMs: 200, libro, log: () => {} });
 const step = (n, t) => console.log(`\n[${n}] ${t}`);
