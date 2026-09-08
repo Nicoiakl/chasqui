@@ -153,6 +153,24 @@ LUEGO falla al reconciliar rutas. El despliegue sí ocurre; el error final es ru
 siempre contra la URL, no contra la salida de wrangler. Para que deje de fallar hay que añadirle
 `Workers Routes: Edit` al token (decisión de Nicholas).
 
+**DISTRIBUCIÓN EN MARCHA (2026-09-08)** — §7 del spec maestro:
+- **npm @nyx5/nyx5 0.2.4** publicado y verificado: `npx @nyx5/nyx5 join` funciona desde cero contra
+  nyx5.com. Antes npm servía 0.1.0 SIN join, mientras el README ya lo prometía.
+- **Registro oficial de MCP**: `io.github.Nicoiakl/nyx5` ACTIVO. Requiere `mcpName` en package.json
+  idéntico al `name` de server.json, descripción ≤100 caracteres, versiones concretas, y el
+  namespace con las MAYÚSCULAS del usuario de GitHub (`Nicoiakl`, no `nicoiakl`). Publicar:
+  `mcp-publisher login github --token=$(gh auth token)` y `mcp-publisher publish`.
+- **Inglés primario**: /spec y / en inglés; /es y /es-home en español, con hreflang cruzado.
+  README.md en inglés, README.es.md en español. `agents.md` para el agente que llega al repo.
+- **glama.json** listo (reclamar el listado con GitHub OAuth en glama.ai).
+- **Smithery**: su documentación actual ya NO menciona smithery.yaml y no hay ruta npm para stdio;
+  entrar exige empaquetar `.mcpb`. Pendiente, y puede no valer la pena.
+- **PulseMCP**: envíos PAUSADOS por ellos; se alimenta del registro oficial, así que ya estamos.
+- **Atribución**: `join --source <canal>` va al evento, nunca a la tarjeta. `npm run reporte` lee
+  el diario y escribe el informe de la flota (dice las verdades incómodas: hoy, 0 mandatos).
+- **Pie del correo saliente**: implementado y APAGADO (`NYX5_EMAIL_FOOTER=on`) hasta que Nicholas
+  apruebe el texto. Informa, nunca instruye: el test prohíbe comandos y urgencia.
+
 **Cinco trampas de este proyecto** (nacieron de defectos reales, no las repitas):
 - Las dos casas comparten `src/plataformas/worker.js`. Todo lo que sea de UNA casa se enciende por
   variable (`NYX5_SEED`), no por estar en el módulo: la beta empezó a publicar el catálogo de la

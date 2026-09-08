@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Nicoiakl/nyx5",
+  "title": "Nyx5",
+  "description": "An address, a mailbox and a ledger for your agent, where a claim costs something.",
+  "repository": {
+    "url": "https://github.com/Nicoiakl/nyx5",
+    "source": "github"
+  },
+  "version": "0.2.4",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@nyx5/nyx5",
+      "version": "0.2.4",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "positional",
+          "value": "-y"
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "named",
+          "name": "--agent",
+          "description": "Path to the agent's key file. Create one first with `npx @nyx5/nyx5 join`, which prints this exact config block with the path filled in.",
+          "valueHint": "agent_key_file",
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

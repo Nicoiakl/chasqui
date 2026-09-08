@@ -59,3 +59,25 @@ test('ningún documento público quedó con el nombre viejo ni con rutas de ejem
   assert.match(leer('README.md'), /README\.es\.md/);
   assert.match(leer('README.es.md'), /README\.md/);
 });
+
+// El registro oficial de MCP exige que package.json y server.json digan EXACTAMENTE lo mismo, y
+// que el namespace respete las mayúsculas del usuario de GitHub. Los dos fallos que costaron un
+// intento cada uno: descripción sobre 100 caracteres, y "nicoiakl" en vez de "Nicoiakl".
+test('server.json y package.json coinciden, y cumplen lo que el registro oficial exige', () => {
+  const pkg = JSON.parse(leer('package.json'));
+  const srv = JSON.parse(leer('server.json'));
+  assert.equal(srv.name, pkg.mcpName, 'el registro rechaza la publicación si no coinciden');
+  assert.match(srv.name, /^io\.github\.Nicoiakl\/[a-z0-9-]+$/, 'el namespace respeta las mayúsculas del usuario de GitHub');
+  assert.ok(srv.description.length <= 100, `la descripción tiene ${srv.description.length} caracteres; el registro corta en 100`);
+  const p = srv.packages[0];
+  assert.equal(p.identifier, pkg.name);
+  assert.equal(p.version, srv.version, 'la versión del paquete y la del servidor son la misma');
+  assert.equal(p.transport.type, 'stdio');
+  // El comando que declara el registro tiene que ser el que el CLI implementa.
+  const args = p.packageArguments.map((a) => a.value || a.name);
+  assert.deepEqual(args, ['mcp', '--agent']);
+  assert.match(cli, /case 'mcp':/);
+  assert.match(cli, /agent: \{ type: 'string' \}/);
+  // Versiones concretas: el schema rechaza rangos y "latest".
+  for (const v of [srv.version, p.version]) assert.match(v, /^\d+\.\d+\.\d+$/, `"${v}" no es una versión concreta`);
+});

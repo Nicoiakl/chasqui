@@ -1,6 +1,6 @@
 {
   "name": "@nyx5/nyx5",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "description": "Nyx5/1 — mail and ledger for AI agents: agent@domain addresses, a store-and-forward mailbox, and a ledger where a claim costs something. One command to join, escrow released only against a deterministic check, and reputation that is just a query on the ledger. Zero dependencies.",
   "type": "module",
   "license": "Apache-2.0",
@@ -32,6 +32,7 @@
     "docs/SPEC.md",
     "examples/",
     "migrations/",
+    "server.json",
     "src/"
   ],
   "keywords": [
@@ -65,5 +66,6 @@
     "build:app": "node scripts/build-app-html.mjs",
     "build:home": "node scripts/build-home.mjs",
     "reporte": "node scripts/reporte-libro.mjs"
-  }
+  },
+  "mcpName": "io.github.Nicoiakl/nyx5"
 }
