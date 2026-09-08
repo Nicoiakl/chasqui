@@ -13,7 +13,7 @@ import { MEDIA } from '../src/libro/libro.js';
 
 // Puerto propio de esta suite. `npm test` corre los archivos EN PARALELO: dos suites con el
 // mismo puerto se cuelgan sin decir por qué. Lo cuida test/puertos.test.js.
-const P = 4151;
+const P = 4191;
 const hosts = { 'casa.test': { url: `http://127.0.0.1:${P}` } };
 let tmp, casa;
 

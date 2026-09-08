@@ -16,10 +16,17 @@ test('ninguna suite comparte puerto con otra', () => {
   const propio = path.basename(fileURLToPath(import.meta.url));
   for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.test.js') && f !== propio)) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
-    // Solo declaraciones de puerto (`const P = 4141`, `const P1 = 4121, P2 = ...`),
-    // no cualquier número de cuatro cifras que aparezca en el texto.
+    // Declaraciones de puerto (`const P = 4141`, `const P1 = 4121, P2 = ...`) Y los derivados
+    // de ellas (`P1 + 10`). Lo segundo se agregó después de que un puerto CALCULADO se comiera
+    // el guard: indice.test.js abre `P1 + 10` = 4151, que era el puerto de unirse.test.js.
+    // En Node 24 los archivos se intercalaban y no chocaban; en Node 20 sí, y CI se colgó.
     const puertos = new Set();
-    for (const m of src.matchAll(/\bP\d*\s*=\s*(4\d{3})\b/g)) puertos.add(Number(m[1]));
+    const base = new Map();
+    for (const m of src.matchAll(/\b(P\d*)\s*=\s*(4\d{3})\b/g)) { base.set(m[1], Number(m[2])); puertos.add(Number(m[2])); }
+    for (const m of src.matchAll(/\b(P\d*)\s*\+\s*(\d+)\b/g)) {
+      const b = base.get(m[1]);
+      if (b != null) puertos.add(b + Number(m[2]));
+    }
     if (puertos.size) porArchivo.set(f, puertos);
   }
   const dueno = new Map();
@@ -32,4 +39,6 @@ test('ninguna suite comparte puerto con otra', () => {
   }
   assert.deepEqual(choques, [], `puertos repetidos entre suites:\n  ${choques.join('\n  ')}`);
   assert.ok(dueno.size >= 8, `se esperaban puertos declarados en varias suites, se vieron ${dueno.size}`);
+  // El guard tiene que estar viendo los calculados: si esta cuenta baja, alguien lo desarmó.
+  assert.ok(dueno.has(4151), 'el puerto calculado P1+10 de indice.test.js debe estar contado');
 });
