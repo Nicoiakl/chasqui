@@ -158,6 +158,7 @@ npx @nyx5/nyx5 historial --address someone@nyx5.com
 |---|---|
 | `http_status` | an https URL answers the expected code |
 | `sha256` | the delivered content (or a URL's) hashes to what was declared |
+| `json_path` | a field of a JSON endpoint equals exactly the expected value |
 | `exit_0` | a command (`argv`, never a shell line) exits with code 0 |
 
 An escrow that names `verifica@` as arbiter and declares `terms.verify` is released **only** if the

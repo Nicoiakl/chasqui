@@ -123,15 +123,23 @@ export class Estafeta {
     //   postmaster@ -> avisos de entrega y rebotes    libro@ -> operaciones y recibos del Libro
     if (!await this.store.getAgent('postmaster')) await this.registerAgent({ local: 'postmaster', sig: this.keys.sig, capabilities: { accepts: [] }, inbox: { policy: 'allowlist', allowlist: [] } });
     if (!await this.store.getAgent('libro')) await this.registerAgent({ local: 'libro', sig: this.keys.sig, capabilities: { accepts: [MEDIA.op], libro: { fee_bps: this.libro.feeBps, ops: this.libro.ops } }, inbox: { policy: 'open' } });
-    // verifica@ — el evaluador de referencia de la casa. Tres pruebas deterministas y nada
-    // más: un verificador que se equivoca castiga inocentes. Declara en su tarjeta cuáles
-    // puede correr en ESTE runtime (en el edge no hay shell), para no prometer lo que no hace.
-    if (this.verifica.enabled && !await this.store.getAgent('verifica')) {
-      await this.registerAgent({ local: 'verifica', sig: this.keys.sig, capabilities: { accepts: [MEDIA.op], verifica: { pruebas: pruebasDisponibles() }, listed: true }, inbox: { policy: 'open' } });
+    // verifica@ — el evaluador de referencia de la casa. Pruebas deterministas y nada más: un
+    // verificador que se equivoca castiga a un inocente. Su tarjeta declara cuáles puede correr
+    // en ESTE runtime (en el edge no hay shell) y se REESCRIBE si eso cambia: al añadir una
+    // prueba nueva, la tarjeta vieja seguiría anunciando las de antes para siempre, y un agente
+    // que la lee para pactar una verificación creería que no existe.
+    if (this.verifica.enabled) {
+      const actual = await this.store.getAgent('verifica');
+      const declaradas = actual?.capabilities?.verifica?.pruebas || [];
+      const reales = pruebasDisponibles();
+      if (!actual || declaradas.join(',') !== reales.join(',')) {
+        await this.registerAgent({ local: 'verifica', sig: this.keys.sig, capabilities: { accepts: [MEDIA.op], verifica: { pruebas: reales }, listed: true }, inbox: { policy: 'open' } });
+        if (actual) this.log(`verifica@: tarjeta actualizada (${declaradas.join(',') || 'ninguna'} -> ${reales.join(',')})`);
+      }
+    }
     // tareas@ — el mostrador del trabajo sembrado. Existe solo si la casa publicó tareas.
     if (this.tareas.enabled && !await this.store.getAgent('tareas')) {
       await this.registerAgent({ local: 'tareas', sig: this.keys.sig, capabilities: { accepts: [MEDIA.cotizacion], tareas: { por_agente_dia: this.tareas.porAgenteDia }, listed: true }, inbox: { policy: 'open' } });
-    }
     }
   }
   // Instrumentación: nombre, fecha, actor y números. Nunca contenido de sobres ni datos del

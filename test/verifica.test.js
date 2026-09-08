@@ -80,6 +80,7 @@ test('sha256 sin url: compara el hash que el agente DECLARÓ al entregar', async
 
 test('exit_0: corre un comando real, exige argv y no acepta una línea de shell', async () => {
   assert.ok(pruebasDisponibles().includes('exit_0'), 'en Node sí hay shell');
+  assert.ok(pruebasDisponibles().includes('json_path'), 'json_path corre en cualquier runtime');
   const ok = await correrPrueba({ type: 'exit_0', argv: ['node', '-e', 'process.exit(0)'] });
   assert.equal(ok.pasa, true);
   const mal = await correrPrueba({ type: 'exit_0', argv: ['node', '-e', 'process.exit(3)'] });
@@ -89,6 +90,38 @@ test('exit_0: corre un comando real, exige argv y no acepta una línea de shell'
   const shell = await correrPrueba({ type: 'exit_0', argv: 'echo hola && rm -rf /' });
   assert.equal(shell.pasa, false);
   assert.match(shell.razon, /no se acepta una línea de shell/);
+});
+
+test('json_path: compara un campo por igualdad estricta y dice qué vio', async () => {
+  const doc = { status: 'ready', version: 3, data: [{ id: 'a7' }], nested: { flag: false }, obj: { b: 2, a: 1 } };
+  const con = (p) => correrPrueba(p, { fetchImpl: async () => ({ ok: true, status: 200, text: async () => JSON.stringify(doc) }) });
+
+  assert.equal((await con({ type: 'json_path', url: 'https://x/', path: 'status', expect: 'ready' })).pasa, true);
+  assert.equal((await con({ type: 'json_path', url: 'https://x/', path: 'version', expect: 3 })).pasa, true);
+  assert.equal((await con({ type: 'json_path', url: 'https://x/', path: 'data.0.id', expect: 'a7' })).pasa, true);
+  // false y 0 son valores, no ausencias: comparar por igualdad estricta importa.
+  assert.equal((await con({ type: 'json_path', url: 'https://x/', path: 'nested.flag', expect: false })).pasa, true);
+  assert.equal((await con({ type: 'json_path', url: 'https://x/', path: 'nested.flag', expect: true })).pasa, false);
+  // El orden de las claves no cambia el valor.
+  assert.equal((await con({ type: 'json_path', url: 'https://x/', path: 'obj', expect: { a: 1, b: 2 } })).pasa, true);
+  // Un campo que no existe falla y lo dice, en vez de pasar por ser "vacío == vacío".
+  const falta = await con({ type: 'json_path', url: 'https://x/', path: 'no.existe', expect: 'algo' });
+  assert.equal(falta.pasa, false);
+  assert.match(falta.razon, /expected/);
+  // Un expect ausente no puede colarse comparando null con null.
+  assert.match((await con({ type: 'json_path', url: 'https://x/', path: 'status' })).razon, /needs an expect/);
+  assert.match((await con({ type: 'json_path', url: 'https://x/' })).razon, /needs a path/);
+  assert.match((await con({ type: 'json_path', url: 'http://x/', path: 'a', expect: 1 })).razon, /https/);
+
+  // No es JSON: no se decide a ciegas.
+  const malo = await correrPrueba({ type: 'json_path', url: 'https://x/', path: 'a', expect: 1 },
+    { fetchImpl: async () => ({ ok: true, status: 200, text: async () => '<html>' }) });
+  assert.equal(malo.pasa, false);
+  assert.match(malo.razon, /did not return valid JSON/);
+  // Y una red caída deja indeciso, como las demás.
+  const caida = await correrPrueba({ type: 'json_path', url: 'https://x/', path: 'a', expect: 1 },
+    { fetchImpl: async () => { throw new Error('ENOTFOUND'); } });
+  assert.equal(caida.indeciso, true);
 });
 
 test('veredicto: exige que TODAS pasen, y una prueba que no pudo correr deja indeciso', async () => {
@@ -246,4 +279,70 @@ test('el ciclo completo con sha256: se cobra por el hash correcto, no por afirma
   await new Promise((r) => setTimeout(r, 300));
   assert.equal((await bueno._agente.contract('v.test', (await contratoDe(bueno)).id)).state, 'released');
   assert.equal((await malo._agente.contract('v.test', (await contratoDe(malo)).id)).state, 'refunded');
+});
+
+// La tarjeta de un agente de sistema describe lo que la casa puede hacer HOY. Nació de un
+// defecto real: al añadir json_path, verifica@ siguió anunciando las tres pruebas viejas porque
+// la tarjeta se escribió una sola vez. Un agente que la lee para decidir si puede pactar una
+// verificación habría creído que la prueba no existe.
+test('la tarjeta de verifica@ se reescribe si cambian las pruebas que la casa puede correr', async () => {
+  const P2 = 4162;
+  const dir = path.join(tmp, 'refresco');
+  const mk = () => new Estafeta({
+    domain: 'r.test', port: P2, dataDir: dir, adminToken: 't', hosts: { 'r.test': { url: `http://127.0.0.1:${P2}` } },
+    workerIntervalMs: 5000, policy: { registration: 'open' }, log: () => {},
+  });
+  const uno = mk();
+  await uno.start();
+  assert.deepEqual((await uno.agentCard('verifica')).capabilities.verifica.pruebas, pruebasDisponibles());
+  // Se ensucia la tarjeta a mano, como si la hubiera escrito una versión vieja de la casa.
+  const rec = await uno.store.getAgent('verifica');
+  rec.capabilities.verifica.pruebas = ['http_status'];
+  await uno.store.putAgent('verifica', rec);
+  assert.deepEqual((await uno.agentCard('verifica')).capabilities.verifica.pruebas, ['http_status']);
+  await uno.stop();
+
+  // Al levantar de nuevo, la casa corrige lo que anuncia.
+  const dos = mk();
+  await dos.start();
+  try {
+    assert.deepEqual((await dos.agentCard('verifica')).capabilities.verifica.pruebas, pruebasDisponibles(),
+      'la casa debe corregir la tarjeta al arrancar');
+  } finally { await dos.stop(); }
+});
+
+// Un bloque mal cerrado dejó el alta de tareas@ ANIDADA dentro de la de verifica@: el mostrador
+// solo se creaba si el verificador no existía. Pasó desapercibido porque en un arranque limpio
+// ambos se crean a la vez. Cada agente de sistema tiene que levantarse por su cuenta.
+test('cada agente de sistema se levanta solo, sin depender de que falte otro', async () => {
+  const P2 = 4163;
+  const dir = path.join(tmp, 'sistema');
+  const cat = [{ id: 'x', concept: 'algo', price: 10, verify: { type: 'http_status', url: 'https://x.invalid/' } }];
+  const mk = () => new Estafeta({
+    domain: 's.test', port: P2, dataDir: dir, adminToken: 't', hosts: { 's.test': { url: `http://127.0.0.1:${P2}` } },
+    workerIntervalMs: 5000, policy: { registration: 'open' }, tareas: { catalogo: cat }, log: () => {},
+  });
+  // Primer arranque: están los cuatro.
+  const uno = mk(); await uno.start();
+  for (const a of ['postmaster', 'libro', 'verifica', 'tareas']) assert.ok(await uno.agentCard(a), `falta ${a}@ en el primer arranque`);
+  await uno.stop();
+
+  // Segundo arranque con verifica@ YA presente: tareas@ debe seguir existiendo igual.
+  const dos = mk(); await dos.start();
+  try {
+    for (const a of ['postmaster', 'libro', 'verifica', 'tareas']) assert.ok(await dos.agentCard(a), `${a}@ desapareció al rearrancar`);
+  } finally { await dos.stop(); }
+});
+
+// La casa no puede anunciar lo que no puede hacer. Con nodejs_compat, Workers expone `process`
+// pero no puede lanzar un proceso: mirar `process.versions.node` hacía que el edge declarara
+// exit_0 y luego fallara al pedirla. La detección tiene que INTENTAR cargar el módulo.
+test('la detección de shell prueba a cargar el módulo, no a mirar una variable', async () => {
+  const src = fs.readFileSync(new URL('../src/libro/verifica.js', import.meta.url), 'utf8');
+  assert.match(src, /await import\('node:child_process'\)/, 'la detección debe intentar el import');
+  assert.ok(!/conShell = typeof process/.test(src), 'mirar process.versions.node no prueba que haya shell');
+  // Y tiene que descartar el edge explícitamente: allí el import funciona pero no hay proceso.
+  assert.match(src, /Cloudflare-Workers/, 'la detección debe reconocer el runtime del edge');
+  // Y en Node, donde sí hay, la lista completa está disponible.
+  assert.deepEqual(pruebasDisponibles(), ['http_status', 'sha256', 'json_path', 'exit_0']);
 });

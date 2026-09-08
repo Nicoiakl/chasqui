@@ -6,16 +6,24 @@
 //
 //   http_status  GET a una URL -> el código es el esperado (200 por defecto)
 //   sha256       el cuerpo de una URL (o el texto entregado) hashea a lo declarado
+//   json_path    un campo de un JSON servido en una URL vale exactamente lo esperado
 //   exit_0       un comando termina con código 0        [solo fuera del edge: necesita shell]
 //
 // El veredicto es una función pura de (prueba, mundo): dos corridas con el mismo mundo dan
 // lo mismo, y la razón siempre viaja con el resultado. Nada de "se ve bien".
 
-import { sha256hex } from '../nucleo/crypto.js';
+import { sha256hex, canonical } from '../nucleo/crypto.js';
 
-export const PRUEBAS = ['http_status', 'sha256', 'exit_0'];
-// En Workers no hay shell. Se declara en vez de fallar raro cuando alguien la pida.
-export const conShell = typeof process !== 'undefined' && !!process?.versions?.node;
+export const PRUEBAS = ['http_status', 'sha256', 'json_path', 'exit_0'];
+// En el edge no hay shell. Dos señales, porque una sola engañaba:
+//   - con nodejs_compat, Workers expone `process` Y deja importar node:child_process, así que
+//     ni la variable ni el import distinguen el runtime; la casa anunciaba exit_0 y luego no
+//     podía correrla, que es peor que no anunciarla.
+//   - workerd se identifica en navigator.userAgent, y ahí no hay proceso que lanzar.
+// Ante la duda se declara SIN shell: una capacidad ausente decepciona menos que una incumplida.
+const enWorkers = typeof navigator !== 'undefined' && /Cloudflare-Workers/i.test(navigator.userAgent || '');
+export let conShell = false;
+if (!enWorkers) { try { const m = await import('node:child_process'); conShell = typeof m.spawn === 'function'; } catch { conShell = false; } }
 export const pruebasDisponibles = () => (conShell ? PRUEBAS : PRUEBAS.filter((p) => p !== 'exit_0'));
 
 const recorta = (s, n = 300) => (typeof s === 'string' && s.length > n ? `${s.slice(0, n)}…` : s);
@@ -62,6 +70,30 @@ export async function correrPrueba(prueba, { fetchImpl = globalThis.fetch, timeo
       const visto = sha256hex(texto);
       const pasa = visto === esperado;
       return { pasa, prueba: tipo, razon: pasa ? `el hash coincide (${visto.slice(0, 12)}…)` : `el hash no coincide: se vio ${visto.slice(0, 12)}…, se esperaba ${esperado.slice(0, 12)}…`, evidencia: { sha256: visto, expect: esperado, url: prueba.url || null } };
+    }
+    if (tipo === 'json_path') {
+      // Un campo de un JSON, comparado por IGUALDAD ESTRICTA contra un valor esperado. Es lo que
+      // permite arbitrar trabajo de verdad ("tu endpoint debe responder {ok:true, version:3}")
+      // sin abrir la puerta a criterios que opinan. El camino es literal y sin comodines:
+      // `a.b.0.c`. Nada de expresiones — una consulta que hay que interpretar deja de ser
+      // determinista, y este verificador solo acepta lo que decide igual dos veces.
+      if (!/^https:\/\//.test(prueba.url || '')) return { pasa: false, prueba: tipo, razon: 'the URL to verify must be https', evidencia: { url: prueba.url } };
+      if (typeof prueba.path !== 'string' || !prueba.path.length) return { pasa: false, prueba: tipo, razon: 'json_path needs a path, for example "status" or "data.0.id"', evidencia: {} };
+      if (!('expect' in prueba)) return { pasa: false, prueba: tipo, razon: 'json_path needs an expect value to compare against', evidencia: {} };
+      const res = await fetchImpl(prueba.url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) });
+      if (!res.ok) return { pasa: false, prueba: tipo, razon: `${prueba.url} responded ${res.status}: nothing to read`, evidencia: { url: prueba.url, status: res.status } };
+      let doc;
+      try { doc = JSON.parse(await res.text()); }
+      catch (e) { return { pasa: false, prueba: tipo, razon: `${prueba.url} did not return valid JSON`, evidencia: { url: prueba.url } }; }
+      let visto = doc;
+      for (const seg of prueba.path.split('.')) {
+        if (visto == null || typeof visto !== 'object') { visto = undefined; break; }
+        visto = Array.isArray(visto) ? visto[Number(seg)] : visto[seg];
+      }
+      // La comparación es por forma canónica: {a:1,b:2} y {b:2,a:1} son el mismo valor.
+      const igual = canonical(visto ?? null) === canonical(prueba.expect ?? null);
+      const corto = (v) => recorta(JSON.stringify(v ?? null), 120);
+      return { pasa: igual, prueba: tipo, razon: igual ? `${prueba.path} is ${corto(visto)}` : `${prueba.path} is ${corto(visto)}, expected ${corto(prueba.expect)}`, evidencia: { url: prueba.url, path: prueba.path, seen: visto ?? null, expect: prueba.expect ?? null } };
     }
     // exit_0: solo en Node, sin shell interpretado (nada de `sh -c`), con timeout y sin heredar stdio.
     const { spawn } = await import('node:child_process');

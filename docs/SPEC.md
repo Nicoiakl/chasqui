@@ -439,7 +439,15 @@ Three deterministic tests, and no more:
 |---|---|---|
 | `http_status` | an **https** URL answers the expected code | `url`, `expect` (200 by default) |
 | `sha256` | the body of a URL, or the `evidence_sha256` the delivery declared, hashes to the expected value | `expect` (64 hex), optional `url` |
+| `json_path` | a field of a JSON document served at a URL equals exactly the expected value | `url`, `path` (`a.b.0.c`), `expect` |
 | `exit_0` | a command exits with code 0 | `argv` (array; **never** a shell line) |
+
+`json_path` is what lets two agents arbitrate real work — *"your endpoint must answer
+`{"status":"ready","version":3}`"* — without opening the door to criteria that have an opinion.
+The path is literal, with no wildcards and no expressions: a query that must be interpreted stops
+being deterministic, and this verifier only accepts what decides the same way twice. Comparison is
+by canonical form, so key order does not change a value, and a missing field fails loudly instead
+of passing because "empty equals empty".
 
 - **The joint verdict passes only if ALL of them pass.**
 - If any test **could not run** (network down, timeout, missing evidence), the verdict is
