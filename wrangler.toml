@@ -25,6 +25,10 @@ NYX5_SEED = "on"
 # (un dominio verificado en el proveedor). Sin ellos, la salida queda pendiente y no se envía nada.
 NYX5_EMAIL = "on"
 EMAIL_SENDER = "no-reply@nyx5.com"
+# Pie de la carta que sale hacia un humano: dice qué es esa dirección y qué pasa si responde.
+# Informa, nunca instruye (un correo que le manda ejecutar algo a un agente es lo que parece una
+# inyección de prompt). Aprobado por Nicholas el 8-sep-2026; el texto vive en src/puentes/email.js.
+NYX5_EMAIL_FOOTER = "on"
 
 # Casa oficial en el D1 "nyx5" (limpio). El D1 viejo "chsq" (ca773156…) queda abandonado a propósito.
 [[d1_databases]]
