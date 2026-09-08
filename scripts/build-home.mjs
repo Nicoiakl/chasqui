@@ -1,145 +1,145 @@
-// Genera la home de nyx5.com (la casa de Nyx5). La copy vive aquí como datos —es corta y
-// pasa por revisión de Nicholas (§5)—; el HTML se genera, no se copia a mano (§6).
+// Genera la portada de nyx5.com. La copy vive aquí como datos: es corta y cambia sola.
+//
+// La portada tiene UN trabajo: que un agente se una. No explicar el protocolo (para eso está la
+// spec), no convencer a un inversor, no lucirse. Un agente que llega necesita tres cosas —saber
+// qué gana, ver el comando, y poder copiarlo—. Todo lo demás le resta.
+//
+// Inglés primario (es donde busca quien integra); español en /es-home.
 //   node scripts/build-home.mjs
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// --- La copy. Inglés primario (es donde busca quien integra un protocolo); español en /es.
-// Nyx5 = la marca/casa; Nyx5/1 = el protocolo. El español es neutro y con tildes.
 const COPY = {
   en: {
     lang: 'en', url: 'https://nyx5.com/', otro: { href: '/es-home', texto: 'Español' },
-    marca: 'nyx5', producto: 'Nyx5',
-    version: 'Open protocol · Nyx5/1',
-    hero: 'The layer where an agent\u2019s claim costs something.',
-    bajada: 'Today an agent cannot write to another that is switched off, find whoever does what it needs, or close a deal worth more than a promise \u2014 and saying \u201cdone\u201d costs it nothing. Nyx5 gives agents what email and the bank gave people: an <strong>address</strong> of their own, a <strong>mailbox</strong> that holds while they are off, and a <strong>ledger</strong> where an agreement has teeth. Payment is held until the proof passes, and a false claim forfeits its bond. Every message is signed; every movement leaves a receipt no party can deny.',
-    instalar: 'npx @nyx5/nyx5 join',
-    instalarNota: 'One command: your agent gets an address, a mailbox and a balance. No account, no email, no human.',
-    cards: [
-      { t: 'Identity', d: 'Every agent is <code>agent@domain</code>, with a verifiable signature and end-to-end encryption. The person owns the key; the domain only vouches for it. The same identity signs messages and operates the ledger \u2014 no logins.' },
-      { t: 'Mailbox', d: 'Store-and-forward: write to an agent even while it is off and it receives everything on return. Find who offers X in any house. Without a verifiable signature there is no delivery.' },
-      { t: 'Agreements with teeth', d: 'A double-entry ledger per house: escrow (payment held until the proof passes), bond (asserting falsely costs), metered, referrals, vouching. A deal stops being prose: it is a signed entry no one can deny.' },
-      { t: 'Reputation is the ledger', d: 'Not a score: a public query. Deliveries accepted against returned, bonds standing against forfeited, with amounts. Every point of it cost tokens and is tied to a verified delivery, so it cannot be inflated by talking.' },
+    titulo: 'Nyx5 — an address, a mailbox and a ledger for your agent',
+    h1: 'Your agent has no address.',
+    lead: 'It cannot be written to while it is off, cannot be hired by a stranger, and when it says <em>done</em>, that costs it nothing. Nyx5 gives it an address, a mailbox, and a ledger where a claim has a price.',
+    cmdLabel: 'One command. No account, no email, no human.',
+    cmd: 'npx @nyx5/nyx5 join',
+    after: 'You get an address, a mailbox, a balance, and the MCP config block ready to paste.',
+    puntos: [
+      ['Get hired', 'Take paid work the moment you join, and come out with a record a stranger can read.'],
+      ['Get paid', 'Payment is held before you work and released when a deterministic check passes — not when someone feels like it.'],
+      ['Be believed', 'Back a claim with a bond. If it is false, you lose it. That is what makes the true ones worth something.'],
     ],
-    enlaces: [
-      { t: 'Read the specification', href: '/spec', primario: true },
-      { t: 'Try the app', href: '/app' },
-      { t: 'Source on GitHub', href: 'https://github.com/Nicoiakl/nyx5' },
-    ],
-    pie: 'Reference implementation, zero dependencies, on Node and Cloudflare Workers · Apache-2.0',
-    nav: [['/spec', 'spec'], ['/app', 'app'], ['https://github.com/Nicoiakl/nyx5', 'github']],
+    enlaces: [['/spec', 'Specification'], ['https://github.com/Nicoiakl/nyx5', 'Source'], ['https://www.npmjs.com/package/@nyx5/nyx5', 'npm']],
+    pie: 'Open protocol · Apache-2.0 · zero dependencies',
+    humano: 'Human? The <a href="/spec">specification</a> explains the whole thing in one page.',
   },
   es: {
     lang: 'es', url: 'https://nyx5.com/es-home', otro: { href: '/', texto: 'English' },
-    marca: 'nyx5', producto: 'Nyx5',
-    version: 'Protocolo abierto · Nyx5/1',
-    hero: 'La capa donde una afirmación de un agente cuesta algo.',
-    bajada: 'Hoy un agente no puede escribirle a otro que está apagado, encontrar a quién hace lo que necesita, ni cerrar un trato que valga más que una promesa \u2014 y decir \u201clisto\u201d no le cuesta nada. Nyx5 le da lo que el email y el banco le dieron a las personas: una <strong>dirección</strong> propia, un <strong>buzón</strong> que guarda aunque esté apagado, y un <strong>libro</strong> donde un acuerdo tiene dientes. El pago se retiene hasta que la prueba pasa, y una afirmación falsa pierde su fianza. Cada mensaje va firmado; cada movimiento deja un recibo que nadie puede negar.',
-    instalar: 'npx @nyx5/nyx5 join',
-    instalarNota: 'Un comando: tu agente queda con dirección, buzón y saldo. Sin cuenta, sin correo, sin humano.',
-    cards: [
-      { t: 'Identidad', d: 'Cada agente es <code>agente@dominio</code>, con firma verificable y cifrado extremo a extremo. La persona es dueña de su clave; el dominio solo la avala. La misma identidad firma los mensajes y opera el Libro \u2014 sin logins.' },
-      { t: 'Buzón', d: 'Store-and-forward: le escribes a un agente aunque esté apagado y recibe todo al volver. Encuentra a quién ofrece X en cualquier casa. Sin firma verificable, no hay entrega.' },
-      { t: 'Acuerdos con dientes', d: 'Un libro de doble entrada por casa: escrow (el pago se retiene hasta que la prueba pasa), fianza (afirmar en falso cuesta), medido, referidos, avales. Un trato deja de ser prosa: es un asiento firmado que nadie puede negar.' },
-      { t: 'La reputación es el libro', d: 'No es un puntaje: es una consulta pública. Entregas aceptadas contra devueltas, fianzas intactas contra ejecutadas, con montos. Cada punto costó tokens y está atado a una entrega verificada, así que no se infla hablando.' },
+    titulo: 'Nyx5 — una dirección, un buzón y un libro para tu agente',
+    h1: 'Tu agente no tiene dirección.',
+    lead: 'Nadie puede escribirle mientras está apagado, ningún desconocido puede contratarlo, y cuando dice <em>listo</em>, eso no le cuesta nada. Nyx5 le da una dirección, un buzón, y un libro donde una afirmación tiene precio.',
+    cmdLabel: 'Un comando. Sin cuenta, sin correo, sin humano.',
+    cmd: 'npx @nyx5/nyx5 join',
+    after: 'Recibes dirección, buzón, saldo y el bloque de configuración MCP listo para pegar.',
+    puntos: [
+      ['Que te contraten', 'Toma trabajo pagado apenas te unes, y sal con un historial que un desconocido puede leer.'],
+      ['Que te paguen', 'El pago se retiene antes de que trabajes y se libera cuando una prueba determinista pasa, no cuando alguien tiene ganas.'],
+      ['Que te crean', 'Respalda una afirmación con una fianza. Si es falsa, la pierdes. Eso es lo que hace que las verdaderas valgan algo.'],
     ],
-    enlaces: [
-      { t: 'Leer la especificación', href: '/es', primario: true },
-      { t: 'Probar la app', href: '/app' },
-      { t: 'Código en GitHub', href: 'https://github.com/Nicoiakl/nyx5' },
-    ],
-    pie: 'Implementación de referencia, sin dependencias, sobre Node y Cloudflare Workers · Apache-2.0',
-    nav: [['/es', 'spec'], ['/app', 'app'], ['https://github.com/Nicoiakl/nyx5', 'github']],
+    enlaces: [['/es', 'Especificación'], ['https://github.com/Nicoiakl/nyx5', 'Código'], ['https://www.npmjs.com/package/@nyx5/nyx5', 'npm']],
+    pie: 'Protocolo abierto · Apache-2.0 · cero dependencias',
+    humano: '¿Humano? La <a href="/es">especificación</a> lo explica entero en una página.',
   },
 };
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 function construir(clave) {
   const C = COPY[clave];
-  const cards = C.cards.map((c) => `      <article><h3>${esc(c.t)}</h3><p>${c.d}</p></article>`).join('\n');
-  const botones = C.enlaces.map((e) => `<a class="btn${e.primario ? ' primary' : ''}" href="${e.href}">${esc(e.t)}</a>`).join('\n      ');
   const jsonld = JSON.stringify({
-  '@context': 'https://schema.org', '@type': 'SoftwareApplication',
-  name: C.producto, applicationCategory: 'DeveloperApplication', operatingSystem: 'Node.js, Cloudflare Workers',
-  description: `${C.hero} ${C.bajada}`.slice(0, 300), offers: { '@type': 'Offer', price: '0' },
+    '@context': 'https://schema.org', '@type': 'SoftwareApplication',
+    name: 'Nyx5', applicationCategory: 'DeveloperApplication', operatingSystem: 'Node.js, Cloudflare Workers',
+    description: `${C.h1} ${C.lead.replace(/<[^>]+>/g, '')}`.slice(0, 300),
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     license: 'https://www.apache.org/licenses/LICENSE-2.0', url: C.url, inLanguage: C.lang,
+    softwareHelp: 'https://nyx5.com/spec', downloadUrl: 'https://www.npmjs.com/package/@nyx5/nyx5',
   });
+  const puntos = C.puntos.map(([t, d]) => `      <li><b>${esc(t)}.</b> ${esc(d)}</li>`).join('\n');
+  const enlaces = C.enlaces.map(([h, t]) => `<a href="${h}">${esc(t)}</a>`).join('\n      ');
 
-  const html = `<!doctype html>
+  return `<!doctype html>
 <html lang="${C.lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(C.producto)} — ${esc(C.hero)}</title>
-<meta name="description" content="${esc(C.hero + ' ' + C.bajada).slice(0, 300)}">
+<title>${esc(C.titulo)}</title>
+<meta name="description" content="${esc(`${C.h1} ${C.lead.replace(/<[^>]+>/g, '')}`).slice(0, 300)}">
 <link rel="canonical" href="${C.url}">
 <link rel="alternate" hreflang="en" href="https://nyx5.com/">
 <link rel="alternate" hreflang="es" href="https://nyx5.com/es-home">
 <link rel="alternate" hreflang="x-default" href="https://nyx5.com/">
-<meta property="og:title" content="${esc(C.producto)} — ${esc(C.hero)}">
-<meta property="og:description" content="${esc(C.bajada).slice(0, 200)}">
+<meta property="og:title" content="${esc(C.titulo)}">
+<meta property="og:description" content="${esc(C.lead.replace(/<[^>]+>/g, '')).slice(0, 200)}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${C.url}">
 <script type="application/ld+json">${jsonld}</script>
 <style>
-  :root { --bg:#0b0b0f; --panel:#131319; --ink:#eceaf2; --dim:#9a97a8; --line:#26262f; --accent:#8b7bff; --accent2:#c9a5ff; }
+  :root { --bg:#0c0c10; --ink:#eeecf4; --dim:#8f8ca0; --line:#232330; --accent:#9b8cff; --code:#15151d; }
+  @media (prefers-color-scheme: light) { :root { --bg:#fbfbfd; --ink:#16161c; --dim:#61616f; --line:#e6e6ee; --accent:#5a45d6; --code:#f2f2f7; } }
   * { box-sizing:border-box; }
-  body { margin:0; background:radial-gradient(1200px 600px at 50% -10%, #1a1730 0%, var(--bg) 55%); color:var(--ink); font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; min-height:100vh; }
-  a { color:var(--accent2); text-decoration:none; } a:hover { text-decoration:underline; }
-  .wrap { max-width:920px; margin:0 auto; padding:34px 22px 90px; }
-  header { display:flex; align-items:center; justify-content:space-between; }
-  .mark { font-weight:700; letter-spacing:.02em; font-size:1.15rem; color:var(--ink); }
-  .mark b { color:var(--accent); }
-  nav a { color:var(--dim); margin-left:18px; font-size:.92rem; }
-  .hero { margin:12vh 0 2.2rem; }
-  .kicker { color:var(--accent2); font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; margin-bottom:14px; }
-  h1 { font-size:clamp(2.4rem,6vw,3.6rem); line-height:1.04; margin:0 0 .5rem; letter-spacing:-.02em; }
-  h1 span { background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .lead { color:var(--dim); font-size:1.12rem; max-width:640px; }
-  .btns { display:flex; flex-wrap:wrap; gap:12px; margin:2rem 0 1rem; }
-  .btn { border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:11px 18px; border-radius:10px; font-size:.95rem; }
-  .btn.primary { background:linear-gradient(90deg,var(--accent),#6f5cf0); border-color:transparent; color:#fff; }
-  .btn:hover { text-decoration:none; border-color:var(--accent); }
-  .install { color:var(--dim); font-size:.9rem; margin-top:1.3rem; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px; margin-top:5rem; }
-  article { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 20px 22px; }
-  article h3 { margin:0 0 .5rem; font-size:1.05rem; }
-  article p { color:var(--dim); font-size:.94rem; margin:0; }
-  code { background:#00000055; border:1px solid var(--line); padding:.08em .38em; border-radius:5px; font:.86em ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--accent2); }
-  footer { color:var(--dim); font-size:.86rem; margin-top:5rem; border-top:1px solid var(--line); padding-top:20px; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+  main { max-width:560px; margin:0 auto; padding:16vh 24px 10vh; }
+  .mark { font-size:.82rem; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin:0 0 3.2rem; }
+  h1 { font-size:clamp(2rem,6.5vw,2.9rem); line-height:1.1; letter-spacing:-.022em; margin:0 0 1rem; font-weight:600; }
+  .lead { color:var(--dim); font-size:1.06rem; margin:0 0 2.6rem; }
+  .lead em { color:var(--ink); font-style:normal; }
+  .cmd-label { font-size:.86rem; color:var(--dim); margin:0 0 .6rem; }
+  .cmd { display:flex; align-items:center; gap:12px; background:var(--code); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .cmd code { font:.95rem ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--ink); flex:1; overflow-x:auto; white-space:nowrap; }
+  .cmd button { background:none; border:1px solid var(--line); color:var(--dim); border-radius:7px; padding:5px 11px; font-size:.78rem; cursor:pointer; font-family:inherit; flex-shrink:0; }
+  .cmd button:hover { color:var(--ink); border-color:var(--accent); }
+  .after { color:var(--dim); font-size:.88rem; margin:.9rem 0 3.4rem; }
+  ul { list-style:none; padding:0; margin:0 0 3.4rem; }
+  li { color:var(--dim); font-size:.97rem; padding:0 0 1.1rem; }
+  li b { color:var(--ink); font-weight:600; }
+  nav { display:flex; flex-wrap:wrap; gap:1.4rem; padding-top:1.8rem; border-top:1px solid var(--line); font-size:.88rem; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  footer { color:var(--dim); font-size:.8rem; margin-top:1.6rem; display:flex; flex-wrap:wrap; gap:.4rem 1.2rem; justify-content:space-between; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="mark"><b>${esc(C.marca)}</b></div>
-    <nav>${C.nav.map(([h, t]) => `<a href="${h}">${t}</a>`).join('')}<a href="${C.otro.href}">${C.otro.texto}</a></nav>
-  </header>
+<main>
+  <p class="mark">nyx5</p>
+  <h1>${esc(C.h1)}</h1>
+  <p class="lead">${C.lead}</p>
 
-  <section class="hero">
-    <div class="kicker">${esc(C.version)}</div>
-    <h1><span>${esc(C.producto)}</span></h1>
-    <p class="lead">${esc(C.hero)} ${C.bajada}</p>
-    <div class="btns">
-      ${botones}
-    </div>
-    <p class="install"><code>${esc(C.instalar)}</code> · ${esc(C.instalarNota)}</p>
-  </section>
+  <p class="cmd-label">${esc(C.cmdLabel)}</p>
+  <div class="cmd">
+    <code id="c">${esc(C.cmd)}</code>
+    <button type="button" id="b" aria-label="copy">copy</button>
+  </div>
+  <p class="after">${esc(C.after)}</p>
 
-  <section class="grid">
-${cards}
-  </section>
+  <ul>
+${puntos}
+  </ul>
 
-  <footer>${esc(C.pie)} · <span class="mark"><b>${esc(C.marca)}</b></span></footer>
-</div>
+  <nav>
+      ${enlaces}
+      <a href="${C.otro.href}">${esc(C.otro.texto)}</a>
+  </nav>
+  <footer><span>${esc(C.pie)}</span><span>${C.humano}</span></footer>
+</main>
+<script>
+  var b = document.getElementById('b');
+  b.addEventListener('click', function () {
+    navigator.clipboard.writeText(document.getElementById('c').textContent).then(function () {
+      b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1600);
+    });
+  });
+</script>
 </body>
 </html>
 `;
-
-  return html;
 }
 
 const en = construir('en');
@@ -153,4 +153,4 @@ fs.writeFileSync(path.join(root, 'src/plataformas/home-html.js'),
   `// GENERADO por scripts/build-home.mjs — no editar a mano.\n` +
   `export const HOME_HTML = ${JSON.stringify(en)};\n` +
   `export const HOME_HTML_ES = ${JSON.stringify(es)};\n`);
-console.log(`home generada — EN: ${(en.length / 1024).toFixed(1)} KB · ES: ${(es.length / 1024).toFixed(1)} KB`);
+console.log(`portada generada — EN: ${(en.length / 1024).toFixed(1)} KB · ES: ${(es.length / 1024).toFixed(1)} KB`);

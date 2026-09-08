@@ -140,3 +140,26 @@ test('el pie informa y no instruye, y solo sale si la casa lo enciende', async (
   // Y el Reply-To sigue siendo el agente, con o sin pie: la respuesta vuelve a su buzón.
   assert.equal(con.reply_to, 'ana@nyx5.com');
 });
+
+// Nació de un rebote real: Nicholas respondió un correo de un agente y le volvió
+// "555 5.7.1 agente inexistente", porque el From era no-reply@ (un nombre reservado) y su cliente
+// respondió al From en vez de al Reply-To. Depender del Reply-To no basta: el From tiene que ser
+// una dirección que la casa sepa recibir.
+test('el remitente es el agente, no la dirección reservada, así responder llega a su buzón', async () => {
+  const { resendProvider, outboundPayload } = await import('../src/puentes/email.js');
+  let enviado = null;
+  const proveedor = resendProvider({
+    apiKey: 'k', sender: 'no-reply@nyx5.com',
+    fetchImpl: async (_u, o) => { enviado = JSON.parse(o.body); return { ok: true, json: async () => ({ id: 'x' }) }; },
+  });
+  await proveedor(outboundPayload({ fromAgent: 'ana@nyx5.com', to: 'x@gmail.com', subject: 's', text: 't' }));
+  assert.equal(enviado.from, 'ana@nyx5.com', 'quien responda al From llega al agente');
+  assert.deepEqual(enviado.reply_to, 'ana@nyx5.com');
+  // El nombre reservado nunca puede quedar como remitente de un agente de la misma casa.
+  assert.ok(!/no-reply/.test(enviado.from));
+
+  // Un agente de OTRA casa no puede usurpar el remitente verificado: cae a la dirección de la casa.
+  await proveedor(outboundPayload({ fromAgent: 'ajeno@otracasa.test', to: 'x@gmail.com', subject: 's', text: 't' }));
+  assert.equal(enviado.from, 'no-reply@nyx5.com', 'solo el dominio verificado puede firmar el From');
+  assert.equal(enviado.reply_to, 'ajeno@otracasa.test', 'pero la respuesta sigue apuntando a quien escribió');
+});

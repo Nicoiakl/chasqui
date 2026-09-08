@@ -140,11 +140,17 @@ function decodeBody(b, cte = '') {
 // El envelope-from debe ser un dominio verificado en el proveedor; por eso se pasa `sender`.
 export function resendProvider({ apiKey, sender, fetchImpl = globalThis.fetch } = {}) {
   if (!apiKey || !sender) return null;
-  return async ({ reply_to, to, subject, text }) => {
+  const dominioDe = (d) => String(d || '').split('@')[1]?.toLowerCase() || '';
+  return async ({ from, reply_to, to, subject, text }) => {
+    // El remitente es EL AGENTE cuando su dominio es el mismo que el remitente verificado.
+    // Antes se forzaba siempre `sender` (no-reply@), y responder al correo iba a una dirección
+    // reservada que la casa rechaza con "agente inexistente": la respuesta del humano se perdía.
+    // Depender del Reply-To no basta — hay clientes que responden al From y ya.
+    const remitente = from && dominioDe(from) === dominioDe(sender) ? from : sender;
     const res = await fetchImpl('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: sender, reply_to, to, subject, text }),
+      body: JSON.stringify({ from: remitente, reply_to, to, subject, text }),
     });
     if (!res.ok) throw new Error(`proveedor de correo respondió ${res.status}: ${await res.text().catch(() => '')}`);
     return res.json().catch(() => ({}));

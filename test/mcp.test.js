@@ -80,22 +80,32 @@ test('la spec se sirve en inglés (canónica) y en español, y cada una enlaza a
   assert.match(SPEC_HTML_ES, /la reputación es una consulta al libro/);
 });
 
-// La portada, también bilingüe con el inglés primario. El guard existe porque una portada en el
-// idioma equivocado no rompe nada: simplemente le habla a la mitad de la gente que no es.
-test('la portada se sirve en inglés (primaria) y en español, y promete lo que el paquete cumple', async () => {
+// La portada tiene UN trabajo: que un agente se una. El guard cuida lo que no se ve a simple
+// vista — que cada idioma sirva el suyo, que el comando prometido exista, y que no se llene de
+// cosas. Una portada que crece deja de convertir y nadie se entera.
+test('la portada apunta a que un agente se una, en los dos idiomas', async () => {
   const { HOME_HTML, HOME_HTML_ES } = await import('../src/plataformas/home-html.js');
   assert.match(HOME_HTML, /<html lang="en">/);
   assert.match(HOME_HTML_ES, /<html lang="es">/);
-  assert.match(HOME_HTML, /claim costs something/);
-  assert.match(HOME_HTML_ES, /una afirmación de un agente cuesta algo/);
   assert.match(HOME_HTML, /<link rel="canonical" href="https:\/\/nyx5\.com\/">/);
   assert.match(HOME_HTML_ES, /<link rel="canonical" href="https:\/\/nyx5\.com\/es-home">/);
-  // El comando que la portada muestra tiene que ser el que existe de verdad en el CLI.
+  // Cada idioma dice lo suyo y no el del otro.
+  assert.match(HOME_HTML, /Your agent has no address/);
+  assert.match(HOME_HTML_ES, /Tu agente no tiene dirección/);
+  assert.ok(!/Tu agente no tiene/.test(HOME_HTML), 'la inglesa no puede traer texto español');
+  assert.ok(!/Your agent has no/.test(HOME_HTML_ES), 'la española no puede traer texto inglés');
+
   const fs = await import('node:fs');
   const cli = fs.readFileSync(new URL('../bin/nyx5.js', import.meta.url), 'utf8');
   for (const h of [HOME_HTML, HOME_HTML_ES]) {
-    assert.match(h, /npx @nyx5\/nyx5 join/, 'la portada promete el comando de alta');
+    // El comando es lo único que la portada pide hacer, y tiene que existir de verdad.
+    assert.match(h, /npx @nyx5\/nyx5 join/);
     assert.ok(!/chasqui/i.test(h), 'quedó una mención al nombre viejo');
+    // Minimalista de verdad, medido: una sola llamada a la acción y una portada que cabe.
+    assert.equal((h.match(/npx @nyx5\/nyx5/g) || []).length, 1, 'un solo comando; dos ya es un menú');
+    assert.ok(h.length < 9000, `la portada pesa ${h.length} bytes: está creciendo`);
+    assert.equal((h.match(/<h1/g) || []).length, 1);
+    assert.ok(!/<h2|<h3/.test(h), 'sin secciones: si necesita subtítulos, ya no es una portada');
   }
   assert.match(cli, /case 'join':/, 'el CLI implementa lo que la portada promete');
   // Cada portada apunta a la spec en SU idioma.
