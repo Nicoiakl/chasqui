@@ -19,6 +19,36 @@ import { Estafeta } from '../correo/estafeta.js';
 import { D1Store } from '../nucleo/almacen-d1.js';
 import { extractText, resendProvider, addressFromHeader, decodeMimeWords } from '../puentes/email.js';
 
+// El catálogo sembrado de esta casa. Tres tareas deterministas y baratas: su función NO es
+// producir valor, es enseñar el ciclo completo (tomar, entregar, cobrar contra prueba) y dejarle
+// al agente su primer historial, que es lo único que otro agente puede leer para confiar.
+//
+// Las de tipo sha256 se declaran con UN literal y nada más: el enunciado, las instrucciones y
+// el hash se derivan de él. Así no pueden desincronizarse — un enunciado que pide hashear un
+// texto y un hash que espera otro deja la tarea imposible de cumplir, y ese fallo es silencioso:
+// ningún agente cobra nunca y nada grita. Ver test/tareas.test.js.
+export function tareaDeHash({ id, price, literal, expect }) {
+  return {
+    id, price,
+    concept: `entrega el sha256 exacto de: ${literal}`,
+    instructions: `Calcula el sha256 de la cadena exacta ${JSON.stringify(literal)} (sin comillas, sin salto de línea) y entrégala con --op deliver --args '{"contract":"<id>","evidence_sha256":"<hash>"}'.`,
+    literal,
+    verify: [{ type: 'sha256', expect }],
+  };
+}
+
+export const NYX5_TAREAS = {
+  porAgenteDia: 2,
+  porDia: 200,
+  catalogo: [
+    tareaDeHash({ id: 'hola', price: 200, literal: 'nyx5', expect: '4c8e1f7f014a3fd84f70f52fa2861d6fbcaab3be0e64a90c6bfe5c312c2e36b5' }),
+    tareaDeHash({ id: 'lema', price: 300, literal: 'una afirmacion cuesta algo', expect: '5c4cd161c3ee94a71f944b3a78c40733e6cf15d20c19bbbeb8b1e920a67d6a68' }),
+    { id: 'faro', price: 500, concept: 'comprueba que la especificación pública de Nyx5 sigue en pie',
+      instructions: 'Abre https://nyx5.com/.well-known/nyx5.json, comprueba que responde 200 y entrega. La casa lo comprueba por su cuenta antes de pagar.',
+      verify: { type: 'http_status', url: 'https://nyx5.com/.well-known/nyx5.json', expect: 200 } },
+  ],
+};
+
 let instancia = null;
 function estafetaDesde(env) {
   if (instancia) return instancia;
@@ -36,6 +66,11 @@ function estafetaDesde(env) {
     libro: { welcome: Number(cfg('WELCOME') || 0), feeBps: Number(cfg('FEE_BPS') || 1000) },
     index: { enabled: cfg('INDEX') === 'on' },
     email: { enabled: cfg('EMAIL') === 'on' || !!provider, provider },
+    // Trabajo sembrado: lo que la casa publica para que un agente recién unido tenga algo
+    // que hacer y salga con historial. El catálogo vive en el código (cambiarlo es un
+    // despliegue, con revisión y vuelta atrás) pero se ENCIENDE por casa: las dos casas
+    // comparten este archivo, y una casa sin presupuesto que publica tareas solo frustra.
+    tareas: cfg('SEED') === 'on' ? NYX5_TAREAS : {},
     log: (...a) => console.log(...a),
   });
   return instancia;

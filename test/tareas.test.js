@@ -178,3 +178,63 @@ test('tareas@ es de sistema y solo acepta cotizaciones, no cualquier sobre', asy
   const usurpador = await fetch(`http://127.0.0.1:${P}/agents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ local: 'tareas', sig: 'x' }) });
   assert.equal(usurpador.status, 409);
 });
+
+// El catálogo que la casa real publica. Guard nacido de un fallo que sería SILENCIOSO: si
+// alguien edita el texto de una tarea y no su hash, la tarea queda imposible de cumplir, ningún
+// agente cobra nunca, y nada en el sistema grita. Aquí el hash se recalcula desde el literal.
+test('el catálogo sembrado de nyx5.com es válido y sus hashes corresponden a su enunciado', async () => {
+  const { NYX5_TAREAS } = await import('../src/plataformas/worker.js');
+  const { sha256hex } = await import('../src/nucleo/crypto.js');
+  const t = new Tareas(NYX5_TAREAS);
+  assert.ok(t.enabled && t.catalogo.length >= 3);
+
+  // Una sola fuente: cada tarea de hash declara su literal, y de ahí salen enunciado y hash.
+  // Si alguien cambia uno sin el otro, esto falla: no hay dónde desincronizarse en silencio.
+  const deHash = t.catalogo.filter((x) => x.verify[0].type === 'sha256');
+  assert.ok(deHash.length >= 2, 'se esperaban tareas de hash en el catálogo');
+  for (const tarea of deHash) {
+    assert.ok(tarea.literal, `la tarea ${tarea.id} no declara el literal a hashear`);
+    assert.equal(tarea.verify[0].expect, sha256hex(tarea.literal), `el hash de "${tarea.id}" no corresponde a ${JSON.stringify(tarea.literal)}: nadie podría cobrarla`);
+    assert.ok(tarea.concept.includes(tarea.literal), `el enunciado de "${tarea.id}" no dice qué texto hashear`);
+    assert.ok(tarea.instructions.includes(JSON.stringify(tarea.literal)), `las instrucciones de "${tarea.id}" no muestran el literal exacto`);
+  }
+
+  // Ninguna tarea sembrada puede pagar sin prueba, y ninguna prueba puede necesitar shell
+  // (la casa real corre en el edge, donde exit_0 no existe).
+  const { pruebasDisponibles } = await import('../src/libro/verifica.js');
+  for (const tarea of t.catalogo) {
+    assert.ok(tarea.verify.length, `${tarea.id} sin prueba`);
+    for (const v of tarea.verify) assert.ok(v.type !== 'exit_0', `${tarea.id} usa exit_0, que el edge no puede correr`);
+    if (tarea.verify[0].type === 'http_status') assert.match(tarea.verify[0].url, /^https:\/\//);
+  }
+  assert.ok(!pruebasDisponibles().includes('x'));
+});
+
+// Guard nacido de un defecto real en producción: las dos casas comparten worker.js, así que
+// la beta empezó a publicar el catálogo de la principal sin tener un peso para pagarlo. Un
+// mostrador con tareas que nadie puede cobrar es peor que ninguno: promete y no cumple.
+test('una casa solo publica trabajo si lo tiene encendido, y la beta no lo enciende', async () => {
+  const fs = await import('node:fs');
+  const principal = fs.readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
+  const beta = fs.readFileSync(new URL('../wrangler.beta.toml', import.meta.url), 'utf8');
+  const worker = fs.readFileSync(new URL('../src/plataformas/worker.js', import.meta.url), 'utf8');
+  assert.match(worker, /cfg\('SEED'\) === 'on' \? NYX5_TAREAS : \{\}/, 'el catálogo debe encenderse por casa, no venir siempre');
+  assert.match(principal, /NYX5_SEED = "on"/, 'la casa principal siembra trabajo');
+  assert.ok(!/NYX5_SEED/.test(beta), 'la beta NO debe sembrar: no tiene presupuesto para pagarlo');
+});
+
+test('una casa sin catálogo no expone el mostrador', async () => {
+  const P2 = 4182;
+  const seca = new Estafeta({
+    domain: 'seca.test', port: P2, dataDir: path.join(tmp, 'seca.test'), adminToken: 't',
+    hosts: { 'seca.test': { url: `http://127.0.0.1:${P2}` } }, workerIntervalMs: 100,
+    policy: { registration: 'open' }, log: () => {},
+  });
+  await seca.start();
+  try {
+    const res = await fetch(`http://127.0.0.1:${P2}/tareas`);
+    assert.equal(res.status, 404);
+    assert.match((await res.json()).reason, /no siembra trabajo/);
+    assert.equal(await seca.agentCard('tareas'), null, 'sin catálogo no se levanta tareas@');
+  } finally { await seca.stop(); }
+});

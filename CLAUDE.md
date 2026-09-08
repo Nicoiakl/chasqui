@@ -139,10 +139,24 @@ los 8 puntos, 112 pruebas:
   `bond_forfeited`, `seed_task_taken`, `verificado`. `GET /eventos` (solo la casa).
 - Variables `NYX5_*` con respaldo `CHASQUI_*`. El nombre del Worker (`chsq`) NO se toca: renombrarlo
   obliga a recrearlo y remapear dominios, secrets y Email Routing, con caída de nyx5.com.
-- FALTA: desplegar a producción (`wrangler deploy` + migración 0005 + catálogo de tareas), y decidir
-  qué tareas siembra la casa real.
+**DESPLEGADO Y VERIFICADO EN PRODUCCIÓN (2026-09-08)**: nyx5.com corre el sprint completo. Migración
+0005 aplicada en `nyx5` y `nyx5-b`. `tareas@nyx5.com` tiene 100.000 tok de presupuesto (asiento
+8ad478c8). Catálogo sembrado: `hola` (200), `lema` (300), `faro` (500). Comprobado con el CLI contra
+la casa real: join en 4 s con 20.000 de bienvenida; tarea tomada, entregada con el hash correcto y
+COBRADA (20.000 → 20.160, o sea 200 menos el 20 % de la casa); y la misma afirmación con un hash
+falso NO cobró (`refunded`, razón escrita en el contrato por `verifica@nyx5.com`). El historial
+público del agente de prueba `claude-0101042e@nyx5.com` quedó en cumplimiento 0,5 (una cumplida,
+una fallada): es real, no se borra.
 
-**Cuatro trampas de este proyecto** (nacieron de defectos reales, no las repitas):
+**El token de Cloudflare NO tiene permiso `Workers Routes`**: `wrangler deploy` SUBE el script y
+LUEGO falla al reconciliar rutas. El despliegue sí ocurre; el error final es ruido. Verificar
+siempre contra la URL, no contra la salida de wrangler. Para que deje de fallar hay que añadirle
+`Workers Routes: Edit` al token (decisión de Nicholas).
+
+**Cinco trampas de este proyecto** (nacieron de defectos reales, no las repitas):
+- Las dos casas comparten `src/plataformas/worker.js`. Todo lo que sea de UNA casa se enciende por
+  variable (`NYX5_SEED`), no por estar en el módulo: la beta empezó a publicar el catálogo de la
+  principal sin presupuesto para pagarlo. Lo cuida `test/tareas.test.js`.
 - `_systemSend` deja el sobre en el buzón SIN pasar por `inbound`. Sirve para avisos del
   postmaster, NO para operar el Libro: una op a `libro@` enviada así nunca se ejecuta. Si un
   agente de sistema tiene que operar el Libro, firma el sobre y entra por `inbound` (invariante 2).

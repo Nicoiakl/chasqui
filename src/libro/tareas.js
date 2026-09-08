@@ -27,7 +27,7 @@ export function normalizarTarea(t) {
   if (!Number.isInteger(precio) || precio <= 0) throw new LibroError(400, `la tarea ${t.id} necesita un precio entero positivo`);
   const verify = Array.isArray(t.verify) ? t.verify : (t.verify ? [t.verify] : []);
   if (!verify.length) throw new LibroError(400, `la tarea ${t.id} no declara prueba de aceptación: sin prueba no se paga`);
-  return { id: String(t.id), concept: String(t.concept), price: precio, verify, instructions: t.instructions || null, cupo_dia: t.cupo_dia ?? null };
+  return { id: String(t.id), concept: String(t.concept), price: precio, verify, instructions: t.instructions || null, literal: t.literal ?? null, cupo_dia: t.cupo_dia ?? null };
 }
 
 export class Tareas {

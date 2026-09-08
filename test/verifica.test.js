@@ -64,6 +64,20 @@ test('sha256: compara el hash del contenido entregado y no acepta un expect mal 
   assert.match(basura.razon, /sha256 en hexadecimal/);
 });
 
+test('sha256 sin url: compara el hash que el agente DECLARÓ al entregar', async () => {
+  const esperado = sha256hex('el resultado correcto');
+  const bien = await correrPrueba({ type: 'sha256', expect: esperado }, { entregadoSha256: esperado });
+  assert.equal(bien.pasa, true);
+  assert.equal(bien.evidencia.fuente, 'evidence_sha256');
+  const mal = await correrPrueba({ type: 'sha256', expect: esperado }, { entregadoSha256: sha256hex('otra cosa') });
+  assert.equal(mal.pasa, false);
+  assert.match(mal.razon, /no es el esperado/);
+  // Entregó sin declarar hash: no se puede verificar, así que NO se decide (ni cobra ni pierde).
+  const sinNada = await correrPrueba({ type: 'sha256', expect: esperado }, {});
+  assert.equal(sinNada.pasa, false);
+  assert.equal(sinNada.indeciso, true, 'sin evidencia no se castiga a nadie');
+});
+
 test('exit_0: corre un comando real, exige argv y no acepta una línea de shell', async () => {
   assert.ok(pruebasDisponibles().includes('exit_0'), 'en Node sí hay shell');
   const ok = await correrPrueba({ type: 'exit_0', argv: ['node', '-e', 'process.exit(0)'] });
@@ -202,4 +216,34 @@ test('sin árbitro verifica@ o sin prueba declarada, la casa no toca el escrow',
   await casa.tick();
   await casa.tick();
   assert.equal((await comprador._agente.contract('v.test', contrato.id)).state, 'delivered', 'la casa no decide donde no la llamaron');
+});
+
+test('el ciclo completo con sha256: se cobra por el hash correcto, no por afirmar', async () => {
+  const bueno = await join({ house: 'v.test', hosts, name: 'aplicado' });
+  const malo = await join({ house: 'v.test', hosts, name: 'flojo' });
+  const secreto = 'nyx5';
+  const esperado = sha256hex(secreto);
+
+  for (const [agente, entrega, resultado] of [[bueno, esperado, 'released'], [malo, sha256hex('cualquier cosa'), 'refunded']]) {
+    await agente._agente.quote({
+      to: agente.address === bueno.address ? malo.address : bueno.address,
+      contract: 'escrow', price: 60, concept: `hashea "${secreto}"`, arbiter: 'verifica@v.test',
+      terms: { acceptance: `sha256 de "${secreto}"`, verify: { type: 'sha256', expect: esperado } },
+    });
+  }
+  // El comprador de cada trato acepta.
+  for (const [vendedor, comprador] of [[bueno, malo], [malo, bueno]]) {
+    const s = await comprador._agente.waitFor((e) => e.from === vendedor.address && e.type === 'message', { timeoutMs: 5000 });
+    const q = (await comprador._agente.open(s.envelope)).content.body;
+    await comprador._agente.awaitReceipt((await comprador._agente.accept(q)).id);
+  }
+  const contratoDe = async (a) => (await a._agente.balance()).contracts.find((c) => c.kind === 'escrow' && c.amount === 60 && c.seller === a.address);
+  for (const [agente, hash] of [[bueno, esperado], [malo, sha256hex('cualquier cosa')]]) {
+    const c = await contratoDe(agente);
+    await agente._agente.awaitReceipt((await agente._agente.deliver('v.test', c.id, { evidence_sha256: hash })).id);
+  }
+  await casa.tick();
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal((await bueno._agente.contract('v.test', (await contratoDe(bueno)).id)).state, 'released');
+  assert.equal((await malo._agente.contract('v.test', (await contratoDe(malo)).id)).state, 'refunded');
 });

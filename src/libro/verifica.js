@@ -24,7 +24,7 @@ const recorta = (s, n = 300) => (typeof s === 'string' && s.length > n ? `${s.sl
  * Corre UNA prueba y devuelve un veredicto con su evidencia.
  * @returns {Promise<{pasa:boolean, prueba:string, razon:string, evidencia:object}>}
  */
-export async function correrPrueba(prueba, { fetchImpl = globalThis.fetch, timeoutMs = 10_000, entregado = null } = {}) {
+export async function correrPrueba(prueba, { fetchImpl = globalThis.fetch, timeoutMs = 10_000, entregado = null, entregadoSha256 = null } = {}) {
   const tipo = prueba?.type;
   if (!PRUEBAS.includes(tipo)) {
     return { pasa: false, prueba: tipo || '(sin tipo)', razon: `prueba desconocida: ${tipo}. Las que este verificador acepta: ${pruebasDisponibles().join(', ')}`, evidencia: {} };
@@ -43,6 +43,14 @@ export async function correrPrueba(prueba, { fetchImpl = globalThis.fetch, timeo
     if (tipo === 'sha256') {
       const esperado = String(prueba.expect || '').toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(esperado)) return { pasa: false, prueba: tipo, razon: 'expect debe ser un sha256 en hexadecimal (64 caracteres)', evidencia: {} };
+      // El agente pudo declarar el hash de su resultado al entregar (deliver.evidence_sha256).
+      // Ese es el caso normal cuando el trabajo no vive en una URL: se compara lo que DIJO
+      // contra lo que la tarea exige. Si además hay url, gana lo que se puede descargar.
+      if (!prueba.url && entregado == null && entregadoSha256) {
+        const visto = String(entregadoSha256).toLowerCase();
+        const pasa = visto === esperado;
+        return { pasa, prueba: tipo, razon: pasa ? `el hash entregado coincide (${visto.slice(0, 12)}…)` : `el hash entregado (${visto.slice(0, 12)}…) no es el esperado (${esperado.slice(0, 12)}…)`, evidencia: { sha256: visto, expect: esperado, fuente: 'evidence_sha256' } };
+      }
       let texto = entregado;
       if (prueba.url) {
         if (!/^https:\/\//.test(prueba.url)) return { pasa: false, prueba: tipo, razon: 'la URL a verificar debe ser https', evidencia: { url: prueba.url } };
@@ -50,7 +58,7 @@ export async function correrPrueba(prueba, { fetchImpl = globalThis.fetch, timeo
         if (!res.ok) return { pasa: false, prueba: tipo, razon: `${prueba.url} respondió ${res.status}: no hay qué hashear`, evidencia: { url: prueba.url, status: res.status } };
         texto = await res.text();
       }
-      if (texto == null) return { pasa: false, prueba: tipo, razon: 'no hay contenido que hashear: falta url en la prueba o evidencia en la entrega', evidencia: {} };
+      if (texto == null) return { pasa: false, prueba: tipo, razon: 'no hay contenido que hashear: la prueba necesita una url, o la entrega debe declarar evidence_sha256', evidencia: {}, indeciso: true };
       const visto = sha256hex(texto);
       const pasa = visto === esperado;
       return { pasa, prueba: tipo, razon: pasa ? `el hash coincide (${visto.slice(0, 12)}…)` : `el hash no coincide: se vio ${visto.slice(0, 12)}…, se esperaba ${esperado.slice(0, 12)}…`, evidencia: { sha256: visto, expect: esperado, url: prueba.url || null } };

@@ -18,6 +18,8 @@ NYX5_REGISTRATION = "open"
 NYX5_WELCOME = "20000"
 NYX5_FEE_BPS = "2000"
 NYX5_INDEX = "on"
+# Trabajo sembrado ENCENDIDO solo aquí: `tareas@` necesita presupuesto cargado para comprar.
+NYX5_SEED = "on"
 # Puente de correo (D3). La ENTRADA se activa enrutando nyx5.com a este Worker en Cloudflare
 # Email Routing (Email Workers). La SALIDA necesita secrets (write-only): RESEND_KEY y EMAIL_SENDER
 # (un dominio verificado en el proveedor). Sin ellos, la salida queda pendiente y no se envía nada.
