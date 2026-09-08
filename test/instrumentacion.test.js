@@ -73,7 +73,7 @@ test('mandate_created se emite con el tope real, y solo cuando el Libro lo confi
   // el tope se comprueba al cobrar. Lo que sí rechaza el Libro es sub-delegar más de lo propio.
   const sub = await bot._agente.mandate('i.test', { grantee: humano.address, cap: 900, parent: r.mandate.id });
   const rebote = await bot._agente.waitFor((x) => x.in_reply_to === sub.id && x.from.startsWith('postmaster@'), { timeoutMs: 5000 });
-  assert.match((await bot._agente.open(rebote.envelope)).content.body.reason, /supera lo disponible del padre/);
+  assert.match((await bot._agente.open(rebote.envelope)).content.body.reason, /exceeds what the parent has left/);
   assert.equal((await eventos('mandate_created')).length, antes + 1, 'lo rechazado no se cuenta');
 });
 

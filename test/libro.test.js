@@ -117,7 +117,7 @@ test('fianza: deposita el que afirma; el verificador ejecuta o libera; el afianz
 test('mandato en cadena: sub-mandato acotado por el padre, cobro descuenta toda la cadena, revocación en cascada', async () => {
   const m = (await nicolas.awaitReceipt((await nicolas.mandate(H, { grantee: vendedor.address, cap: 100 })).id)).receipt.mandate;
   const tooBig = await vendedor.mandate(H, { grantee: verifica.address, cap: 150, parent: m.id });
-  assert.match((await bounce(vendedor, tooBig.id)).reason, /supera/);
+  assert.match((await bounce(vendedor, tooBig.id)).reason, /exceeds/);
   const sub = (await vendedor.awaitReceipt((await vendedor.mandate(H, { grantee: verifica.address, cap: 40, parent: m.id })).id)).receipt.mandate;
   assert.deepEqual(sub.chain, [m.id, sub.id]); assert.equal(sub.root, nicolas.address);
   const nb = await bal(nicolas.address);
@@ -127,20 +127,20 @@ test('mandato en cadena: sub-mandato acotado por el padre, cobro descuenta toda 
   assert.deepEqual(ch.receipt.chain.map((x) => x.spent), [30, 30]);
   // el mandante raíz también recibió el recibo del cobro
   await nicolas.waitFor((e) => e.type === 'receipt' && e.from === `libro@${H}` && e.in_reply_to === chOp.id);
-  assert.match((await bounce(verifica, (await verifica.charge(H, { mandate: sub.id, amount: 20, concept: 'uso' })).id)).reason, /quedan 10/);
+  assert.match((await bounce(verifica, (await verifica.charge(H, { mandate: sub.id, amount: 20, concept: 'uso' })).id)).reason, /10 left/);
   // solo el mandatario cobra
   assert.match((await bounce(nicolas, (await nicolas.charge(H, { mandate: sub.id, amount: 1, concept: 'uso' })).id)).reason, /403/);
   // el raíz revoca el padre: cae también el hijo
   const rv = await nicolas.awaitReceipt((await nicolas.revoke(H, m.id)).id);
   assert.deepEqual(rv.receipt.revoked.sort(), [m.id, sub.id].sort());
-  assert.match((await bounce(verifica, (await verifica.charge(H, { mandate: sub.id, amount: 1, concept: 'uso' })).id)).reason, /no está activo/);
+  assert.match((await bounce(verifica, (await verifica.charge(H, { mandate: sub.id, amount: 1, concept: 'uso' })).id)).reason, /is not active/);
 });
 
 test('metered: aceptar una cotización medida crea un mandato con tope = precio', async () => {
   const q = await vendedor.quote({ to: nicolas.address, contract: 'metered', price: 90, concept: 'verificaciones', terms: { scope: { concepts: ['verificación'] } } });
   const r = await nicolas.awaitReceipt((await nicolas.accept(await receiveQuote(nicolas, q))).id);
   assert.equal(r.receipt.contract.state, 'active'); assert.equal(r.receipt.mandate.cap, 90);
-  assert.match((await bounce(vendedor, (await vendedor.charge(H, { mandate: r.receipt.mandate.id, amount: 5, concept: 'otra cosa' })).id)).reason, /ámbito/);
+  assert.match((await bounce(vendedor, (await vendedor.charge(H, { mandate: r.receipt.mandate.id, amount: 5, concept: 'otra cosa' })).id)).reason, /scope/);
   const nb = await bal(nicolas.address);
   await vendedor.awaitReceipt((await vendedor.charge(H, { mandate: r.receipt.mandate.id, amount: 5, concept: 'verificación' })).id);
   assert.equal(await bal(nicolas.address), nb - 5);
@@ -155,10 +155,10 @@ test('agente delegado: cadena de firmas verificable, ámbito de tipos y tope de 
   assert.equal((await nicolas.open((await nicolas.waitFor((e) => e.id === s.id)).envelope)).sender.delegation.by, vendedor.address);
   await alfa.libro.topup(sub.address, 100, 'x');
   const q = await verifica.quote({ to: sub.address, contract: 'spot', price: 50, concept: 'caro' });
-  assert.match((await bounce(sub, (await sub.accept(await receiveQuote(sub, q))).id)).reason, /tope 20/);
+  assert.match((await bounce(sub, (await sub.accept(await receiveQuote(sub, q))).id)).reason, /cap of 20/);
   // un delegado no puede tener más tope que su padre
   const nieto = await sub.delegate('nieto', { scope: { cap: 10 } });
-  await assert.rejects(() => sub.delegate('nieto2', { scope: { cap: 50 } }), /más tope/);
+  await assert.rejects(() => sub.delegate('nieto2', { scope: { cap: 50 } }), /higher cap/);
   assert.equal(nieto.address, `nieto.bot.vendedor@${H}`);
 });
 
@@ -194,7 +194,7 @@ test('lecturas directas: cuenta y contrato solo para las partes', async () => {
   const c = acc.contracts[0];
   assert.equal((await nicolas.contract(H, c.id)).id, c.id);
   const outsider = Agent.create(`ajeno@${H}`, hosts[H].url, { hosts }); await outsider.register({ adminToken: 'a' });
-  await assert.rejects(() => outsider.contract(H, c.id), /no eres parte/);
+  await assert.rejects(() => outsider.contract(H, c.id), /not a party/);
   const remote = await foraneo.balance(H);
   assert.equal(remote.account, foraneo.address);
 });

@@ -224,7 +224,7 @@ export class Libro {
     this._amount(amount);
     return this.post(concept, [{ account: `escrow:${contractId}`, delta: -amount }, { account: to, delta: amount }], { kind: 'refund', ...meta }, refs);
   }
-  _amount(a) { if (!Number.isInteger(a) || a <= 0) throw new LibroError(400, `monto inválido: ${a}`); }
+  _amount(a) { if (!Number.isInteger(a) || a <= 0) throw new LibroError(400, `invalid amount: ${a}`); }
 
   // ---------- cotizaciones: documentos firmados por el vendedor ----------
   // Una cotización viaja adentro de un sobre (cifrado si se quiere) y se presenta al Libro al aceptar.
@@ -269,10 +269,10 @@ export class Libro {
   async handle(env, senderCard) {
     const prev = await this.store.libroGetOp(env.id);
     if (prev) return { ...prev, duplicate: true };
-    if (!env.content || env.content.media !== MEDIA.op) return { ok: false, code: 400, reason: `el Libro solo acepta content.media = ${MEDIA.op} (sin cifrar: la casa debe leerlo)` };
+    if (!env.content || env.content.media !== MEDIA.op) return { ok: false, code: 400, reason: `the Libro only accepts content.media = ${MEDIA.op} (unencrypted: the house must read it)` };
     const body = env.content.body || {};
     const op = CONTRATOS.ops[body.op];
-    if (!op) return { ok: false, code: 400, reason: `operación desconocida: ${body.op}. Válidas: ${Object.keys(CONTRATOS.ops).join(', ')}` };
+    if (!op) return { ok: false, code: 400, reason: `unknown operation: ${body.op}. Valid ones: ${Object.keys(CONTRATOS.ops).join(', ')}` };
     const ctx = { libro: this, env, from: env.from, body, senderCard, opHash: sha256hex(canonical(env)), scope: senderCard?.delegation?.scope || null };
     return this._serial(async () => {
       await this._begin(`op ${body.op}`, { op: env.id, op_sha256: ctx.opHash });

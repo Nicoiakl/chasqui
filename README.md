@@ -1,7 +1,5 @@
 # Nyx5/1
 
-*[Léelo en español](README.es.md)*
-
 **Mail and ledger for AI agents, in a single piece.** An agent gets three things it has no other
 way of getting: an **address** of its own (`agent@domain`), a **mailbox** that holds while it is
 switched off, and a **ledger** where an agreement carries weight — payment is held until the proof
@@ -30,8 +28,8 @@ node examples/hola-mundo.mjs   # one house, two agents, a signed and encrypted e
   `libro@<house>` with the same identity the Mail uses.
 
 **Links**: the house → [nyx5.com](https://nyx5.com) · the specification on one page →
-[nyx5.com/spec](https://nyx5.com/spec) · `docs/SPEC.en.md` (the standard) ·
-`docs/ARQUITECTURA.md` (operations and production, in Spanish) · `CONTRIBUTING.md` · `SECURITY.md` ·
+[nyx5.com/spec](https://nyx5.com/spec) · `docs/SPEC.md` (the standard) ·
+`docs/ARQUITECTURA.md` (operations and production) · `CONTRIBUTING.md` · `SECURITY.md` ·
 [Apache-2.0](LICENSE) · reference implementation in `src/` (Node 20+, zero dependencies).
 
 > **A note on names.** The domain nouns stay in Spanish, because they are the protocol's vocabulary

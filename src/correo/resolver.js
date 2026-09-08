@@ -13,7 +13,7 @@ import { verifyObject } from '../nucleo/crypto.js';
 
 export function parseAddress(address) {
   const m = /^([a-z0-9][a-z0-9._-]{0,63})@([a-z0-9.-]+)$/i.exec(String(address || ''));
-  if (!m) throw new Error(`dirección inválida: ${address}`);
+  if (!m) throw new Error(`invalid address: ${address}`);
   return { local: m[1].toLowerCase(), domain: m[2].toLowerCase() };
 }
 
@@ -72,7 +72,7 @@ export class Resolver {
       // Cualquier OTRA falla de DNS (red, timeout, servfail) NO degrada el ancla en silencio:
       // un atacante que bloquee la respuesta DNS no puede empujarnos a well-known + TOFU.
       if (e.code !== 'ENOTFOUND' && e.code !== 'ENODATA') {
-        throw Object.assign(new Error(`DNS no disponible para ${domain}: ${e.message}`), { permanent: false });
+        throw Object.assign(new Error(`DNS unavailable for ${domain}: ${e.message}`), { permanent: false });
       }
     }
     return { source: 'well-known', url: `https://${domain}` };
@@ -90,14 +90,14 @@ export class Resolver {
 
     const loc = await this.locate(domain);
     const card = await this._get(`${loc.url.replace(/\/$/, '')}/.well-known/nyx5.json`);
-    if (card.nyx5 !== '1' || card.domain !== domain) throw Object.assign(new Error(`tarjeta de dominio inválida para ${domain}`), { permanent: true });
+    if (card.nyx5 !== '1' || card.domain !== domain) throw Object.assign(new Error(`invalid domain card for ${domain}`), { permanent: true });
     const keyIds = (card.keys || []).map((k) => k.sig);
     if (!keyIds.includes(card.signature?.kid) || !verifyObject(card, card.signature.kid)) {
-      throw Object.assign(new Error(`firma de dominio inválida para ${domain}`), { permanent: true });
+      throw Object.assign(new Error(`invalid domain signature for ${domain}`), { permanent: true });
     }
     // Ancla: DNS/override dice qué clave debe tener el dominio. Si no hay ancla, TOFU (pin en primer uso).
     const anchor = loc.sig || this.pins[domain];
-    if (anchor && !keyIds.includes(anchor)) throw Object.assign(new Error(`la clave del dominio ${domain} no coincide con la anclada`), { permanent: true });
+    if (anchor && !keyIds.includes(anchor)) throw Object.assign(new Error(`the key for domain ${domain} does not match the anchored one`), { permanent: true });
     if (!anchor) {
       this.pins[domain] = card.signature.kid;
       // Se persiste ESE pin, no el mapa entero: escribir el mapa desde la memoria de un proceso
@@ -135,19 +135,19 @@ export class Resolver {
   // La verificación de una tarjeta de agente, en un solo lugar: certificación del dominio,
   // vigencia y cadena de delegación. La usan el camino local y el remoto por igual.
   async _verifyAgentCard(card, dc, address, local, domain) {
-    if (card.nyx5 !== '1' || card.address !== `${local}@${domain}`) throw Object.assign(new Error(`tarjeta de agente inválida: ${address}`), { permanent: true });
+    if (card.nyx5 !== '1' || card.address !== `${local}@${domain}`) throw Object.assign(new Error(`invalid agent card: ${address}`), { permanent: true });
     const domainKeys = dc.keys.map((k) => k.sig);
     if (!domainKeys.includes(card.certification?.kid) || !verifyObject(card, card.certification.kid, 'certification')) {
-      throw Object.assign(new Error(`certificación inválida para ${address}`), { permanent: true });
+      throw Object.assign(new Error(`invalid certification for ${address}`), { permanent: true });
     }
     if (card.valid_until && Date.parse(card.valid_until) < Date.now()) throw Object.assign(new Error(`tarjeta vencida: ${address}`), { permanent: true });
     if (card.delegation) {
       // Cadena de delegación: el padre (ya certificado por el dominio) firmó esta tarjeta.
       const d = card.delegation;
       const { local: parentLocal, domain: parentDomain } = parseAddress(d.by);
-      if (parentDomain !== domain || !local.endsWith(`.${parentLocal}`) || d.address !== card.address || d.sig !== card.sig) throw Object.assign(new Error(`delegación inconsistente en ${address}`), { permanent: true });
+      if (parentDomain !== domain || !local.endsWith(`.${parentLocal}`) || d.address !== card.address || d.sig !== card.sig) throw Object.assign(new Error(`inconsistent delegation on ${address}`), { permanent: true });
       const parent = await this.agentCard(d.by);
-      if (!Resolver.acceptedKids(parent).includes(d.signature?.kid) || !verifyObject(d, d.signature.kid)) throw Object.assign(new Error(`delegación no firmada por ${d.by}`), { permanent: true });
+      if (!Resolver.acceptedKids(parent).includes(d.signature?.kid) || !verifyObject(d, d.signature.kid)) throw Object.assign(new Error(`delegation not signed by ${d.by}`), { permanent: true });
       card = { ...card, delegation: { ...d, _parent: parent } };
     }
     return { ...card, _estafeta: dc._estafeta, _domain: dc };

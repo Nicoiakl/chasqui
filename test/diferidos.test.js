@@ -76,7 +76,7 @@ test('V1 · un sobre que vence esperando en la cola REBOTA al remitente, no desa
       from_local: 'a', attempts: 1, next_attempt: pasado, created: pasado, status: 'queued', log: [] });
     await e.tick();
     const bounce = await a.waitFor((x) => x.type === 'receipt' && x.from === `postmaster@${dom}`, { timeoutMs: 4000, everyMs: 120 });
-    assert.match((await a.open(bounce.envelope)).content.body.reason, /venció|cola/, 'el rebote dice que venció en la cola');
+    assert.match((await a.open(bounce.envelope)).content.body.reason, /expired|queue/, 'el rebote dice que venció en la cola');
     // y el job no quedó dando vueltas
     assert.equal((await e.store.claimDueJobs(new Date().toISOString(), 10)).length, 0, 'la cola quedó vacía');
   } finally { await e.stop(); }
@@ -126,6 +126,6 @@ test('V1 · un escrow con deadline programa un aviso automático a ambas partes 
     const avisoV = await plazoDe(vendedor);
     assert.ok(avisoC, 'el comprador recibe el aviso de plazo');
     assert.ok(avisoV, 'el vendedor recibe el aviso de plazo');
-    assert.match(avisoC.mensaje, /plazo del contrato/);
+    assert.match(avisoC.message, /deadline for contract/);
   } finally { await e.stop(); }
 });

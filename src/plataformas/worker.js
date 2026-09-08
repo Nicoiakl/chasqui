@@ -84,7 +84,7 @@ export default {
     if (request.method === 'POST' || request.method === 'PUT') {
       const len = Number(request.headers.get('content-length') || 0);
       if (len > 2 * 1024 * 1024) return Response.json({ reason: 'cuerpo demasiado grande' }, { status: 413 });
-      try { body = await request.json(); } catch { return Response.json({ reason: 'JSON inválido' }, { status: 400 }); }
+      try { body = await request.json(); } catch { return Response.json({ reason: 'invalid JSON' }, { status: 400 }); }
     }
     const rx = {
       method: request.method,

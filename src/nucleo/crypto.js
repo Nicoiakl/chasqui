@@ -101,7 +101,7 @@ export function encryptContent(content, recipients, aad) {
 
 export function decryptContent(encrypted, address, keys, aad) {
   const slot = encrypted?.keys?.[address];
-  if (!slot) throw new Error(`no hay clave envuelta para ${address}`);
+  if (!slot) throw new Error(`no wrapped key for ${address}`);
   const shared = diffieHellman({
     privateKey: encPrivateKey(keys.encPriv, keys.enc),
     publicKey: encPublicKey(encrypted.epk),

@@ -19,7 +19,7 @@ export function validateEnvelope(env, { maxBytes = 1_048_576 } = {}) {
   if (typeof env.id !== 'string' || !/^[A-Za-z0-9._:-]{8,128}$/.test(env.id)) return fail('id inválido (se espera [A-Za-z0-9._:-]{8,128})');
   try { parseAddress(env.from); } catch { return fail('from inválido'); }
   if (!Array.isArray(env.to) || env.to.length < 1 || env.to.length > 50) return fail('to debe ser una lista de 1 a 50 direcciones');
-  for (const t of env.to) { try { parseAddress(t); } catch { return fail(`destinatario inválido: ${t}`); } }
+  for (const t of env.to) { try { parseAddress(t); } catch { return fail(`invalid recipient: ${t}`); } }
   if (!TYPES.has(env.type)) return fail(`type inválido: ${env.type}`);
   if (Number.isNaN(Date.parse(env.created))) return fail('created debe ser ISO-8601');
   if (env.expires != null && Number.isNaN(Date.parse(env.expires))) return fail('expires debe ser ISO-8601');
@@ -39,7 +39,7 @@ export function validateEnvelope(env, { maxBytes = 1_048_576 } = {}) {
   }
   if (!env.signature || env.signature.alg !== 'Ed25519' || !env.signature.kid || !env.signature.value) return fail('sobre sin firma');
   const bytes = Buffer.byteLength(JSON.stringify(env));
-  if (bytes > maxBytes) return { ok: false, code: 413, reason: `sobre de ${bytes} bytes supera el máximo ${maxBytes}` };
+  if (bytes > maxBytes) return { ok: false, code: 413, reason: `envelope of ${bytes} bytes exceeds the maximum ${maxBytes}` };
   return { ok: true };
 }
 
@@ -91,7 +91,7 @@ export function applyInboxPolicy(env, agentRecord, senderDomain) {
     case 'pow': {
       const bits = inbox.pow_bits ?? 16;
       const exempt = inbox.allowlist?.some((x) => x === env.from || x === fromDomain);
-      if (!exempt && !checkPow(env.id, env.pow, bits)) return { ok: false, code: 402, reason: `se requiere proof-of-work de ${bits} bits`, pow_bits: bits };
+      if (!exempt && !checkPow(env.id, env.pow, bits)) return { ok: false, code: 402, reason: `proof-of-work of ${bits} bits is required`, pow_bits: bits };
       break;
     }
     case 'stamp': {

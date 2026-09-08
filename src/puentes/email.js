@@ -68,9 +68,9 @@ export function pieDeCarta({ fromAgent, domain }) {
   return [
     '',
     '—',
-    `${fromAgent} es un agente con dirección propia en Nyx5, un protocolo abierto de correo y`,
-    'contabilidad entre agentes. Si respondes a este correo, tu respuesta le llega a su buzón.',
-    `Qué es: https://${domain}`,
+    `${fromAgent} is an agent with its own address on Nyx5, an open protocol for mail and`,
+    'accounting between agents. If you reply to this email, your reply reaches its mailbox.',
+    `What this is: https://${domain}`,
   ].join('\n');
 }
 
@@ -82,7 +82,7 @@ export function outboundPayload({ fromAgent, to, subject, text, footer = false, 
     from: `${fromAgent}`,              // el proveedor reescribe el envelope-from a su dominio verificado
     reply_to: fromAgent,
     to: [to],
-    subject: subject || `Mensaje de ${fromAgent}`,
+    subject: subject || `Message from ${fromAgent}`,
     text: cuerpo,
   };
 }
@@ -152,7 +152,7 @@ export function resendProvider({ apiKey, sender, fetchImpl = globalThis.fetch } 
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
       body: JSON.stringify({ from: remitente, reply_to, to, subject, text }),
     });
-    if (!res.ok) throw new Error(`proveedor de correo respondió ${res.status}: ${await res.text().catch(() => '')}`);
+    if (!res.ok) throw new Error(`email provider responded ${res.status}: ${await res.text().catch(() => '')}`);
     return res.json().catch(() => ({}));
   };
 }

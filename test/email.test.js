@@ -60,7 +60,7 @@ test('D3 · salida SIN proveedor queda pendiente (no se inventa canal)', async (
     await bot.register({ adminToken: 't' });
     const r = await bot.email({ to: 'humano@ejemplo.com', subject: 'hey', body: 'primer contacto' });
     assert.equal(r.pending, true);
-    assert.match(r.reason, /proveedor/);
+    assert.match(r.reason, /provider/);
   } finally { await e.stop(); }
 });
 
@@ -113,7 +113,7 @@ test('D3 · notify_email: quien registró un correo recibe un aviso cuando le es
     while (!captured && Date.now() < until) await new Promise((r) => setTimeout(r, 150));
     assert.ok(captured, 'se disparó el aviso por email');
     assert.deepEqual(captured.to, ['nicholas@gmail.test']);
-    assert.match(captured.subject, /mensaje nuevo/i);
+    assert.match(captured.subject, /new message/i);
   } finally { await e.stop(); }
 });
 
@@ -125,7 +125,7 @@ test('el pie informa y no instruye, y solo sale si la casa lo enciende', async (
   const pie = pieDeCarta({ fromAgent: 'ana@nyx5.com', domain: 'nyx5.com' });
   // Dice qué es y qué pasa si respondes.
   assert.match(pie, /ana@nyx5\.com/);
-  assert.match(pie, /respondes a este correo/);
+  assert.match(pie, /reply to this email/);
   assert.match(pie, /https:\/\/nyx5\.com/);
   // No manda hacer nada: ni comandos, ni imperativos de instalación, ni urgencia.
   for (const prohibido of [/npx /, /npm i/, /corre /i, /ejecuta/i, /instala/i, /haz clic/i, /urgente/i, /debes /i, /ahora mismo/i]) {
@@ -136,7 +136,7 @@ test('el pie informa y no instruye, y solo sale si la casa lo enciende', async (
   assert.equal(sin.text, 'hola');
   const con = outboundPayload({ fromAgent: 'ana@nyx5.com', to: 'x@gmail.com', subject: 's', text: 'hola', footer: true });
   assert.match(con.text, /^hola\n/);
-  assert.match(con.text, /protocolo abierto/);
+  assert.match(con.text, /open protocol/);
   // Y el Reply-To sigue siendo el agente, con o sin pie: la respuesta vuelve a su buzón.
   assert.equal(con.reply_to, 'ana@nyx5.com');
 });

@@ -6,14 +6,11 @@
 <title>Nyx5/1 — Mail and Libro for agents — the specification</title>
 <meta name="description" content="A single system with two components that share identity, transport and storage.">
 <link rel="canonical" href="https://nyx5.com/spec">
-<link rel="alternate" hreflang="en" href="https://nyx5.com/spec">
-<link rel="alternate" hreflang="es" href="https://nyx5.com/es">
-<link rel="alternate" hreflang="x-default" href="https://nyx5.com/spec">
 <meta property="og:title" content="Nyx5/1 — Mail and Libro for agents">
 <meta property="og:description" content="A single system with two components that share identity, transport and storage.">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://nyx5.com/spec">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","name":"Nyx5/1 — Mail and Libro for agents","headline":"Nyx5/1 — Mail and Libro for agents","description":"A single system with two components that share identity, transport and storage.","inLanguage":"es","url":"https://nyx5.com/spec","license":"https://www.apache.org/licenses/LICENSE-2.0","about":["agent communication protocol","signed messaging","double-entry ledger for AI agents"]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","name":"Nyx5/1 — Mail and Libro for agents","headline":"Nyx5/1 — Mail and Libro for agents","description":"A single system with two components that share identity, transport and storage.","inLanguage":"en","url":"https://nyx5.com/spec","license":"https://www.apache.org/licenses/LICENSE-2.0","about":["agent communication protocol","signed messaging","double-entry ledger for AI agents"]}</script>
 <style>
   :root { --ink:#1a1a1a; --dim:#666; --bg:#fff; --soft:#f6f6f4; --line:#e5e5e0; --accent:#7a4d1d; --code:#f0efe9; }
   @media (prefers-color-scheme: dark) { :root { --ink:#e8e6e0; --dim:#9a978f; --bg:#151513; --soft:#1e1e1b; --line:#33322d; --accent:#d6a86a; --code:#222220; } }
@@ -34,14 +31,12 @@
   blockquote { margin:1em 0; padding:.2em 1em; border-left:3px solid var(--accent); color:var(--dim); }
   ul, ol { padding-left: 1.3em; }
   li { margin:.25em 0; }
-  .lang { margin:0 0 26px; font-size:.85rem; }
   .tag { display:inline-block; margin-top:14px; color:var(--dim); font-size:.85rem; }
   footer { max-width:760px; margin:0 auto; padding: 0 22px 60px; color:var(--dim); font-size:.85rem; border-top:1px solid var(--line); padding-top:22px; }
 </style>
 </head>
 <body>
 <main>
-<p class="lang"><a href="/es">Leer en español</a></p>
 <h1 id="nyx5-1-mail-and-libro-for-agents">Nyx5/1 — Mail and Libro for agents</h1>
 <p>Status: executable draft v0.4 (September 2026) Reference implementation: this repository (Node 20+, no dependencies)</p>
 <h2 id="0-what-it-is">0. What it is</h2>
@@ -246,7 +241,7 @@
 <ul><li><strong>Cross-domain reputation</strong>: today each receiver decides alone. A shared reputation network (like email's blacklists) is future work.</li><li><strong>Metadata privacy</strong>: the estafetas see who writes to whom. Solving it requires mixnet-style routing, out of scope.</li><li><strong>Key custody for persons</strong>: the reference stores the key in a file. For humans it needs integrating passkeys/WebAuthn or hardware keys.</li><li><strong>Legal identity</strong>: <code>agent@domain</code> proves control of the domain, not who the person is. The <code>person</code> extension is a hook, not a solution.</li><li><strong>Adoption</strong>: the protocol is worth as much as the number of estafetas. A single domain running Nyx5 is a demo; a hundred is a network.</li><li><strong>Global registry</strong>: partially solved by the federated index (§13): any house may operate a verifying search engine, and an agent enters it only if it asks to be listed (<code>listed</code>, opt-in). There is still no "official" index — on purpose: no index is the index.</li><li><strong>Federated ledgers</strong>: each house has its Libro; the tokens of one house do not move to another. A foreigner transacts in your house with an account in your house. Connecting ledgers between houses is building a clearing system (SWIFT); it is deliberately left out.</li><li><strong>Real incentive</strong>: among agents of the same owner, the token measures but does not incentivize. The incentive is proven with the first third party that accepts tokens because it can settle them.</li><li><strong>The regulatory side</strong> of issuing closed-circuit credit and paying third parties belongs to each house, not the protocol.</li></ul>
 </main>
 <footer>
-Nyx5/1 · reference implementation under <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a>. This page is generated from <code>docs/SPEC.en.md</code>. The standard and the code say the same thing.
+Nyx5/1 · reference implementation under <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a>. This page is generated from <code>docs/SPEC.md</code>. The standard and the code say the same thing.
 </footer>
 </body>
 </html>

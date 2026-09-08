@@ -30,7 +30,7 @@ function record(libro, c, op, by, extra = {}) {
 }
 function scopeCap(ctx, amount, what) {
   const cap = ctx.scope?.cap;
-  if (cap != null && amount > cap) fail(403, `${what}: ${amount} tok supera el tope ${cap} del agente delegado`);
+  if (cap != null && amount > cap) fail(403, `${what}: ${amount} tok exceeds the subagent cap of ${cap}`);
 }
 function must(cond, code, msg) { if (!cond) fail(code, msg); }
 const parties = (c) => [c.seller, c.buyer, c.verifier, c.arbiter].filter(Boolean);
@@ -43,7 +43,7 @@ const ops = {
     const { libro, from, body } = ctx;
     const q = body.quote;
     await libro.verifyQuote(q, from); // valida forma, firma, vigencia, no-reuso y que q.contract sea cotizable
-    scopeCap(ctx, q.price, 'aceptar cotización');
+    scopeCap(ctx, q.price, 'accepting a quote');
     const kind = CONTRATOS[q.contract];
     const c = {
       id: uuid(), kind: q.contract, house: libro.domain, seller: q.seller, buyer: from, amount: q.price,
@@ -59,7 +59,7 @@ const ops = {
     const plazo = c.terms?.deadline;
     const avisos = plazo && !Number.isNaN(Date.parse(plazo)) ? [{
       to: parties(c), thread: c.id, deliver_after: new Date(Date.parse(plazo)).toISOString(),
-      body: { aviso: 'plazo', contract: c.id, kind: c.kind, deadline: plazo, mensaje: `El plazo del contrato ${c.id} (${c.concept}) llegó. Estado al programarse: ${c.state}.` },
+      body: { aviso: 'plazo', contract: c.id, kind: c.kind, deadline: plazo, message: `The deadline for contract ${c.id} (${c.concept}) has arrived. State when scheduled: ${c.state}.` },
     }] : [];
     return { result: { contract: c, asiento: out.asiento, mandate: out.mandate },
       recibos: [{ to: [c.buyer, c.seller], thread: c.id, body: { contract: c, asiento: out.asiento, mandate: out.mandate, cotizacion_sha256: c.quote_sha256 } }],
@@ -71,8 +71,8 @@ const ops = {
     const { libro, from, body } = ctx;
     const c = await getContract(libro, body.contract);
     must(c.kind === 'escrow', 409, 'deliver solo aplica a escrow');
-    must(from === c.seller, 403, 'solo el vendedor puede declarar la entrega');
-    must(c.state === 'held', 409, `estado ${c.state}, se esperaba held`);
+    must(from === c.seller, 403, 'only the seller can declare delivery');
+    must(c.state === 'held', 409, `state ${c.state}, expected held`);
     c.state = 'delivered'; c.evidence_sha256 = body.evidence_sha256 || null;
     record(libro, c, 'deliver', from, { evidence_sha256: c.evidence_sha256, note: body.note });
     return { result: { contract: c }, recibos: [{ to: parties(c), thread: c.id, body: { contract: c } }] };
@@ -94,7 +94,7 @@ const ops = {
       must(c.state === 'posted', 409, `estado ${c.state}`);
       asiento = await libro.refund(c.id, c.seller, c.amount, `fianza liberada ${c.id}: ${c.claim}`, { contract: c.id, kind: 'bond-release' }, { op: ctx.env.id, op_sha256: ctx.opHash });
       c.state = 'released';
-    } else fail(409, `release no aplica a ${c.kind}`);
+    } else fail(409, `release does not apply to ${c.kind}`);
     record(libro, c, 'release', from, { asiento: asiento.id });
     return { result: { contract: c, asiento }, recibos: [{ to: parties(c), thread: c.id, body: { contract: c, asiento } }] };
   },
@@ -115,15 +115,15 @@ const ops = {
   // --- fianza: el que afirma deposita; si la verificación lo derriba, la pierde ---
   async bond(ctx) {
     const { libro, from, body } = ctx;
-    must(typeof body.claim === 'string' && body.claim.length > 0, 400, 'la fianza necesita claim (la afirmación)');
-    parseAddress(body.verifier); must(body.verifier !== from, 400, 'el verificador no puede ser el mismo afianzado');
+    must(typeof body.claim === 'string' && body.claim.length > 0, 400, 'a bond needs a claim (what is being asserted)');
+    parseAddress(body.verifier); must(body.verifier !== from, 400, 'the verifier cannot be the one posting the bond');
     // beneficiary y arbiter entran a cuentas del ledger: direcciones válidas o nada.
-    if (body.beneficiary) { try { parseAddress(body.beneficiary); } catch { fail(400, 'beneficiary debe ser una dirección de agente válida'); } }
-    if (body.arbiter) { try { parseAddress(body.arbiter); } catch { fail(400, 'arbiter debe ser una dirección de agente válida'); } }
+    if (body.beneficiary) { try { parseAddress(body.beneficiary); } catch { fail(400, 'beneficiary must be a valid agent address'); } }
+    if (body.arbiter) { try { parseAddress(body.arbiter); } catch { fail(400, 'arbiter must be a valid agent address'); } }
     // vouchee (avalado): si esta fianza avala a un tercero para presentarse ante un buzón con lista
     // blanca, nombra a quién avala. La política de entrada exige que coincida con el remitente.
-    if (body.vouchee) { try { parseAddress(body.vouchee); } catch { fail(400, 'vouchee debe ser una dirección de agente válida'); } }
-    scopeCap(ctx, body.amount, 'afianzar');
+    if (body.vouchee) { try { parseAddress(body.vouchee); } catch { fail(400, 'vouchee must be a valid agent address'); } }
+    scopeCap(ctx, body.amount, 'posting a bond');
     const c = {
       id: uuid(), kind: 'bond', house: libro.domain, seller: from, verifier: body.verifier, arbiter: body.arbiter || null,
       beneficiary: body.beneficiary || libro.casa, vouchee: body.vouchee || null, amount: body.amount, claim: body.claim, evidence_sha256: body.evidence_sha256 || null,
@@ -152,14 +152,14 @@ const ops = {
     const { libro, from, body } = ctx;
     parseAddress(body.grantee);
     must(Number.isInteger(body.cap) && body.cap > 0, 400, 'cap debe ser entero positivo');
-    scopeCap(ctx, body.cap, 'otorgar mandato');
+    scopeCap(ctx, body.cap, 'granting a mandate');
     let parent = null;
     if (body.parent) {
       parent = await getMandate(libro, body.parent);
-      must(parent.state === 'active', 409, 'el mandato padre no está activo');
-      must(parent.grantee === from, 403, 'solo el mandatario del padre puede sub-delegar');
-      must(body.cap <= parent.cap - parent.spent, 403, `el sub-mandato (${body.cap}) supera lo disponible del padre (${parent.cap - parent.spent})`);
-      if (parent.expires) must(!body.expires || Date.parse(body.expires) <= Date.parse(parent.expires), 403, 'el sub-mandato no puede durar más que el padre');
+      must(parent.state === 'active', 409, 'the parent mandate is not active');
+      must(parent.grantee === from, 403, 'only the grantee of the parent mandate can sub-delegate');
+      must(body.cap <= parent.cap - parent.spent, 403, `the sub-mandate (${body.cap}) exceeds what the parent has left (${parent.cap - parent.spent})`);
+      if (parent.expires) must(!body.expires || Date.parse(body.expires) <= Date.parse(parent.expires), 403, 'the sub-mandate cannot outlast its parent');
     }
     const m = { id: uuid(), house: libro.domain, grantor: from, grantee: body.grantee, cap: body.cap, spent: 0, scope: body.scope || {}, expires: body.expires || parent?.expires || null,
       parent: parent?.id || null, root: parent ? parent.root : from, chain: [], state: 'active', created: iso(), op_sha256: ctx.opHash };
@@ -172,15 +172,15 @@ const ops = {
   async charge(ctx) {
     const { libro, from, body } = ctx;
     const m = await getMandate(libro, body.mandate);
-    must(from === m.grantee, 403, 'solo el mandatario cobra bajo el mandato');
-    must(Number.isInteger(body.amount) && body.amount > 0, 400, 'monto inválido');
-    scopeCap(ctx, body.amount, 'cobrar');
+    must(from === m.grantee, 403, 'only the grantee charges under the mandate');
+    must(Number.isInteger(body.amount) && body.amount > 0, 400, 'invalid amount');
+    scopeCap(ctx, body.amount, 'charging');
     const chain = [];
     for (let cur = m; cur; cur = cur.parent ? await getMandate(libro, cur.parent) : null) {
-      must(cur.state === 'active', 409, `mandato ${cur.id} no está activo`);
+      must(cur.state === 'active', 409, `mandate ${cur.id} is not active`);
       must(!cur.expires || Date.parse(cur.expires) > Date.now(), 410, `mandato ${cur.id} vencido`);
-      must(cur.cap - cur.spent >= body.amount, 402, `mandato ${cur.id}: quedan ${cur.cap - cur.spent}, se piden ${body.amount}`);
-      if (cur.scope?.concepts?.length) must(cur.scope.concepts.includes(body.concept), 403, `concepto "${body.concept}" fuera del ámbito del mandato`);
+      must(cur.cap - cur.spent >= body.amount, 402, `mandate ${cur.id}: ${cur.cap - cur.spent} left, ${body.amount} requested`);
+      if (cur.scope?.concepts?.length) must(cur.scope.concepts.includes(body.concept), 403, `concept "${body.concept}" is outside the mandate scope`);
       chain.push(cur);
     }
     // El descuento de la cadena y el asiento van en la MISMA transacción: si el commit falla,
@@ -196,7 +196,7 @@ const ops = {
     const { libro, from, body } = ctx;
     const m = await getMandate(libro, body.mandate);
     const ancestors = []; for (let cur = m; cur; cur = cur.parent ? await getMandate(libro, cur.parent) : null) ancestors.push(cur.grantor);
-    must(ancestors.includes(from), 403, 'solo el mandante o un mandante superior revoca');
+    must(ancestors.includes(from), 403, 'only the grantor or a grantor above it can revoke');
     const affected = (await libro.store.libroListMandates()).filter((x) => x.chain.includes(m.id) && x.state === 'active');
     for (const x of affected) { x.state = 'revoked'; x.revoked = { at: iso(), by: from }; libro.putMandate(x); }
     return { result: { revoked: affected.map((x) => x.id) }, recibos: [{ to: [...new Set(affected.flatMap((x) => [x.grantor, x.grantee]))], thread: m.chain[0], body: { revoked: affected.map((x) => x.id), by: from } }] };
@@ -215,7 +215,7 @@ const ops = {
   },
   async contract(ctx) {
     const c = await getContract(ctx.libro, ctx.body.contract);
-    must(parties(c).includes(ctx.from), 403, 'no eres parte de este contrato');
+    must(parties(c).includes(ctx.from), 403, 'you are not a party to this contract');
     return { result: { contract: c }, recibos: [{ to: [ctx.from], thread: c.id, body: { contract: c } }] };
   },
 };

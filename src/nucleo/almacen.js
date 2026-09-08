@@ -174,7 +174,7 @@ export class FileStore {
     if (bundle.base) {
       const actual = this.libroState();
       if (actual.seq !== bundle.base.seq) {
-        const e = new Error(`conflicto de concurrencia en el ledger: el estado cambió (seq ${bundle.base.seq} -> ${actual.seq})`);
+        const e = new Error(`ledger concurrency conflict: state moved (seq ${bundle.base.seq} -> ${actual.seq})`);
         e.code = 421; e.transient = true;
         throw e;
       }

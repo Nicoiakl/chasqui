@@ -30,7 +30,7 @@ test('la tarjeta del dominio publica el modo de registro', async () => {
 
 test('casa cerrada: sin token de la casa no hay alta, ni con cuerpo firmado', async () => {
   const a = Agent.create('intruso@cerrada.test', hosts['cerrada.test'].url, { hosts });
-  await assert.rejects(() => a.register(), /no acepta auto-registro/);
+  await assert.rejects(() => a.register(), /does not accept self-registration/);
   const b = Agent.create('legit@cerrada.test', hosts['cerrada.test'].url, { hosts });
   assert.equal((await b.register({ adminToken: 't' })).address, 'legit@cerrada.test');
 });
@@ -48,16 +48,16 @@ test('casa abierta: alta con prueba de posesión; sin firma o con firma ajena se
   assert.equal((await post(P3, signObject({ local: 'otro', sig: k1.sig, ts: '2020-01-01T00:00:00Z' }, k1))).status, 401);
   // reservado
   const c = Agent.create('admin@abierta.test', hosts['abierta.test'].url, { hosts });
-  await assert.rejects(() => c.register(), /reservado/);
+  await assert.rejects(() => c.register(), /reserved/);
   const d = Agent.create('casa@abierta.test', hosts['abierta.test'].url, { hosts });
-  await assert.rejects(() => d.register(), /reservado/);
+  await assert.rejects(() => d.register(), /reserved/);
 });
 
 test('un nombre tomado no se puede pisar desde afuera; su dueño sí lo actualiza y rota claves', async () => {
   const a = Agent.create('dueno@abierta.test', hosts['abierta.test'].url, { hosts });
   await a.register();
   const usurpador = Agent.create('dueno@abierta.test', hosts['abierta.test'].url, { hosts });
-  await assert.rejects(() => usurpador.register(), /ya está tomado/);
+  await assert.rejects(() => usurpador.register(), /name is taken/);
   const oldSig = a.keys.sig;
   await a.rotateKeys();
   const card = await usurpador.resolver.agentCard('dueno@abierta.test');
@@ -68,8 +68,8 @@ test('un nombre tomado no se puede pisar desde afuera; su dueño sí lo actualiz
 
 test('casa por invitación: código de la casa, con usos y vencimiento; regalo de bienvenida configurable por invitación', async () => {
   const sin = Agent.create('sin@invitada.test', hosts['invitada.test'].url, { hosts });
-  await assert.rejects(() => sin.register(), /invitación inexistente/);
-  await assert.rejects(() => sin.register({ invite: 'nope' }), /invitación inexistente/);
+  await assert.rejects(() => sin.register(), /no such invitation/);
+  await assert.rejects(() => sin.register({ invite: 'nope' }), /no such invitation/);
   const inv = await invitada.createInvite({ uses: 2, note: 'para el equipo', welcome: 500 });
   const a = Agent.create('uno@invitada.test', hosts['invitada.test'].url, { hosts });
   assert.equal((await a.register({ invite: inv.code })).registered_via, `invite:${inv.code}`);
@@ -77,9 +77,9 @@ test('casa por invitación: código de la casa, con usos y vencimiento; regalo d
   const b = Agent.create('dos@invitada.test', hosts['invitada.test'].url, { hosts });
   await b.register({ invite: inv.code });
   const c = Agent.create('tres@invitada.test', hosts['invitada.test'].url, { hosts });
-  await assert.rejects(() => c.register({ invite: inv.code }), /agotada/);
+  await assert.rejects(() => c.register({ invite: inv.code }), /used up/);
   const vencida = await invitada.createInvite({ expires: new Date(Date.now() - 1000).toISOString() });
-  await assert.rejects(() => c.register({ invite: vencida.code }), /vencida/);
+  await assert.rejects(() => c.register({ invite: vencida.code }), /expired/);
   const normal = await invitada.createInvite({});
   await c.register({ invite: normal.code });
   assert.equal(await invitada.libro.balance('tres@invitada.test'), 50, 'sin welcome en la invitación aplica el de la casa');

@@ -127,7 +127,7 @@ test('la resolución local NO exime de verificar: una delegación falsa de la pr
   const falsa = signObject({ by: 'padre@casa.test', address: 'bot.padre@casa.test', sig: hijo.sig, scope: { cap: 999 }, valid_until: null, issued: new Date().toISOString() }, impostor);
   await assert.rejects(
     () => e.registerAgent({ local: 'bot.padre', sig: hijo.sig, enc: hijo.enc, delegation: falsa }),
-    /delegación inválida/);
+    /invalid delegation/);
   // y la buena sí resuelve local, con su padre verificado
   const buena = signObject({ by: 'padre@casa.test', address: 'bot.padre@casa.test', sig: hijo.sig, scope: { cap: 50 }, valid_until: null, issued: new Date().toISOString() }, padre);
   await e.registerAgent({ local: 'bot.padre', sig: hijo.sig, enc: hijo.enc, delegation: buena });

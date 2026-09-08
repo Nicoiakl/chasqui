@@ -89,20 +89,20 @@ export class Agent {
     // Tarjetas de los destinatarios: para cifrar (clave enc) y para saber si exigen proof-of-work.
     const cards = await Promise.all(recipients.map((r) => this.resolver.agentCard(r).catch((e) => ({ address: r, _error: e.message }))));
     const missing = cards.filter((c) => c._error);
-    if (missing.length) throw new Error(`no se pudo resolver: ${missing.map((c) => `${c.address} (${c._error})`).join(', ')}`);
+    if (missing.length) throw new Error(`could not resolve: ${missing.map((c) => `${c.address} (${c._error})`).join(', ')}`);
 
     let env;
     if (encrypt && cards.every((c) => c.enc)) {
       env = { ...base, encrypted: encryptContent(content, cards.map((c) => ({ address: c.address, enc: c.enc })), aad(base)) };
     } else {
-      if (encrypt === 'required') throw new Error('algún destinatario no publica clave de cifrado');
+      if (encrypt === 'required') throw new Error('a recipient does not publish an encryption key');
       env = { ...base, content };
     }
     const powBits = Math.max(0, ...cards.map((c) => (c.inbox?.policy === 'pow' ? c.inbox.pow_bits ?? 16 : 0)));
     if (powBits) env.pow = mintPow(id, powBits);
     const stamped = cards.find((c) => c.inbox?.policy === 'stamp');
     if (stamped) {
-      if (recipients.length > 1) throw new Error('un sobre con estampilla lleva un solo destinatario');
+      if (recipients.length > 1) throw new Error('a stamped envelope carries a single recipient');
       env.stamp = { house: stamped.inbox.house || parseAddress(stamped.address).domain, amount: stamped.inbox.price ?? 1 };
     }
 
@@ -221,9 +221,9 @@ export class Agent {
     }
     const card = await this.resolver.agentCardForKid(envelope.from, envelope.signature?.kid);
     const verified = Resolver.acceptedKids(card).includes(envelope.signature?.kid) && verifyObject(envelope, envelope.signature.kid);
-    if (!verified) throw new Error(`firma inválida en sobre ${envelope.id} de ${envelope.from}`);
+    if (!verified) throw new Error(`invalid signature on envelope ${envelope.id} from ${envelope.from}`);
     if (envelope.expires && Date.parse(envelope.expires) < Date.now()) throw new Error(`sobre vencido: ${envelope.id}`);
-    if (!envelope.encrypted && !envelope.to.includes(this.address)) throw new Error(`sobre ${envelope.id} no dirigido a ${this.address}`);
+    if (!envelope.encrypted && !envelope.to.includes(this.address)) throw new Error(`envelope ${envelope.id} is not addressed to ${this.address}`);
     const content = envelope.encrypted ? decryptContent(envelope.encrypted, this.address, this.keys, aad(envelope)) : envelope.content;
     return { id: envelope.id, from: envelope.from, to: envelope.to, type: envelope.type, thread: envelope.thread, in_reply_to: envelope.in_reply_to, created: envelope.created, encrypted: !!envelope.encrypted, sender: card, content };
   }

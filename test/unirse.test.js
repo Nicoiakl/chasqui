@@ -40,7 +40,7 @@ test('join: un agente entra en un paso, sin humano y sin cuenta', async () => {
   assert.equal(buzon.length, 1, 'el sobre de bienvenida llegó al buzón');
   const abierto = await r._agente.open(buzon[0].envelope);
   assert.equal(abierto.from, r.address);
-  assert.match(abierto.content.body, /Esta es tu dirección/);
+  assert.match(abierto.content.body, /This is your address/);
 });
 
 test('join: no aparece en el directorio salvo que lo pida (opt-in)', async () => {
@@ -56,8 +56,8 @@ test('join: el nombre pedido falla ruidoso si está tomado; el sugerido reintent
   await join({ house: 'casa.test', hosts, name: 'unico' });
   await assert.rejects(() => join({ house: 'casa.test', hosts, name: 'unico' }), (e) => e.status === 409);
   // Un nombre reservado por el protocolo se rechaza antes de salir a la red.
-  await assert.rejects(() => join({ house: 'casa.test', hosts, name: 'libro' }), /reservado/);
-  await assert.rejects(() => join({ house: 'casa.test', hosts, name: 'MAYUS' }), /inválido/);
+  await assert.rejects(() => join({ house: 'casa.test', hosts, name: 'libro' }), /reserved/);
+  await assert.rejects(() => join({ house: 'casa.test', hosts, name: 'MAYUS' }), /invalid/);
 });
 
 test('el bloque MCP que emite join es el que un cliente puede pegar', () => {
@@ -87,14 +87,14 @@ test('mandate: el agente contrata dentro del tope y la casa rechaza fuera', asyn
   const rebote = await bot._agente.waitFor((e) => e.in_reply_to === exceso.id && e.from.startsWith('postmaster@'), { timeoutMs: 5000 });
   const cuerpo = (await bot._agente.open(rebote.envelope)).content.body;
   assert.equal(cuerpo.status, 'failed');
-  assert.match(cuerpo.reason, /quedan 180, se piden 500/);
+  assert.match(cuerpo.reason, /180 left, 500 requested/);
   assert.equal((await humano._agente.balance()).balance, antes - 120, 'el intento fuera de tope no movió nada');
 });
 
 test('mandate: un tope no entero o no positivo se rechaza antes de salir', async () => {
   const a = await join({ house: 'casa.test', hosts, name: 'validador' });
-  await assert.rejects(() => mandate(a._agente, { grantee: 'x@casa.test', cap: 0 }), /tope entero y positivo/);
-  await assert.rejects(() => mandate(a._agente, { grantee: 'x@casa.test', cap: 1.5 }), /tope entero y positivo/);
+  await assert.rejects(() => mandate(a._agente, { grantee: 'x@casa.test', cap: 0 }), /whole positive cap/);
+  await assert.rejects(() => mandate(a._agente, { grantee: 'x@casa.test', cap: 1.5 }), /whole positive cap/);
   await assert.rejects(() => mandate(a._agente, { cap: 10 }), /--grantee/);
 });
 

@@ -55,14 +55,14 @@ const { values: o } = parseArgs({ args: rest, allowPositionals: true, options: {
   args: { type: 'string' }, index: { type: 'string' }, arbiter: { type: 'string' }, receipt: { type: 'string' }, limit: { type: 'string' },
 } });
 
-const need = (k) => { if (!o[k]) { console.error(`falta --${k}`); process.exit(2); } return o[k]; };
+const need = (k) => { if (!o[k]) { console.error(`missing --${k}`); process.exit(2); } return o[k]; };
 const loadHosts = () => {
   const file = o.hosts || (process.env.NYX5_HOSTS || process.env.CHASQUI_HOSTS) || (fs.existsSync('hosts.local.json') ? 'hosts.local.json' : null);
-  if (!file && ['send', 'inbox', 'card', 'directory'].includes(cmd)) console.error('aviso: sin hosts.local.json en este cwd; la resolución irá por DNS/well-known');
+  if (!file && ['send', 'inbox', 'card', 'directory'].includes(cmd)) console.error('note: no hosts.local.json in this directory; resolution will go through DNS/well-known');
   return file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
 };
 const loadAgent = () => Agent.load(need('agent'), { hosts: loadHosts() });
-const warnHosts = (h) => { if (!Object.keys(h).length && !(process.env.NYX5_HOSTS || process.env.CHASQUI_HOSTS)) console.error('aviso: sin hosts.local.json en este directorio; la resolución irá por DNS/well-known'); return h; };
+const warnHosts = (h) => { if (!Object.keys(h).length && !(process.env.NYX5_HOSTS || process.env.CHASQUI_HOSTS)) console.error('note: no hosts.local.json in this directory; resolution will go through DNS/well-known'); return h; };
 const print = (v) => console.log(JSON.stringify(v, null, 2));
 // Raíz del nombre sugerido. Es una pista para que la dirección sea legible, no una
 // afirmación sobre quién corre: nadie la verifica y nada depende de ella.
@@ -97,25 +97,26 @@ try {
       const mcpBloque = bloqueMcp({ address: r.address, keyfile: salida });
       const resumen = {
         nyx5: '1', address: r.address, house: casa, keyfile: salida,
-        balance: r.balance?.balance ?? null, historial: r.historial?.resumen ?? null,
+        balance: r.balance?.balance ?? null, record: r.historial?.resumen ?? null,
         mcp: mcpBloque, mailbox: r.first?.id ? 1 : 0,
-        siguiente: {
-          leer_buzon: `npx @nyx5/nyx5 inbox --agent ${salida}`,
-          mi_historial: `npx @nyx5/nyx5 historial --agent ${salida}`,
-          recibir_presupuesto: `pídele a tu humano: npx @nyx5/nyx5 mandate --agent <su-llave> --grantee ${r.address} --cap 20000`,
+        next: {
+          read_mailbox: `npx @nyx5/nyx5 inbox --agent ${salida}`,
+          my_record: `npx @nyx5/nyx5 historial --agent ${salida}`,
+          find_paid_work: `npx @nyx5/nyx5 tareas --house ${casa}`,
+          get_a_budget: `ask your principal to run: npx @nyx5/nyx5 mandate --agent <their-key> --grantee ${r.address} --cap 20000`,
         },
       };
       if (o.json) { print(resumen); break; }
-      console.log(`Listo. Tu dirección es ${r.address}`);
-      console.log(`Llave privada: ${salida}  (guárdala como una contraseña; es tu identidad, no una cuenta)`);
-      console.log(`Saldo de bienvenida: ${r.balance?.balance ?? 0} tokens`);
-      console.log(`Buzón: ${r.first?.id ? '1 mensaje (tu sobre de bienvenida)' : 'vacío'}`);
+      console.log(`Done. Your address is ${r.address}`);
+      console.log(`Private key: ${salida}  (keep it like a password; it is your identity, not an account)`);
+      console.log(`Welcome balance: ${r.balance?.balance ?? 0} tokens`);
+      console.log(`Mailbox: ${r.first?.id ? '1 message (your welcome envelope)' : 'empty'}`);
       console.log('');
-      console.log('Para usarlo desde Claude Desktop, Claude Code o Cursor, agrega esto a la configuración MCP:');
+      console.log('To use it from Claude Desktop, Claude Code or Cursor, add this to your MCP config:');
       console.log(JSON.stringify(mcpBloque.mcpServers ? { mcpServers: mcpBloque.mcpServers } : mcpBloque, null, 2));
       console.log('');
-      console.log('Siguientes pasos:');
-      for (const [k, v] of Object.entries(resumen.siguiente)) console.log(`  ${k.replace(/_/g, ' ')}: ${v}`);
+      console.log('Next:');
+      for (const [k, v] of Object.entries(resumen.next)) console.log(`  ${k.replace(/_/g, ' ')}: ${v}`);
       console.log('');
       console.log(JSON.stringify(resumen));
       break;
@@ -129,9 +130,9 @@ try {
       const j = await res.json();
       if (!res.ok) throw new Error(j.reason || `HTTP ${res.status}`);
       if (o.json) { print(j); break; }
-      console.log(`Trabajo sembrado en ${casa} (mostrador ${j.mostrador}, árbitro ${j.arbitro}):`);
-      for (const t of j.tareas) console.log(`  ${t.id}  ${t.price} tok  ${t.concept}\n      se comprueba con: ${t.verify.map((v) => v.type).join(', ')}`);
-      console.log(`\nPara tomar una: npx @nyx5/nyx5 tomar --agent <tu-llave> --id <tarea>`);
+      console.log(`Seeded work at ${casa} (desk ${j.mostrador}, arbiter ${j.arbitro}):`);
+      for (const t of j.tareas) console.log(`  ${t.id}  ${t.price} tok  ${t.concept}\n      checked with: ${t.verify.map((v) => v.type).join(', ')}`);
+      console.log(`\nTo take one: npx @nyx5/nyx5 tomar --agent <your-key> --id <task>`);
       break;
     }
     case 'tomar': {
@@ -139,14 +140,14 @@ try {
       const dc = await a.resolver.domainCard(o.house || a.domain);
       const j = await (await fetch(`${dc._estafeta}/tareas`)).json();
       const t = (j.tareas || []).find((x) => x.id === need('id'));
-      if (!t) throw new Error(`no hay una tarea con id ${o.id}. Disponibles: ${(j.tareas || []).map((x) => x.id).join(', ') || '(ninguna)'}`);
+      if (!t) throw new Error(`no task with id ${o.id}. Available: ${(j.tareas || []).map((x) => x.id).join(', ') || '(none)'}`);
       // Se copian los términos publicados TAL CUAL: la casa compara contra su catálogo y
       // rechaza cualquier diferencia, así que aquí no hay nada que ajustar.
       const enviada = await a.quote({ to: j.mostrador, contract: 'escrow', price: t.price, concept: t.concept, arbiter: j.arbitro, terms: t.terms });
-      console.log(`Cotización enviada por "${t.concept}" (${t.price} tok).`);
-      console.log('Si hay cupo, la casa retiene los tokens y te llega el contrato al buzón.');
-      console.log(`  ver buzón:  npx @nyx5/nyx5 inbox --agent ${o.agent}`);
-      console.log(`  al terminar: npx @nyx5/nyx5 libro --agent ${o.agent} --op deliver --args '{"contract":"<id>"}'`);
+      console.log(`Quote sent for "${t.concept}" (${t.price} tok).`);
+      console.log('If there is quota left, the house holds the tokens and the contract lands in your mailbox.');
+      console.log(`  read mailbox: npx @nyx5/nyx5 inbox --agent ${o.agent}`);
+      console.log(`  when done:    npx @nyx5/nyx5 libro --agent ${o.agent} --op deliver --args '{"contract":"<id>"}'`);
       if (o.json) print(enviada);
       break;
     }
@@ -159,11 +160,11 @@ try {
       });
       if (o.json || !r.mandate) { print(r); break; }
       const m = r.mandate;
-      console.log(`Mandato ${m.id} creado.`);
-      console.log(`  ${m.grantee} puede gastar hasta ${m.cap} tokens de la cuenta de ${m.grantor}.`);
-      if (m.expires) console.log(`  Vence: ${m.expires}`);
-      if (Object.keys(m.scope || {}).length) console.log(`  Ámbito: ${JSON.stringify(m.scope)}`);
-      console.log(`  Revocar en cualquier momento: npx @nyx5/nyx5 libro --agent <tu-llave> --op revoke --args '{"mandate":"${m.id}"}'`);
+      console.log(`Mandate ${m.id} created.`);
+      console.log(`  ${m.grantee} may spend up to ${m.cap} tokens from ${m.grantor}'s account.`);
+      if (m.expires) console.log(`  Expires: ${m.expires}`);
+      if (Object.keys(m.scope || {}).length) console.log(`  Scope: ${JSON.stringify(m.scope)}`);
+      console.log(`  Revoke at any time: npx @nyx5/nyx5 libro --agent <your-key> --op revoke --args '{"mandate":"${m.id}"}'`);
       break;
     }
     // ----- Reputación = una consulta al libro (pública) -----
@@ -197,8 +198,8 @@ try {
       const out = o.out || `./keys/${a.local}.json`;
       fs.mkdirSync(path.dirname(out), { recursive: true });
       fs.writeFileSync(out, JSON.stringify({ address: a.address, estafeta: a.estafeta, keys: a.keys }, null, 2), { mode: 0o600 });
-      console.log(`claves de ${a.address} guardadas en ${out} (guárdalo como una contraseña)`);
-      console.log(`clave pública de firma: ${a.keys.sig}`);
+      console.log(`keys for ${a.address} saved to ${out} (keep it like a password)`);
+      console.log(`public signing key: ${a.keys.sig}`);
       break;
     }
     case 'register': {
@@ -231,7 +232,7 @@ try {
       const base = idx.startsWith('http') ? idx.replace(/\/$/, '') : (await r.domainCard(idx))._estafeta;
       const params = new URLSearchParams(Object.entries({ q: o.q, capability: o.capability, accepts: o.accepts, house: o.house, limit: o.limit }).filter(([, v]) => v));
       const d = await (await fetch(`${base}/index/agents?${params}`)).json();
-      console.log(`${d.total} agente(s) en el índice ${d.index || idx}`);
+      console.log(`${d.total} agent(s) in index ${d.index || idx}`);
       for (const a of d.agents || []) console.log(`  ${a.address.padEnd(40)} casa=${a._house || '-'}  ${Object.keys(a.capabilities || {}).filter((k) => k !== 'accepts').join(',') || '-'}`);
       break;
     }
@@ -251,7 +252,7 @@ try {
     case 'inbox': {
       const a = await loadAgent();
       const msgs = await a.inbox({ limit: Number(o.limit || 50) });
-      if (!msgs.length) { console.log('buzón vacío'); break; }
+      if (!msgs.length) { console.log('mailbox empty'); break; }
       const abiertos = [];
       for (const m of msgs) {
         try { const op = await a.open(m.envelope); const { sender, ...rest } = op; abiertos.push(m.envelope.id); print({ ...rest, received: m.received, relay_verified: m.relay_verified }); }
@@ -293,7 +294,7 @@ try {
       const out = o.out || `./keys/${sub.local}.json`;
       fs.mkdirSync(path.dirname(out), { recursive: true });
       fs.writeFileSync(out, JSON.stringify({ address: sub.address, estafeta: sub.estafeta, keys: sub.keys }, null, 2), { mode: 0o600 });
-      console.log(`agente delegado ${sub.address} creado; claves en ${out}`); break;
+      console.log(`subagent ${sub.address} created; keys in ${out}`); break;
     }
     default:
       console.log(fs.readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 33).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));

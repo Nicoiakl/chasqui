@@ -7,7 +7,7 @@ export function readJson(req, limit = 2 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
     req.on('data', (c) => { size += c.length; if (size > limit) { reject(Object.assign(new Error('cuerpo demasiado grande'), { status: 413 })); req.destroy(); } else chunks.push(c); });
-    req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}); } catch { reject(Object.assign(new Error('JSON inválido'), { status: 400 })); } });
+    req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}); } catch { reject(Object.assign(new Error('invalid JSON'), { status: 400 })); } });
     req.on('error', reject);
   });
 }

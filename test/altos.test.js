@@ -67,7 +67,7 @@ for (const modo of ['FileStore', 'D1']) {
       assert.equal((await e.store.getInvite(inv.code)).used, 1, 'y el contador no pasa de uses');
       // y por la puerta real: el alta con el código agotado ya no entra
       const tarde = Agent.create(`tarde@${dom}`, url, { hosts: { [dom]: { url } } });
-      await assert.rejects(() => tarde.register({ invite: inv.code }), /agotada/);
+      await assert.rejects(() => tarde.register({ invite: inv.code }), /used up/);
       const emitido = 0 - (await e.libro.balance(`casa@${dom}`));
       assert.equal(emitido, 0, `nadie se registró: la casa no debió emitir nada (emitió ${emitido})`);
     } finally { await e.stop(); }
@@ -110,7 +110,7 @@ test('ALTO · un sub-delegado sin tope declarado NO escapa el tope de su padre (
     assert.ok(card.delegation.scope.cap <= 100, `el tope heredado (${card.delegation.scope.cap}) no supera al del padre`);
     assert.deepEqual(card.delegation.scope.types, ['message', 'task'], 'y hereda el ámbito de tipos');
     // y un nieto que pide MÁS que su padre se rechaza
-    await assert.rejects(() => hijo.delegate('grande', { scope: { cap: 500 } }), /tope/);
+    await assert.rejects(() => hijo.delegate('grande', { scope: { cap: 500 } }), /cap/);
     // el nieto no puede afianzar por encima del tope de la cadena
     await e.libro.topup(nieto.address, 1000, 'carga');
     const op = await nieto.bond(dom, { amount: 500, claim: 'x', verifier: jefe.address });

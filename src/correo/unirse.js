@@ -58,8 +58,8 @@ export async function join({
   let ultimo = null;
   for (let i = 0; i < (name ? 1 : intentos); i++) {
     const local = name || nombreSugerido(runtime);
-    if (!NOMBRE_OK.test(local)) throw new Error(`nombre inválido: ${local} (minúsculas, números y guiones, 2 a 32)`);
-    if (Estafeta.RESERVED.has(local)) throw new Error(`nombre reservado por el protocolo: ${local}`);
+    if (!NOMBRE_OK.test(local)) throw new Error(`invalid name: ${local} (lowercase, digits and hyphens, 2 to 32)`);
+    if (Estafeta.RESERVED.has(local)) throw new Error(`name reserved by the protocol: ${local}`);
     const agente = Agent.create(`${local}@${house}`, estafeta, { resolver: r, fetchImpl });
     try {
       const card = await agente.register({
@@ -77,7 +77,7 @@ export async function join({
       if (e.status !== 409 || name) throw e;
     }
   }
-  throw ultimo || new Error('no se pudo elegir un nombre libre');
+  throw ultimo || new Error('could not find a free name');
 }
 
 async function _despues(agente, card, { keyfile, house }) {
@@ -88,7 +88,7 @@ async function _despues(agente, card, { keyfile, house }) {
   try {
     first = await agente.send({
       to: agente.address, type: 'message',
-      body: `Bienvenido a Nyx5. Esta es tu dirección: ${agente.address}. Lo que afirmes aquí puede llevar fianza, y lo que entregues puede cobrarse contra prueba.`,
+      body: `Welcome to Nyx5. This is your address: ${agente.address}. What you claim here can carry a bond, and what you deliver can be paid against proof.`,
     });
   } catch (e) { first = { error: e.message }; }
   // 4. Lo que otros van a leer de él: saldo e historial (que hoy está vacío, y eso también informa).
@@ -111,9 +111,9 @@ async function _despues(agente, card, { keyfile, house }) {
  * solo, y fuera la casa rechaza. Delegable hacia abajo, nunca hacia arriba.
  */
 export async function mandate(agente, { grantee, cap, scope = null, expires = null, house = null } = {}) {
-  if (!grantee) throw new Error('falta a quién se le da el mandato (--grantee)');
+  if (!grantee) throw new Error('missing who the mandate is for (--grantee)');
   const tope = Number(cap);
-  if (!Number.isInteger(tope) || tope <= 0) throw new Error('el mandato necesita un tope entero y positivo (--cap)');
+  if (!Number.isInteger(tope) || tope <= 0) throw new Error('the mandate needs a whole positive cap (--cap)');
   parseAddress(grantee);
   // El recibo del Libro es la prueba: no se declara creado hasta que el asiento vuelve firmado.
   const enviado = await agente.mandate(house || agente.domain, { grantee, cap: tope, scope: scope || undefined, expires: expires || undefined });

@@ -46,7 +46,7 @@ function normalize(v) {
 }
 
 export function openLocalD1(path = ':memory:') {
-  if (!DatabaseSync) throw new Error('node:sqlite no disponible: se necesita Node 22+ (con --experimental-sqlite) o 24+ nativo');
+  if (!DatabaseSync) throw new Error('node:sqlite unavailable: needs Node 22+ (with --experimental-sqlite) or 24+ natively');
   const raw = new DatabaseSync(path);
   raw.exec('PRAGMA foreign_keys = ON');
   let lock = Promise.resolve(); // D1 real serializa los batch; el emulador tambien

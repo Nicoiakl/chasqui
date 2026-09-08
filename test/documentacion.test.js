@@ -13,7 +13,7 @@ const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const leer = (f) => fs.readFileSync(path.join(raiz, f), 'utf8');
 const cli = leer('bin/nyx5.js');
 const mcp = leer('src/puentes/mcp.js');
-const docs = ['README.md', 'README.es.md', 'agents.md'];
+const docs = ['README.md', 'agents.md'];
 
 test('todo comando que la documentación promete existe en el CLI', () => {
   const implementados = new Set([...cli.matchAll(/case '([a-z]+)':/g)].map((m) => m[1]));
@@ -55,9 +55,11 @@ test('ningún documento público quedó con el nombre viejo ni con rutas de ejem
     assert.ok(!/chasqui/i.test(texto), `${doc} menciona el nombre viejo`);
     assert.ok(!/\/ruta\/a\/chasqui|CHASQUI_HOSTS/.test(texto), `${doc} tiene una ruta de ejemplo del nombre viejo`);
   }
-  // Los dos README se enlazan entre sí: quien llega en un idioma encuentra el otro.
-  assert.match(leer('README.md'), /README\.es\.md/);
-  assert.match(leer('README.es.md'), /README\.md/);
+  // Todo lo público está en inglés: ni una palabra en español en las superficies que se leen.
+  for (const doc of docs) {
+    const acentos = (leer(doc).match(/[áéíóúñ¡¿]/g) || []).length;
+    assert.ok(acentos === 0, `${doc} tiene ${acentos} caracteres del español: lo público va en inglés`);
+  }
 });
 
 // El registro oficial de MCP exige que package.json y server.json digan EXACTAMENTE lo mismo, y
@@ -80,4 +82,28 @@ test('server.json y package.json coinciden, y cumplen lo que el registro oficial
   assert.match(cli, /agent: \{ type: 'string' \}/);
   // Versiones concretas: el schema rechaza rangos y "latest".
   for (const v of [srv.version, p.version]) assert.match(v, /^\d+\.\d+\.\d+$/, `"${v}" no es una versión concreta`);
+});
+
+// Todo lo que un agente o un humano LEE va en inglés (decisión de Nicholas, 8-sep-2026); el
+// repositorio por dentro sigue en español. La frontera es fácil de cruzar sin darse cuenta —un
+// mensaje de error nuevo, un console.log— y nadie se entera hasta que un extranjero lo ve.
+test('ningún mensaje que sale al usuario quedó en español', () => {
+  const fuentes = ['src/correo/estafeta.js', 'src/correo/politica.js', 'src/correo/agente.js', 'src/correo/resolver.js',
+    'src/correo/unirse.js', 'src/libro/libro.js', 'src/libro/contratos.js', 'src/libro/tareas.js', 'src/libro/verifica.js',
+    'src/puentes/email.js', 'src/nucleo/almacen.js', 'src/nucleo/crypto.js', 'src/plataformas/node.js', 'bin/nyx5.js'];
+  // Sale al usuario: reason:, los Error que se lanzan, y lo que el CLI imprime.
+  const salida = /(?:reason:\s*|new (?:Libro)?Error\(|console\.log\(|console\.error\(|fail\(\d+,\s*|must\([^,]+,\s*\d+,\s*)(['`])([^'`]{8,})\1/g;
+  const tilde = /[áéíóúñ¿¡]/;
+  // Dos o más palabras funcionales del español seguidas es la señal; una sola da falsos positivos
+  // (`la` y `de` existen en nombres propios y en inglés técnico).
+  const funcion = /\b(el|la|los|las|una?|del|para|por|sin|que|con|debe|puede|tiene|está|son|hay|más|ya|solo|desde|cada|este|esta|no se)\b/gi;
+  const sospechosos = [];
+  for (const f of fuentes) {
+    const src = leer(f);
+    for (const m of src.matchAll(salida)) {
+      const t = m[2];
+      if (tilde.test(t) || (t.match(funcion) || []).length >= 2) sospechosos.push(`${f}: ${t.slice(0, 70)}`);
+    }
+  }
+  assert.deepEqual(sospechosos, [], `mensajes en español que ve el usuario:\n  ${sospechosos.join('\n  ')}`);
 });

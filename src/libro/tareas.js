@@ -62,12 +62,12 @@ export class Tareas {
     // El orden importa: se responde con lo más accionable primero. "Termínala" le dice al
     // agente qué hacer ahora; "vuelve mañana" solo tiene sentido si de verdad no puede seguir.
     const enCurso = contratos.find((c) => deTarea(c) && c.seller === agente && ['held', 'delivered'].includes(c.state));
-    if (enCurso) return { ok: false, reason: `ya tienes la tarea ${enCurso.terms.seed_task} en curso (${enCurso.id}); termínala primero` };
+    if (enCurso) return { ok: false, reason: `you already have task ${enCurso.terms.seed_task} in flight (${enCurso.id}); finish it first` };
     const suyas = delDia.filter((c) => c.seller === agente);
-    if (suyas.length >= this.porAgenteDia) return { ok: false, reason: `ya tomaste ${suyas.length} tarea(s) sembrada(s) hoy; el tope por agente es ${this.porAgenteDia}` };
-    if (this.porDia > 0 && delDia.length >= this.porDia) return { ok: false, reason: `la casa ya sembró ${this.porDia} tareas hoy; vuelve mañana` };
+    if (suyas.length >= this.porAgenteDia) return { ok: false, reason: `you already took ${suyas.length} seeded task(s) today; the per-agent cap is ${this.porAgenteDia}` };
+    if (this.porDia > 0 && delDia.length >= this.porDia) return { ok: false, reason: `the house already seeded ${this.porDia} tasks today; come back tomorrow` };
     const yaHecha = contratos.find((c) => c.terms?.seed_task === tarea.id && c.seller === agente && c.state === 'released');
-    if (yaHecha) return { ok: false, reason: `ya cobraste la tarea ${tarea.id}; cada tarea se paga una vez por agente` };
+    if (yaHecha) return { ok: false, reason: `you already got paid for task ${tarea.id}; each task pays once per agent` };
     return { ok: true };
   }
 
@@ -77,11 +77,11 @@ export class Tareas {
    * prueba cambiada o un árbitro distinto son motivo de rechazo, no de negociación.
    */
   coincide(q, tarea, { arbitro }) {
-    if (q.contract !== 'escrow') return { ok: false, reason: 'una tarea sembrada se toma como escrow' };
-    if (q.price !== tarea.price) return { ok: false, reason: `el precio de ${tarea.id} es ${tarea.price}, la cotización dice ${q.price}` };
-    if (q.arbiter !== arbitro) return { ok: false, reason: `el árbitro de una tarea sembrada es ${arbitro}` };
-    if (JSON.stringify(q.terms?.verify) !== JSON.stringify(tarea.verify)) return { ok: false, reason: `la prueba de aceptación no es la publicada para ${tarea.id}` };
-    if (q.terms?.seed_task !== tarea.id) return { ok: false, reason: 'la cotización debe declarar terms.seed_task con el id de la tarea' };
+    if (q.contract !== 'escrow') return { ok: false, reason: 'a seeded task is taken as an escrow' };
+    if (q.price !== tarea.price) return { ok: false, reason: `the price of ${tarea.id} is ${tarea.price}, the quote says ${q.price}` };
+    if (q.arbiter !== arbitro) return { ok: false, reason: `the arbiter of a seeded task is ${arbitro}` };
+    if (JSON.stringify(q.terms?.verify) !== JSON.stringify(tarea.verify)) return { ok: false, reason: `the acceptance test is not the one published for ${tarea.id}` };
+    if (q.terms?.seed_task !== tarea.id) return { ok: false, reason: 'the quote must declare terms.seed_task with the task id' };
     return { ok: true };
   }
 

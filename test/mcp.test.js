@@ -56,48 +56,29 @@ test('D1 · instructions describe el sistema en pocas frases con capacidad y gar
 
 // La spec pública en dos idiomas, con el inglés como canónico (decisión de Nicholas, 8-sep-2026).
 // El guard existe porque el fallo sería invisible: /es sirviendo inglés se ve igual de bien.
-test('la spec se sirve en inglés (canónica) y en español, y cada una enlaza a la otra', async () => {
-  const { SPEC_HTML, SPEC_HTML_ES, LLMS_TXT } = await import('../src/plataformas/spec-html.js');
-  assert.match(SPEC_HTML, /<html lang="en">/);
-  assert.match(SPEC_HTML_ES, /<html lang="es">/);
-  assert.match(SPEC_HTML, /Mail and Libro for agents/);
-  assert.match(SPEC_HTML_ES, /Correo y Libro para agentes/);
-  // La canónica de cada página apunta a SU url, no las dos a la misma.
-  assert.match(SPEC_HTML, /<link rel="canonical" href="https:\/\/nyx5\.com\/spec">/);
-  assert.match(SPEC_HTML_ES, /<link rel="canonical" href="https:\/\/nyx5\.com\/es">/);
-  // hreflang en ambas, con el inglés como x-default.
-  for (const h of [SPEC_HTML, SPEC_HTML_ES]) {
-    assert.match(h, /hreflang="en" href="https:\/\/nyx5\.com\/spec"/);
-    assert.match(h, /hreflang="es" href="https:\/\/nyx5\.com\/es"/);
-    assert.match(h, /hreflang="x-default" href="https:\/\/nyx5\.com\/spec"/);
+test('la spec y la portada se sirven SOLO en inglés, y no queda rastro del español', async () => {
+  const { SPEC_HTML, LLMS_TXT } = await import('../src/plataformas/spec-html.js');
+  const { HOME_HTML } = await import('../src/plataformas/home-html.js');
+  for (const [nombre, h] of [['spec', SPEC_HTML], ['portada', HOME_HTML]]) {
+    assert.match(h, /<html lang="en">/, `${nombre} debe declararse en inglés`);
+    assert.ok(!/hreflang="es"|\/es-home|>Español</.test(h), `${nombre} sigue enlazando a una versión española que ya no existe`);
+    assert.ok(!/chasqui/i.test(h), `${nombre} menciona el nombre viejo`);
   }
-  assert.match(SPEC_HTML, /href="\/es"/);
-  assert.match(SPEC_HTML_ES, /href="\/spec"/);
-  // Ninguna puede haber quedado con el nombre viejo.
-  for (const h of [SPEC_HTML, SPEC_HTML_ES, LLMS_TXT]) assert.ok(!/chasqui/i.test(h), 'quedó una mención al nombre viejo');
-  // Y las dos tienen que traer el sprint: si alguien regenera desde una spec vieja, esto falla.
+  assert.match(SPEC_HTML, /<link rel="canonical" href="https:\/\/nyx5\.com\/spec">/);
+  assert.match(HOME_HTML, /<link rel="canonical" href="https:\/\/nyx5\.com\/">/);
+  assert.match(SPEC_HTML, /Mail and Libro for agents/);
   assert.match(SPEC_HTML, /reputation is a query on the ledger/);
-  assert.match(SPEC_HTML_ES, /la reputación es una consulta al libro/);
+  // El JSON-LD tiene que declarar el idioma real, o los rastreadores indexan mal.
+  assert.match(SPEC_HTML, /"inLanguage":"en"/);
+  assert.ok(!/Especificación \(español\)/.test(LLMS_TXT));
 });
 
-// La portada tiene UN trabajo: que un agente se una. El guard cuida lo que no se ve a simple
-// vista — que cada idioma sirva el suyo, que el comando prometido exista, y que no se llene de
-// cosas. Una portada que crece deja de convertir y nadie se entera.
-test('la portada apunta a que un agente se una, en los dos idiomas', async () => {
-  const { HOME_HTML, HOME_HTML_ES } = await import('../src/plataformas/home-html.js');
-  assert.match(HOME_HTML, /<html lang="en">/);
-  assert.match(HOME_HTML_ES, /<html lang="es">/);
-  assert.match(HOME_HTML, /<link rel="canonical" href="https:\/\/nyx5\.com\/">/);
-  assert.match(HOME_HTML_ES, /<link rel="canonical" href="https:\/\/nyx5\.com\/es-home">/);
-  // Cada idioma dice lo suyo y no el del otro.
+test('la portada apunta a que un agente se una', async () => {
+  const { HOME_HTML } = await import('../src/plataformas/home-html.js');
   assert.match(HOME_HTML, /Your agent has no address/);
-  assert.match(HOME_HTML_ES, /Tu agente no tiene dirección/);
-  assert.ok(!/Tu agente no tiene/.test(HOME_HTML), 'la inglesa no puede traer texto español');
-  assert.ok(!/Your agent has no/.test(HOME_HTML_ES), 'la española no puede traer texto inglés');
-
   const fs = await import('node:fs');
   const cli = fs.readFileSync(new URL('../bin/nyx5.js', import.meta.url), 'utf8');
-  for (const h of [HOME_HTML, HOME_HTML_ES]) {
+  for (const h of [HOME_HTML]) {
     // El comando es lo único que la portada pide hacer, y tiene que existir de verdad.
     assert.match(h, /npx @nyx5\/nyx5 join/);
     assert.ok(!/chasqui/i.test(h), 'quedó una mención al nombre viejo');
@@ -108,7 +89,5 @@ test('la portada apunta a que un agente se una, en los dos idiomas', async () =>
     assert.ok(!/<h2|<h3/.test(h), 'sin secciones: si necesita subtítulos, ya no es una portada');
   }
   assert.match(cli, /case 'join':/, 'el CLI implementa lo que la portada promete');
-  // Cada portada apunta a la spec en SU idioma.
   assert.match(HOME_HTML, /href="\/spec"/);
-  assert.match(HOME_HTML_ES, /href="\/es"/);
 });

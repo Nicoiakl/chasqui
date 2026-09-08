@@ -27,8 +27,8 @@ import { veredicto, pruebasDe, pruebasDisponibles } from '../libro/verifica.js';
 import { contratoPublico, ACP } from '../libro/contratos.js';
 import { Tareas } from '../libro/tareas.js';
 import { APP_HTML } from '../plataformas/app-html.js';
-import { SPEC_HTML, SPEC_HTML_ES, LLMS_TXT } from '../plataformas/spec-html.js';
-import { HOME_HTML, HOME_HTML_ES } from '../plataformas/home-html.js';
+import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
+import { HOME_HTML } from '../plataformas/home-html.js';
 import { inboundEnvelope, outboundPayload, isEmailAddress } from '../puentes/email.js';
 
 const now = () => Date.now();
@@ -156,10 +156,10 @@ export class Estafeta {
   // N veces en paralelo, multiplicando el regalo de bienvenida (emisión no autorizada).
   async _consumeInvite(code) {
     const inv = code && await this.store.getInvite(String(code));
-    if (!inv) throw Object.assign(new Error('invitación inexistente'), { status: 403 });
-    if (inv.expires && Date.parse(inv.expires) < now()) throw Object.assign(new Error('invitación vencida'), { status: 403 });
+    if (!inv) throw Object.assign(new Error('no such invitation'), { status: 403 });
+    if (inv.expires && Date.parse(inv.expires) < now()) throw Object.assign(new Error('invitation expired'), { status: 403 });
     const usada = await this.store.consumeInvite(String(code), iso());
-    if (!usada) throw Object.assign(new Error('invitación agotada'), { status: 403 });
+    if (!usada) throw Object.assign(new Error('invitation used up'), { status: 403 });
     return usada;
   }
   // Directorio público de la casa: tarjetas sin datos privados, con filtros por capacidad.
@@ -198,27 +198,27 @@ export class Estafeta {
     local = String(local).toLowerCase();
     const address = `${local}@${this.domain}`;
     parseAddress(address);
-    if (Estafeta.RESERVED.has(local) && !this.isSystem(local)) throw Object.assign(new Error(`nombre reservado: ${local}`), { status: 409 });
+    if (Estafeta.RESERVED.has(local) && !this.isSystem(local)) throw Object.assign(new Error(`name reserved by the protocol: ${local}`), { status: 409 });
     if (delegation) {
       // Tarjeta delegada: el agente padre firma { by, address, sig, scope, valid_until }; el dominio la certifica igual.
       const { local: parentLocal, domain: parentDomain } = parseAddress(delegation.by);
-      if (parentDomain !== this.domain || !local.endsWith(`.${parentLocal}`)) throw Object.assign(new Error(`un agente delegado de ${delegation.by} debe llamarse <nombre>.${parentLocal}@${this.domain}`), { status: 400 });
+      if (parentDomain !== this.domain || !local.endsWith(`.${parentLocal}`)) throw Object.assign(new Error(`a subagent of ${delegation.by} must be named <name>.${parentLocal}@${this.domain}`), { status: 400 });
       const parent = await this.store.getAgent(parentLocal);
       if (!parent) throw Object.assign(new Error('agente padre inexistente'), { status: 404 });
-      if (delegation.address !== address || delegation.sig !== sig || !verifyObject(delegation, parent.sig)) throw Object.assign(new Error('delegación inválida: debe estar firmada por el padre y coincidir con la tarjeta'), { status: 403 });
+      if (delegation.address !== address || delegation.sig !== sig || !verifyObject(delegation, parent.sig)) throw Object.assign(new Error('invalid delegation: it must be signed by the parent and match the card'), { status: 403 });
       // Un delegado nunca tiene más ámbito que su padre (invariante 6). Lo que el hijo no declara
       // lo HEREDA: declarar menos no puede ser una forma de escapar del tope de la cadena.
       const ps = parent.delegation?.scope;
       if (ps) {
         const hs = delegation.scope || {};
         if (ps.cap != null && (hs.cap == null || hs.cap > ps.cap)) {
-          if (hs.cap != null) throw Object.assign(new Error(`el delegado no puede tener más tope que su padre (${ps.cap})`), { status: 403 });
+          if (hs.cap != null) throw Object.assign(new Error(`a subagent cannot have a higher cap than its parent (${ps.cap})`), { status: 403 });
           hs.cap = ps.cap; // sin tope declarado: hereda el del padre
         }
         for (const campo of ['types', 'to_domains']) {
           if (ps[campo]?.length) {
             if (!hs[campo]?.length) hs[campo] = [...ps[campo]];
-            else if (!hs[campo].every((x) => ps[campo].includes(x))) throw Object.assign(new Error(`el delegado no puede ampliar ${campo} respecto de su padre`), { status: 403 });
+            else if (!hs[campo].every((x) => ps[campo].includes(x))) throw Object.assign(new Error(`a subagent cannot widen ${campo} beyond its parent`), { status: 403 });
           }
         }
         delegation = { ...delegation, scope: hs };
@@ -243,7 +243,7 @@ export class Estafeta {
       creado = await (this.store.putAgentIfAbsent
         ? this.store.putAgentIfAbsent(local, { ...card, webhook, notify_email })
         : (this.store.putAgent(local, { ...card, webhook, notify_email }), true));
-      if (!creado) throw Object.assign(new Error('ese nombre acaba de ser tomado; solo su dueño o la casa pueden actualizarlo'), { status: 409 });
+      if (!creado) throw Object.assign(new Error('that name was just taken; only its owner or the house can update it'), { status: 409 });
     } else {
       await this.store.putAgent(local, { ...card, webhook, notify_email });
     }
@@ -279,15 +279,15 @@ export class Estafeta {
     let rec;
     if (domain === this.domain) {
       rec = await this.store.getAgent(local);
-      if (!rec) throw Object.assign(new Error('agente no registrado'), { status: 401 });
+      if (!rec) throw Object.assign(new Error('agent not registered'), { status: 401 });
     } else {
-      if (!allowForeign) throw Object.assign(new Error('el agente no pertenece a este dominio'), { status: 401 });
-      try { rec = await this.resolver.agentCard(claims.address); } catch (e) { throw Object.assign(new Error(`agente foráneo no verificable: ${e.message}`), { status: 401 }); }
+      if (!allowForeign) throw Object.assign(new Error('the agent does not belong to this domain'), { status: 401 });
+      try { rec = await this.resolver.agentCard(claims.address); } catch (e) { throw Object.assign(new Error(`foreign agent could not be verified: ${e.message}`), { status: 401 }); }
     }
-    if (Math.abs(now() - Date.parse(claims.ts)) > 300_000) throw Object.assign(new Error('token vencido (ventana de 5 min)'), { status: 401 });
-    if (claims.method !== rx.method || claims.path !== path) throw Object.assign(new Error('token no corresponde a esta petición'), { status: 401 });
-    if (claims.host !== this.authHost) throw Object.assign(new Error(`token emitido para otra casa (host ${claims.host || 'ausente'}, se espera ${this.authHost})`), { status: 401 });
-    if (!verifyBytes(canonical(claims), m[2], rec.sig)) throw Object.assign(new Error('firma de token inválida'), { status: 401 });
+    if (Math.abs(now() - Date.parse(claims.ts)) > 300_000) throw Object.assign(new Error('token expired (5 minute window)'), { status: 401 });
+    if (claims.method !== rx.method || claims.path !== path) throw Object.assign(new Error('token does not match this request'), { status: 401 });
+    if (claims.host !== this.authHost) throw Object.assign(new Error(`token issued for another house (host ${claims.host || 'missing'}, expected ${this.authHost})`), { status: 401 });
+    if (!verifyBytes(canonical(claims), m[2], rec.sig)) throw Object.assign(new Error('invalid token signature'), { status: 401 });
     if (!await this.store.useNonce(`${claims.address}:${claims.nonce}`, now())) throw Object.assign(new Error('nonce reutilizado'), { status: 401 });
     return { local, address: claims.address, record: rec };
   }
@@ -296,8 +296,8 @@ export class Estafeta {
   async outbound(env, submitter) {
     const v = validateEnvelope(env, { maxBytes: this.policy.max_bytes });
     if (!v.ok) return v;
-    if (env.from !== submitter.address) return { ok: false, code: 403, reason: 'from no coincide con el agente autenticado' };
-    if (env.signature.kid !== submitter.record.sig || !verifyObject(env, submitter.record.sig)) return { ok: false, code: 403, reason: 'firma del sobre inválida' };
+    if (env.from !== submitter.address) return { ok: false, code: 403, reason: 'from does not match the authenticated agent' };
+    if (env.signature.kid !== submitter.record.sig || !verifyObject(env, submitter.record.sig)) return { ok: false, code: 403, reason: 'invalid envelope signature' };
     const scope = submitter.record.delegation?.scope;
     if (scope?.types?.length && !scope.types.includes(env.type)) return { ok: false, code: 403, reason: `agente delegado: solo puede enviar type ${scope.types.join('|')}` };
     if (scope?.to_domains?.length && !env.to.every((t) => scope.to_domains.includes(parseAddress(t).domain))) return { ok: false, code: 403, reason: `agente delegado: solo puede escribir a ${scope.to_domains.join(', ')}` };
@@ -335,7 +335,7 @@ export class Estafeta {
   async _deliver(job) {
     // Un sobre diferido pudo vencer mientras esperaba: no desaparece en silencio, rebota al remitente.
     if (job.envelope.expires && Date.parse(job.envelope.expires) < now()) {
-      for (const to of job.to) await this._bounce(job, to, 'el sobre venció esperando en la cola');
+      for (const to of job.to) await this._bounce(job, to, 'the envelope expired while waiting in the queue');
       job.status = 'failed'; await this.store.removeJob(job.id); await this._outbox(job); return;
     }
     job.attempts += 1;
@@ -378,20 +378,20 @@ export class Estafeta {
       for (const r of outcome.body.rejected || []) (RETRYABLE.has(r.code) ? retry : failed).push(r);
       // Destinatarios que la respuesta no menciona: transitorio, no éxito silencioso.
       const mentioned = new Set([...delivered, ...(outcome.body.rejected || []).map((r) => r.to)]);
-      for (const to of job.to) if (!mentioned.has(to)) retry.push({ to, code: outcome.status, reason: 'destinatario sin veredicto en la respuesta' });
+      for (const to of job.to) if (!mentioned.has(to)) retry.push({ to, code: outcome.status, reason: 'recipient missing a verdict in the response' });
     } else if (outcome.status === 0 || RETRYABLE.has(outcome.status)) {
       retry.push(...job.to.map((to) => ({ to, code: outcome.status, reason: outcome.error || outcome.body?.reason })));
     } else {
       failed.push(...job.to.map((to) => ({ to, code: outcome.status, reason: outcome.body?.reason || 'rechazo permanente' })));
     }
 
-    for (const f of failed) await this._bounce(job, f.to, `rechazado (${f.code}): ${f.reason}`);
-    if (delivered.length && job.envelope.receipt === 'delivered') for (const to of delivered) await this._notify(job, to, 'delivered', 'entregado en la estafeta destino');
+    for (const f of failed) await this._bounce(job, f.to, `rejected (${f.code}): ${f.reason}`);
+    if (delivered.length && job.envelope.receipt === 'delivered') for (const to of delivered) await this._notify(job, to, 'delivered', 'delivered to the destination estafeta');
 
     if (retry.length) {
       const age = now() - Date.parse(job.created);
       if (age > this.retry.giveUpMs) {
-        for (const r of retry) await this._bounce(job, r.to, `sin respuesta tras ${job.attempts} intentos: ${r.reason}`);
+        for (const r of retry) await this._bounce(job, r.to, `no answer after ${job.attempts} attempts: ${r.reason}`);
         job.status = 'failed'; await this.store.removeJob(job.id); await this._outbox(job); return;
       }
       const backoff = Math.min(this.retry.baseMs * 2 ** (job.attempts - 1), this.retry.maxMs) * (0.8 + Math.random() * 0.4);
@@ -463,12 +463,12 @@ export class Estafeta {
   async _tomarTarea(env, senderCard) {
     const q = env.content?.body;
     if (env.content?.media !== MEDIA.cotizacion || q?.tipo !== 'cotizacion') {
-      return { ok: false, code: 400, reason: `tareas@ acepta una cotización (${MEDIA.cotizacion}) por la tarea publicada; mira GET /tareas` };
+      return { ok: false, code: 400, reason: `tareas@ accepts a quote (${MEDIA.cotizacion}) for a published task; see GET /tareas` };
     }
     const tarea = this.tareas.tarea(q.terms?.seed_task);
-    if (!tarea) return { ok: false, code: 404, reason: `no hay una tarea sembrada con id ${q.terms?.seed_task}. Las publicadas están en GET /tareas` };
-    if (q.seller !== env.from) return { ok: false, code: 403, reason: 'el vendedor de la cotización debe ser quien la manda' };
-    if (q.buyer !== `tareas@${this.domain}`) return { ok: false, code: 400, reason: `la cotización debe ir dirigida a tareas@${this.domain}` };
+    if (!tarea) return { ok: false, code: 404, reason: `no seeded task with id ${q.terms?.seed_task}. The published ones are at GET /tareas` };
+    if (q.seller !== env.from) return { ok: false, code: 403, reason: 'the seller of the quote must be whoever sends it' };
+    if (q.buyer !== `tareas@${this.domain}`) return { ok: false, code: 400, reason: `the quote must be addressed to tareas@${this.domain}` };
     const encaja = this.tareas.coincide(q, tarea, { arbitro: `verifica@${this.domain}` });
     if (!encaja.ok) return { ok: false, code: 409, reason: encaja.reason };
     const contratos = await this.store.libroListContracts();
@@ -484,7 +484,7 @@ export class Estafeta {
       content: { media: MEDIA.op, body: { op: 'accept', quote: q } },
     }, this.keys);
     const r = await this.inbound(aceptacion);
-    if (!r.ok) return { ok: false, code: r.code || 409, reason: `la casa no pudo tomar la tarea: ${r.reason}` };
+    if (!r.ok) return { ok: false, code: r.code || 409, reason: `the house could not take the task: ${r.reason}` };
     const contrato = Object.values(r.results || {})[0]?.contract || null;
     this.log(`tarea ${tarea.id} tomada por ${env.from} (contrato ${contrato?.id})`);
     await this._evento('seed_task_taken', env.from, { task: tarea.id, contract: contrato?.id || null, price: tarea.price });
@@ -527,16 +527,16 @@ export class Estafeta {
     const yaAceptados = new Set(seen?.accepted || []);
 
     const locals = env.to.filter((t) => parseAddress(t).domain === this.domain);
-    if (!locals.length) return { ok: false, code: 404, reason: 'ningún destinatario pertenece a este dominio' };
+    if (!locals.length) return { ok: false, code: 404, reason: 'no recipient belongs to this domain' };
     const pendientes = locals.filter((t) => !yaAceptados.has(t));
     if (!pendientes.length) return { ok: true, code: 200, duplicate: true, accepted: [...yaAceptados], rejected: [] };
 
     // Cadena de confianza: dominio emisor -> agente emisor -> firma del sobre
     let senderCard;
     try { senderCard = await this.resolver.agentCardForKid(env.from, env.signature.kid); }
-    catch (e) { return { ok: false, code: e.permanent ? 403 : 421, reason: `no se pudo verificar al remitente: ${e.message}` }; }
+    catch (e) { return { ok: false, code: e.permanent ? 403 : 421, reason: `could not verify the sender: ${e.message}` }; }
     const validKids = Resolver.acceptedKids(senderCard);
-    if (!validKids.includes(env.signature.kid) || !verifyObject(env, env.signature.kid)) return { ok: false, code: 403, reason: 'la firma del sobre no corresponde al remitente' };
+    if (!validKids.includes(env.signature.kid) || !verifyObject(env, env.signature.kid)) return { ok: false, code: 403, reason: 'the envelope signature does not match the sender' };
 
     // Firma de relay (segunda capa: la estafeta emisora también firma, análogo a SPF/DKIM)
     const { domain: fromDomain } = parseAddress(env.from);
@@ -545,8 +545,8 @@ export class Estafeta {
       const r = Object.fromEntries(relayHeader.replace(/^nyx51\s*/, '').split(';').map((p) => p.trim().split('=').map((x) => x.trim())).filter((p) => p[0]));
       relayVerified = r.domain === fromDomain && senderCard._domain.keys.some((k) => k.sig === r.kid) && verifyBytes(`relay:${env.id}:${this.domain}`, r.sig, r.kid);
     }
-    if (this.policy.require_relay && !relayVerified) return { ok: false, code: 403, reason: 'este dominio exige firma de relay válida' };
-    if (!this.rate.allow(fromDomain)) return { ok: false, code: 429, reason: 'límite de tasa del dominio emisor' };
+    if (this.policy.require_relay && !relayVerified) return { ok: false, code: 403, reason: 'this domain requires a valid relay signature' };
+    if (!this.rate.allow(fromDomain)) return { ok: false, code: 429, reason: 'rate limit for the sending domain' };
 
     const accepted = [], rejected = [], results = {};
     const mails = [], libroBundles = [];
@@ -556,7 +556,7 @@ export class Estafeta {
     for (const to of pendientes) {
       const { local } = parseAddress(to);
       const rec = await this.store.getAgent(local);
-      if (!rec) { rejected.push({ to, code: 404, reason: 'agente inexistente' }); continue; }
+      if (!rec) { rejected.push({ to, code: 404, reason: 'no such agent' }); continue; }
       const p = applyInboxPolicy(env, rec, senderCard._domain);
       if (!p.ok) { rejected.push({ to, ...p, ok: undefined }); continue; }
       try {
@@ -578,7 +578,7 @@ export class Estafeta {
           results[to] = r.result;
         } else if (p.stamp) {
           // Una estampilla paga UN buzón: el sobre declara un monto, no un monto por destinatario.
-          if (stampUsed) { rejected.push({ to, code: 402, reason: 'la estampilla del sobre ya se usó en otro destinatario' }); continue; }
+          if (stampUsed) { rejected.push({ to, code: 402, reason: 'the envelope stamp was already spent on another recipient' }); continue; }
           const { asiento, bundle } = await this.libro.stamp(env, to, p.stamp.price);
           stampUsed = true;
           libroBundles.push(bundle);
@@ -596,7 +596,7 @@ export class Estafeta {
             : b.beneficiary !== p.vouch.beneficiary ? 'la fianza no tiene al receptor como beneficiario'
             : b.verifier !== p.vouch.beneficiary ? 'el receptor no puede ejecutar la fianza (no es su verificador)'
             : null;
-          if (malo) { rejected.push({ to, code: 403, reason: `aval inválido: ${malo}` }); continue; }
+          if (malo) { rejected.push({ to, code: 403, reason: `invalid vouch: ${malo}` }); continue; }
           mails.push({ local, envelope: env, meta: { from_verified: true, relay_verified: relayVerified, sender_kid: env.signature.kid, vouched_by: b.seller, vouch_bond: b.id } });
         } else {
           mails.push({ local, envelope: env, meta: { from_verified: true, relay_verified: relayVerified, sender_kid: env.signature.kid } });
@@ -652,8 +652,8 @@ export class Estafeta {
       if (emailOrig && emailOrig === rec.notify_email) return; // no te avises de tu propio correo
       const quien = emailOrig || env.from;
       await this.emailOut({ fromAgent: `${local}@${this.domain}`, to: rec.notify_email,
-        subject: `Tienes un mensaje nuevo en Nyx5 de ${quien}`,
-        text: `${quien} le escribió a ${local}@${this.domain}.\n\nÁbrelo en tu buzón: https://${this.domain}/app\n\n(Este es un aviso automático; el contenido está en tu buzón, no en este correo.)` });
+        subject: `New message on Nyx5 from ${quien}`,
+        text: `${quien} wrote to ${local}@${this.domain}.\n\nOpen it in the mailbox: https://${this.domain}/app\n\n(Automatic notice. The content is in the mailbox, not in this email.)` });
     }).catch((e) => this.log(`notify_email ${local} falló: ${e.message}`));
     this._pushes.push(pendiente);
     return pendiente;
@@ -667,11 +667,11 @@ export class Estafeta {
   // verifica igual por la cadena normal (DNS -> dominio -> agente) al momento de usarla.
   async indexAddHouse(domain) {
     domain = String(domain || '').toLowerCase();
-    if (!/^[a-z0-9.-]+$/.test(domain)) throw Object.assign(new Error('dominio inválido'), { status: 400 });
+    if (!/^[a-z0-9.-]+$/.test(domain)) throw Object.assign(new Error('invalid domain'), { status: 400 });
     const houses = await this.store.indexListHouses();
-    if (houses.length >= this.index.maxHouses && !houses.some((h) => h.domain === domain)) throw Object.assign(new Error('índice lleno'), { status: 507 });
+    if (houses.length >= this.index.maxHouses && !houses.some((h) => h.domain === domain)) throw Object.assign(new Error('index full'), { status: 507 });
     // La verificación ES la puerta: solo se lista lo que resuelve y firma como casa Nyx5.
-    const dc = await this.resolver.domainCard(domain).catch((e) => { throw Object.assign(new Error(`casa no verificable: ${e.message}`), { status: 422 }); });
+    const dc = await this.resolver.domainCard(domain).catch((e) => { throw Object.assign(new Error(`house could not be verified: ${e.message}`), { status: 422 }); });
     const h = { domain, estafeta: dc._estafeta, added: iso(), last_ok: null, fails: 0 };
     await this.store.indexPutHouse(h);
     await this._indexCrawlHouse(h);
@@ -719,12 +719,12 @@ export class Estafeta {
   // from_verified:false y via:'email'. No pasa por /inbound ni finge estar firmado (invariante 1).
   async receiveEmail({ from, to, subject, text, messageId } = {}) {
     await this.init();
-    if (!isEmailAddress(from)) return { ok: false, code: 400, reason: 'remitente de correo inválido' };
+    if (!isEmailAddress(from)) return { ok: false, code: 400, reason: 'invalid email sender' };
     let local, dom;
-    try { ({ local, domain: dom } = parseAddress(to)); } catch { return { ok: false, code: 400, reason: 'destinatario inválido' }; }
-    if (dom !== this.domain) return { ok: false, code: 400, reason: `el correo es para ${dom}, no ${this.domain}` };
+    try { ({ local, domain: dom } = parseAddress(to)); } catch { return { ok: false, code: 400, reason: 'invalid recipient' }; }
+    if (dom !== this.domain) return { ok: false, code: 400, reason: `the email is for ${dom}, not ${this.domain}` };
     const rec = await this.store.getAgent(local);
-    if (!rec) return { ok: false, code: 404, reason: 'agente inexistente' };
+    if (!rec) return { ok: false, code: 404, reason: 'no such agent' };
     const env = inboundEnvelope({ from, to: `${local}@${this.domain}`, subject, text, messageId });
     // dedupe por id (message-id del correo o uuid) igual que un sobre normal
     const nuevo = await this.store.markSeenIfNew(env.id, { from: `email:${from}`, accepted: [to] });
@@ -736,13 +736,13 @@ export class Estafeta {
   // SALIDA: un agente le escribe a una dirección de correo. Con proveedor, se envía (Reply-To = el
   // agente, para que la respuesta vuelva por ENTRADA). Sin proveedor, queda pendiente: no se inventa canal.
   async emailOut({ fromAgent, to, subject, text }) {
-    if (!isEmailAddress(to)) return { ok: false, code: 400, reason: 'destino de correo inválido' };
+    if (!isEmailAddress(to)) return { ok: false, code: 400, reason: 'invalid email destination' };
     // El pie viaja solo si la casa lo enciende (`email.footer`). Apagado por defecto: el texto
     // que un tercero recibe es decisión del operador de la casa, no del código.
     const payload = outboundPayload({ fromAgent, to, subject, text, footer: this.email.footer === true, domain: this.domain });
-    if (!this.email.provider) return { ok: false, code: 503, pending: true, reason: 'el puente de correo no tiene proveedor de salida configurado' };
+    if (!this.email.provider) return { ok: false, code: 503, pending: true, reason: 'the email bridge has no outbound provider configured' };
     try { const r = await this.email.provider(payload); return { ok: true, code: 202, provider: r?.id || null }; }
-    catch (e) { return { ok: false, code: 502, reason: `el proveedor de correo falló: ${e.message}` }; }
+    catch (e) { return { ok: false, code: 502, reason: `the email provider failed: ${e.message}` }; }
   }
 
   async indexSearch(params) {
@@ -761,15 +761,10 @@ export class Estafeta {
       if (rx.method === 'GET' && path === '/health') return send(200, { ok: true, domain: this.domain, agents: (await this.store.listAgents()).length, queue: (await this.store.listQueue()).length });
       // Cliente web para personas: se sirve desde la propia casa (mismo origen, sin CORS).
       // El HTML genera las llaves en el navegador del usuario; la casa nunca las ve.
-      // Inglés primario en la portada; el español vive en /es-home. Ambas se enlazan con hreflang.
       if (rx.method === 'GET' && path === '/') return { status: 200, body: HOME_HTML, contentType: 'text/html; charset=utf-8' };
-      if (rx.method === 'GET' && (path === '/es-home' || path === '/es-home/')) return { status: 200, body: HOME_HTML_ES, contentType: 'text/html; charset=utf-8' };
       if (rx.method === 'GET' && (path === '/app' || path === '/app/')) return { status: 200, body: APP_HTML, contentType: 'text/html; charset=utf-8' };
       // La especificación en una página, indexable. Se genera desde docs/SPEC.md (build:spec).
-      // El inglés es la versión canónica de la spec (es donde busca quien integra un protocolo);
-      // el español vive en /es y ambas se enlazan entre sí con hreflang.
       if (rx.method === 'GET' && (path === '/spec' || path === '/spec/')) return { status: 200, body: SPEC_HTML, contentType: 'text/html; charset=utf-8' };
-      if (rx.method === 'GET' && (path === '/es' || path === '/es/' || path === '/spec/es')) return { status: 200, body: SPEC_HTML_ES, contentType: 'text/html; charset=utf-8' };
       if (rx.method === 'GET' && path === '/llms.txt') return { status: 200, body: LLMS_TXT, contentType: 'text/plain; charset=utf-8' };
       if (rx.method === 'GET' && path === '/.well-known/nyx5.json') return send(200, await this.domainCard());
       let m;
@@ -778,12 +773,12 @@ export class Estafeta {
       // contrapartes: solo cuántas entregas, cuántas fianzas y cuántos tokens se movieron.
       if (rx.method === 'GET' && (m = /^\/agents\/([^/]+)\/historial$/.exec(path))) {
         const local = decodeURIComponent(m[1]).toLowerCase();
-        if (!(await this.store.getAgent(local))) return send(404, { reason: 'agente inexistente' });
+        if (!(await this.store.getAgent(local))) return send(404, { reason: 'no such agent' });
         return send(200, await this.libro.historial(`${local}@${this.domain}`));
       }
       if (rx.method === 'GET' && (m = /^\/agents\/([^/]+)$/.exec(path))) {
         const card = await this.agentCard(decodeURIComponent(m[1]).toLowerCase());
-        return card ? send(200, card) : send(404, { reason: 'agente inexistente' });
+        return card ? send(200, card) : send(404, { reason: 'no such agent' });
       }
       if (rx.method === 'GET' && path === '/agents') {
         const p = Object.fromEntries(rx.query);
@@ -792,7 +787,7 @@ export class Estafeta {
       if (rx.method === 'POST' && path === '/agents') {
         const body = rx.body || {};
         const local = String(body.local || '').toLowerCase();
-        if (!Estafeta.validLocal(local)) return send(400, { reason: 'nombre de agente inválido' });
+        if (!Estafeta.validLocal(local)) return send(400, { reason: 'invalid agent name' });
         const exists = !!(await this.store.getAgent(local));
         const isAdmin = (rx.headers.authorization || '') === `Bearer ${this.adminToken}`;
         let ok = isAdmin, via = 'admin';
@@ -803,13 +798,13 @@ export class Estafeta {
         }
         if (!ok) {
           // Auto-registro: el cuerpo viene firmado por la clave que se inscribe (prueba de posesión).
-          if (exists) return send(409, { reason: 'ese nombre ya está tomado; solo su dueño o la casa pueden actualizarlo' });
-          if (!body.signature || body.signature.kid !== body.sig || !verifyObject(body, body.sig)) return send(401, { reason: 'para auto-registrarse, firma el cuerpo con la clave sig que inscribes (prueba de posesión)' });
-          if (Math.abs(now() - Date.parse(body.ts || 0)) > 300_000) return send(401, { reason: 'la solicitud firmada necesita ts (ISO) dentro de 5 minutos' });
-          if (!this.regRate.allow(rx.ip || 'x')) return send(429, { reason: 'demasiados registros desde esta dirección' });
+          if (exists) return send(409, { reason: 'that name is taken; only its owner or the house can update it' });
+          if (!body.signature || body.signature.kid !== body.sig || !verifyObject(body, body.sig)) return send(401, { reason: 'to self-register, sign the body with the same sig key you are enrolling (proof of possession)' });
+          if (Math.abs(now() - Date.parse(body.ts || 0)) > 300_000) return send(401, { reason: 'the signed request needs a ts (ISO) within 5 minutes' });
+          if (!this.regRate.allow(rx.ip || 'x')) return send(429, { reason: 'too many registrations from this address' });
           if (this.policy.registration === 'open') via = 'open';
           else if (this.policy.registration === 'invite') { const inv = await this._consumeInvite(body.invite); via = `invite:${inv.code}`; if (inv.welcome != null) body._welcome = inv.welcome; }
-          else return send(403, { reason: `esta casa no acepta auto-registro (registration=${this.policy.registration}); pide una invitación` });
+          else return send(403, { reason: `this house does not accept self-registration (registration=${this.policy.registration}); ask for an invitation` });
         }
         // `source` es atribución y NO entra en la tarjeta: se descarta aquí y viaja al evento.
         const { signature: _s, ts: _t, invite: _i, _welcome, source: _src, ...clean } = body;
@@ -822,11 +817,11 @@ export class Estafeta {
         return send(201, { ...card, registered_via: via });
       }
       if (rx.method === 'POST' && path === '/invitations') {
-        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa emite invitaciones' });
+        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house issues invitations' });
         return send(201, await this.createInvite(rx.body || {}));
       }
       if (rx.method === 'GET' && path === '/invitations') {
-        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa lista invitaciones' });
+        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house lists invitations' });
         return send(200, { invitations: await this.store.listInvites() });
       }
       if (rx.method === 'POST' && path === '/outbound') {
@@ -850,7 +845,7 @@ export class Estafeta {
       }
       if (rx.method === 'GET' && (m = /^\/mailbox\/([^/]+)$/.exec(path))) {
         const who = await this._authenticate(rx, path);
-        if (who.local !== decodeURIComponent(m[1]).toLowerCase()) return send(403, { reason: 'buzón ajeno' });
+        if (who.local !== decodeURIComponent(m[1]).toLowerCase()) return send(403, { reason: 'not your mailbox' });
         const limit = Number(rx.query.get('limit') || 50);
         // los N más recientes (listMail viene en orden cronológico): con muchos mensajes viejos
         // sin ackear, slice(0,limit) escondía justo los nuevos. slice(-limit) muestra los últimos.
@@ -858,7 +853,7 @@ export class Estafeta {
       }
       if (rx.method === 'POST' && (m = /^\/mailbox\/([^/]+)\/ack$/.exec(path))) {
         const who = await this._authenticate(rx, path);
-        if (who.local !== decodeURIComponent(m[1]).toLowerCase()) return send(403, { reason: 'buzón ajeno' });
+        if (who.local !== decodeURIComponent(m[1]).toLowerCase()) return send(403, { reason: 'not your mailbox' });
         const { ids = [] } = rx.body || {};
         const acked = [];
         for (const id of ids) if (await this.store.ackMail(who.local, id)) acked.push(id);
@@ -875,11 +870,11 @@ export class Estafeta {
         const who = await this._authenticate(rx, path, { allowForeign: true });
         const c = await this.store.libroGetContract(decodeURIComponent(m[1]));
         if (!c) return send(404, { reason: 'contrato inexistente' });
-        if (![c.seller, c.buyer, c.verifier, c.arbiter].includes(who.address)) return send(403, { reason: 'no eres parte' });
+        if (![c.seller, c.buyer, c.verifier, c.arbiter].includes(who.address)) return send(403, { reason: 'you are not a party to this' });
         return send(200, contratoPublico(c));
       }
       if (rx.method === 'POST' && path === '/libro/topup') {
-        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa carga saldo' });
+        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house tops up balances' });
         const { account, amount, concept } = rx.body || {};
         return send(201, await this.libro.topup(account, amount, concept || 'carga de la casa'));
       }
@@ -889,7 +884,7 @@ export class Estafeta {
       // El catálogo es público: un agente que acaba de unirse tiene que poder leer qué hay
       // que hacer, cuánto paga y con qué prueba se comprueba, sin autenticarse.
       if (rx.method === 'GET' && path === '/tareas') {
-        if (!this.tareas.enabled) return send(404, { reason: 'esta casa no siembra trabajo' });
+        if (!this.tareas.enabled) return send(404, { reason: 'this house does not seed work' });
         return send(200, {
           mostrador: `tareas@${this.domain}`, arbitro: `verifica@${this.domain}`,
           por_agente_dia: this.tareas.porAgenteDia,
@@ -898,7 +893,7 @@ export class Estafeta {
         });
       }
       if (rx.method === 'GET' && path === '/eventos') {
-        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa lee sus eventos' });
+        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house reads its events' });
         const p = Object.fromEntries(rx.query);
         const eventos = (await this.store.listEvents?.({ name: p.name || null, since: p.since || null, limit: Number(p.limit || 500) })) || [];
         const conteo = {};
@@ -906,7 +901,7 @@ export class Estafeta {
         return send(200, { conteo, eventos });
       }
       if (rx.method === 'GET' && path === '/libro/diario') {
-        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa lee el diario completo' });
+        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house reads the full journal' });
         return send(200, { balances: (await this.store.libroState()).balances, journal: await this.libro.journal() });
       }
       if (rx.method === 'GET' && (m = /^\/outbox\/([^/]+)$/.exec(path))) {

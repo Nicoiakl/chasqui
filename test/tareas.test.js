@@ -128,15 +128,15 @@ test('Sybil: tope por agente y día, una a la vez, y cada tarea se paga una vez'
   const c = (extra) => ({ created: `${hoy}T10:00:00.000Z`, terms: { seed_task: 'ping' }, seller: 'x@t.test', state: 'released', ...extra });
 
   assert.equal(t.cupo(tarea, 'x@t.test', []).ok, true);
-  assert.match(t.cupo(tarea, 'x@t.test', [c({})]).reason, /tope por agente es 1/);
+  assert.match(t.cupo(tarea, 'x@t.test', [c({})]).reason, /per-agent cap is 1/);
   // Con una en curso, el mensaje accionable gana: "termínala" antes que "vuelve mañana".
-  assert.match(t.cupo(tarea, 'x@t.test', [c({ state: 'held' })]).reason, /en curso/);
-  assert.match(t.cupo(tarea, 'y@t.test', [c({ seller: 'a@t.test' }), c({ seller: 'b@t.test' }), c({ seller: 'c@t.test' })]).reason, /ya sembró 3 tareas hoy/);
+  assert.match(t.cupo(tarea, 'x@t.test', [c({ state: 'held' })]).reason, /in flight/);
+  assert.match(t.cupo(tarea, 'y@t.test', [c({ seller: 'a@t.test' }), c({ seller: 'b@t.test' }), c({ seller: 'c@t.test' })]).reason, /already seeded 3 tasks today/);
   // Lo de ayer no consume el cupo de hoy (con OTRA tarea: la misma ya estaría pagada).
   assert.equal(t.cupo(tarea, 'x@t.test', [c({ created: '2020-01-01T00:00:00.000Z', terms: { seed_task: 'otra' } })]).ok, true);
   // Y cada tarea se paga UNA vez por agente, aunque el cupo diario sobre y cambie el día.
   const holgado = new Tareas({ catalogo: catalogo(), porAgenteDia: 5, porDia: 0 });
-  assert.match(holgado.cupo(tarea, 'x@t.test', [c({ created: '2020-01-01T00:00:00.000Z' })]).reason, /ya cobraste la tarea ping/);
+  assert.match(holgado.cupo(tarea, 'x@t.test', [c({ created: '2020-01-01T00:00:00.000Z' })]).reason, /already got paid for task ping/);
 });
 
 test('el tope diario se aplica de verdad en la casa, no solo en la clase', async () => {
@@ -148,17 +148,17 @@ test('el tope diario se aplica de verdad en la casa, no solo en la clase', async
   const rebote = await a._agente.waitFor((e) => e.in_reply_to === segunda.id && e.from.startsWith('postmaster@'), { timeoutMs: 5000 });
   const cuerpo = (await a._agente.open(rebote.envelope)).content.body;
   assert.equal(cuerpo.status, 'failed');
-  assert.match(cuerpo.reason, /tarea .* en curso|tope por agente/);
+  assert.match(cuerpo.reason, /in flight|per-agent cap/);
 });
 
 test('no se negocia: precio inflado, prueba cambiada o árbitro ajeno se rechazan', async () => {
   const a = await join({ house: 't.test', hosts, name: 'vivo' });
   const casos = [
-    [{ price: 5000 }, /el precio de ping es 50/],
-    [{ terms: { seed_task: 'ping', verify: [{ type: 'http_status', url: 'https://siempre-ok.invalid/' }] } }, /no es la publicada/],
-    [{ arbiter: a.address }, /el árbitro de una tarea sembrada es verifica@t\.test/],
+    [{ price: 5000 }, /the price of ping is 50/],
+    [{ terms: { seed_task: 'ping', verify: [{ type: 'http_status', url: 'https://siempre-ok.invalid/' }] } }, /not the one published/],
+    [{ arbiter: a.address }, /the arbiter of a seeded task is verifica@t\.test/],
     // Sin seed_task no hay a qué tarea referirse: la casa lo dice y apunta al catálogo.
-    [{ terms: { acceptance: 'algo' } }, /no hay una tarea sembrada con id undefined/],
+    [{ terms: { acceptance: 'algo' } }, /no seeded task with id undefined/],
   ];
   for (const [extra, esperado] of casos) {
     const enviada = await tomar(a._agente, 'ping', extra);
@@ -234,7 +234,7 @@ test('una casa sin catálogo no expone el mostrador', async () => {
   try {
     const res = await fetch(`http://127.0.0.1:${P2}/tareas`);
     assert.equal(res.status, 404);
-    assert.match((await res.json()).reason, /no siembra trabajo/);
+    assert.match((await res.json()).reason, /does not seed work/);
     assert.equal(await seca.agentCard('tareas'), null, 'sin catálogo no se levanta tareas@');
   } finally { await seca.stop(); }
 });
