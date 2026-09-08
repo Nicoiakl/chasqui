@@ -21,7 +21,7 @@ const d1store = () => { const db = openLocalD1(); db._raw.exec(MIGRACIONES); ret
 let puerto = 4160;
 const casa = async (opts = {}) => {
   const p = puerto++;
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-altos-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-altos-'));
   const dom = opts.domain || `c${p}.test`;
   const e = new Estafeta({
     domain: dom, port: p, adminToken: 't', publicUrl: `http://127.0.0.1:${p}`,

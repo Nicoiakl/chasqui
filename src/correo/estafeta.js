@@ -25,6 +25,7 @@ import { generateSigningKeys, signObject, verifyObject, signBytes, verifyBytes, 
 import { Libro, MEDIA, LibroError } from '../libro/libro.js';
 import { veredicto, pruebasDe, pruebasDisponibles } from '../libro/verifica.js';
 import { contratoPublico, ACP } from '../libro/contratos.js';
+import { Tareas } from '../libro/tareas.js';
 import { APP_HTML } from '../plataformas/app-html.js';
 import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
 import { HOME_HTML } from '../plataformas/home-html.js';
@@ -40,7 +41,7 @@ export class Estafeta {
     port = 4000, host = '127.0.0.1', publicUrl,
     hosts = {}, fetchImpl = globalThis.fetch,
     policy = {}, retry = {}, workerIntervalMs = 1000, libro = {},
-    index = {}, email = {}, verifica = {}, eventos = true,
+    index = {}, email = {}, verifica = {}, eventos = true, tareas = {},
     extensions = null,
     log = (...a) => console.log(`[estafeta ${domain}]`, ...a),
   }) {
@@ -61,6 +62,8 @@ export class Estafeta {
     // el cron hace en una pasada para no comerse el minuto entero verificando.
     this.verifica = { enabled: true, maxPorTick: 10, timeoutMs: 10_000, ...verifica };
     this.eventos = eventos !== false;
+    // Trabajo sembrado: la casa es el primer comprador. Sin catálogo, apagado.
+    this.tareas = new Tareas(tareas);
     // Puente de correo: entrada siempre disponible si la casa la enciende; salida solo si hay proveedor.
     // `email.provider` es una función async(payload) (ver src/puentes/email.js); sin ella, la salida queda pendiente.
     this.email = { enabled: !!(email.enabled || email.provider), provider: email.provider || null };
@@ -125,6 +128,10 @@ export class Estafeta {
     // puede correr en ESTE runtime (en el edge no hay shell), para no prometer lo que no hace.
     if (this.verifica.enabled && !await this.store.getAgent('verifica')) {
       await this.registerAgent({ local: 'verifica', sig: this.keys.sig, capabilities: { accepts: [MEDIA.op], verifica: { pruebas: pruebasDisponibles() }, listed: true }, inbox: { policy: 'open' } });
+    // tareas@ — el mostrador del trabajo sembrado. Existe solo si la casa publicó tareas.
+    if (this.tareas.enabled && !await this.store.getAgent('tareas')) {
+      await this.registerAgent({ local: 'tareas', sig: this.keys.sig, capabilities: { accepts: [MEDIA.cotizacion], tareas: { por_agente_dia: this.tareas.porAgenteDia }, listed: true }, inbox: { policy: 'open' } });
+    }
     }
   }
   // Instrumentación: nombre, fecha, actor y números. Nunca contenido de sobres ni datos del
@@ -135,8 +142,8 @@ export class Estafeta {
     try { await this.store.putEvent({ id: uuid(), name, ts: iso(), actor: actor || null, data }); }
     catch (e) { this.log(`evento ${name} no registrado: ${e.message}`); }
   }
-  isSystem(local) { return local === 'postmaster' || local === 'libro' || local === 'verifica'; }
-  static RESERVED = new Set(['postmaster', 'libro', 'verifica', 'casa', 'admin', 'root', 'abuse', 'security', 'hostmaster', 'noreply', 'no-reply', 'support', 'estafeta', 'nyx5', 'indice']);
+  isSystem(local) { return ['postmaster', 'libro', 'verifica', 'tareas'].includes(local); }
+  static RESERVED = new Set(['postmaster', 'libro', 'verifica', 'tareas', 'casa', 'admin', 'root', 'abuse', 'security', 'hostmaster', 'noreply', 'no-reply', 'support', 'estafeta', 'nyx5', 'indice']);
 
   // ---------- servicio de registro ----------
   // Invitaciones: la casa emite códigos con usos y vencimiento; un agente los presenta al inscribirse.
@@ -449,6 +456,41 @@ export class Estafeta {
     return env;
   }
 
+  // ----- tareas@: la casa toma el lado comprador de una tarea sembrada -----
+  // El agente manda su cotización firmada; la casa la compara contra el catálogo publicado y,
+  // si coincide y hay cupo, la acepta operando el Libro como cualquier comprador. La casa NO
+  // firma por el agente: el vendedor de ese escrow es él, con su propia llave.
+  async _tomarTarea(env, senderCard) {
+    const q = env.content?.body;
+    if (env.content?.media !== MEDIA.cotizacion || q?.tipo !== 'cotizacion') {
+      return { ok: false, code: 400, reason: `tareas@ acepta una cotización (${MEDIA.cotizacion}) por la tarea publicada; mira GET /tareas` };
+    }
+    const tarea = this.tareas.tarea(q.terms?.seed_task);
+    if (!tarea) return { ok: false, code: 404, reason: `no hay una tarea sembrada con id ${q.terms?.seed_task}. Las publicadas están en GET /tareas` };
+    if (q.seller !== env.from) return { ok: false, code: 403, reason: 'el vendedor de la cotización debe ser quien la manda' };
+    if (q.buyer !== `tareas@${this.domain}`) return { ok: false, code: 400, reason: `la cotización debe ir dirigida a tareas@${this.domain}` };
+    const encaja = this.tareas.coincide(q, tarea, { arbitro: `verifica@${this.domain}` });
+    if (!encaja.ok) return { ok: false, code: 409, reason: encaja.reason };
+    const contratos = await this.store.libroListContracts();
+    const cupo = this.tareas.cupo(tarea, env.from, contratos);
+    // 409, no 429: un 429 es transitorio y la estafeta lo reintentaría durante tres días, así
+    // que el agente se quedaría esperando sin saber por qué. Sin cupo, se le dice ahora.
+    if (!cupo.ok) return { ok: false, code: 409, reason: cupo.reason };
+
+    // La casa acepta con un sobre firmado a libro@, por la misma puerta que todos.
+    const aceptacion = signObject({
+      nyx5: '1', id: uuid(), from: `tareas@${this.domain}`, to: [`libro@${this.domain}`],
+      created: iso(), expires: null, thread: q.id, in_reply_to: env.id, type: 'task',
+      content: { media: MEDIA.op, body: { op: 'accept', quote: q } },
+    }, this.keys);
+    const r = await this.inbound(aceptacion);
+    if (!r.ok) return { ok: false, code: r.code || 409, reason: `la casa no pudo tomar la tarea: ${r.reason}` };
+    const contrato = Object.values(r.results || {})[0]?.contract || null;
+    this.log(`tarea ${tarea.id} tomada por ${env.from} (contrato ${contrato?.id})`);
+    await this._evento('seed_task_taken', env.from, { task: tarea.id, contract: contrato?.id || null, price: tarea.price });
+    return { ok: true, code: 202, result: { contract: contratoPublico(contrato), task: tarea.id }, recibos: [] };
+  }
+
   // Los cinco eventos que dicen si el mecanismo se está ejerciendo de verdad, leídos del
   // resultado de la op (no de lo que alguien dijo que iba a pasar).
   async _eventoDeOp(env, result) {
@@ -527,6 +569,13 @@ export class Estafeta {
           for (const av of r.avisos || []) avisosPendientes.push(av);
           results[to] = r.result;
           if (!r.duplicate) await this._eventoDeOp(env, r.result);
+        } else if (local === 'tareas' && this.tareas.enabled) {
+          // Mostrador del trabajo sembrado: el agente cotiza la tarea publicada y la casa la
+          // acepta si coincide EXACTAMENTE con el catálogo y hay cupo. Nada se negocia aquí.
+          const r = await this._tomarTarea(env, senderCard);
+          if (!r.ok) { rejected.push({ to, code: r.code, reason: r.reason }); continue; }
+          for (const rc of r.recibos || []) recibosPendientes.push(rc);
+          results[to] = r.result;
         } else if (p.stamp) {
           // Una estampilla paga UN buzón: el sobre declara un monto, no un monto por destinatario.
           if (stampUsed) { rejected.push({ to, code: 402, reason: 'la estampilla del sobre ya se usó en otro destinatario' }); continue; }
@@ -826,6 +875,17 @@ export class Estafeta {
       // Los eventos son de la casa: dicen cuántos agentes llegaron y si el mecanismo se ejerce.
       // No son públicos porque juntos dibujan la actividad de la casa; el historial de cada
       // agente, que es lo que un desconocido necesita, sí lo es.
+      // El catálogo es público: un agente que acaba de unirse tiene que poder leer qué hay
+      // que hacer, cuánto paga y con qué prueba se comprueba, sin autenticarse.
+      if (rx.method === 'GET' && path === '/tareas') {
+        if (!this.tareas.enabled) return send(404, { reason: 'esta casa no siembra trabajo' });
+        return send(200, {
+          mostrador: `tareas@${this.domain}`, arbitro: `verifica@${this.domain}`,
+          por_agente_dia: this.tareas.porAgenteDia,
+          como: `cotiza la tarea a tareas@${this.domain} como escrow, con arbiter=verifica@${this.domain} y terms exactamente iguales a los publicados`,
+          tareas: this.tareas.publicadas().map((t) => ({ ...t, terms: this.tareas.terminosDe(this.tareas.tarea(t.id)) })),
+        });
+      }
       if (rx.method === 'GET' && path === '/eventos') {
         if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'solo la casa lee sus eventos' });
         const p = Object.fromEntries(rx.query);

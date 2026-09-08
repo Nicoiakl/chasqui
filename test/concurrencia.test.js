@@ -100,7 +100,7 @@ test('CRÍTICO: un choque de concurrencia se rebota como TRANSITORIO, no como fa
 });
 
 test('la casa resuelve su PROPIA tarjeta sin salir a la red (el 522 que colgó el E2E)', async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-self-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-self-'));
   // fetch que explota: si la casa intenta pedirse la tarjeta a sí misma por internet, falla.
   const fetchQueExplota = async (url) => { throw new Error(`SALIÓ A LA RED hacia ${url}`); };
   const e = new Estafeta({
@@ -118,7 +118,7 @@ test('la casa resuelve su PROPIA tarjeta sin salir a la red (el 522 que colgó e
 });
 
 test('la resolución local NO exime de verificar: una delegación falsa de la propia casa se rechaza', async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-selfdel-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-selfdel-'));
   const e = new Estafeta({ domain: 'casa.test', port: 4152, dataDir: path.join(tmp, 'c'), adminToken: 't', publicUrl: 'https://casa.test', fetchImpl: async () => { throw new Error('no debe salir a la red'); }, workerIntervalMs: 999_999, log: () => {} });
   await e.init();
   const padre = generateKeys(), hijo = generateKeys(), impostor = generateKeys();

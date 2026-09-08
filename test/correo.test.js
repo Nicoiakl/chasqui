@@ -17,7 +17,7 @@ const env = (from, to, keys, extra = {}) => signObject({ nyx5: '1', id: uuid(), 
 const inbound = async (port, e) => { const r = await fetch(`http://127.0.0.1:${port}/inbound`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(e) }); return { status: r.status, ...(await r.json()) }; };
 
 before(async () => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-test-'));
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-test-'));
   alfa = await mk('alfa.test', P1, 'a').start();
   beta = await mk('beta.test', P2, 'b').start();
   nicolas = Agent.create('nicolas@alfa.test', hosts['alfa.test'].url, { hosts });

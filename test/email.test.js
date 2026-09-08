@@ -14,7 +14,7 @@ import { extractText } from '../src/puentes/email.js';
 let puerto = 4260;
 async function casa(email = {}) {
   const p = puerto++;
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-email-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-email-'));
   const dom = `d${p}.test`;
   const e = new Estafeta({ domain: dom, port: p, dataDir: path.join(tmp, dom), adminToken: 't', publicUrl: `http://127.0.0.1:${p}`, hosts: { [dom]: { url: `http://127.0.0.1:${p}` } }, workerIntervalMs: 60, email, log: () => {} });
   await e.start();

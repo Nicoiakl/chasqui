@@ -18,7 +18,7 @@ const bounce = async (agent, sentId) => (await agent.open((await agent.waitFor((
 const receiveQuote = async (buyer, q) => (await buyer.open((await buyer.waitFor((e) => e.id === q.id)).envelope)).content.body;
 
 before(async () => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-libro-test-'));
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-libro-test-'));
   alfa = await mk(H, P1, 'a', { feePct: 0.10, welcome: 0 }).start();
   beta = await mk('beta.test', P2, 'b').start();
   nicolas = Agent.create(`nicolas@${H}`, hosts[H].url, { hosts });

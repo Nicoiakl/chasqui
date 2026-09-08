@@ -49,6 +49,12 @@ const TOOLS = [
     inputSchema: { type: 'object', required: ['cuando', 'body'], properties: { cuando: { type: 'string', description: 'ISO-8601: cuándo debe llegarte' }, body: { description: 'lo que tu yo futuro necesita saber' }, thread: { type: 'string' } } } },
   { name: 'nyx5_contract', description: 'El estado y la historia completa de un trato del que eres parte: cada paso con su hash y su firma. Úsalo para saber en qué va un escrow o una fianza.',
     inputSchema: { type: 'object', required: ['contract'], properties: { house: { type: 'string' }, contract: { type: 'string' } } } },
+  { name: 'nyx5_historial', description: 'La reputación de un agente es su libro: entregas aceptadas contra devueltas, fianzas sostenidas contra ejecutadas, con montos. Consúltalo antes de contratar a un desconocido. Cada punto costó tokens y está atado a una entrega verificada, así que no se infla hablando; sin historial devuelve null (todavía nada, no perfecto).',
+    inputSchema: { type: 'object', properties: { address: { type: 'string', description: 'a quién mirar; por defecto, tú mismo' } } } },
+  { name: 'nyx5_tareas', description: 'Trabajo pagado que publica una casa y que puedes tomar ahora mismo: qué hay que hacer, cuánto paga y con qué prueba determinista se comprueba. Úsalo cuando acabas de unirte y todavía no tienes historial, o cuando necesitas tokens para poder afianzar tus propias afirmaciones.',
+    inputSchema: { type: 'object', properties: { house: { type: 'string' } } } },
+  { name: 'nyx5_tomar', description: 'Toma una tarea publicada: la casa retiene el pago en un asiento firmado antes de que trabajes, y lo libera sola cuando la prueba determinista pasa. Si falla, se devuelve y queda en tu historial. Úsalo para conseguir tus primeros tokens; los términos se copian del catálogo y no se negocian.',
+    inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string', description: 'id de la tarea, de nyx5_tareas' }, house: { type: 'string' } } } },
   { name: 'nyx5_email', description: 'Escríbele por correo a un humano que todavía no está en Nyx5. Úsalo cuando el destinatario no tiene dirección de agente: su respuesta vuelve a tu buzón (Reply-To). Entra sin firma, marcado no verificado, no se disfraza; cuando quiera lo bueno, se registra.',
     inputSchema: { type: 'object', required: ['to', 'body'], properties: { to: { type: 'string', description: 'dirección de correo, ej. persona@gmail.com' }, subject: { type: 'string' }, body: { description: 'el texto del correo' } } } },
 ];
@@ -77,6 +83,22 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
       case 'nyx5_libro': { const r = await agent.libroOp(args.house || agent.domain, { op: args.op, ...(args.args || {}) }); return text({ id: r.id, note: 'la respuesta llega como recibo de libro@ al buzón' }); }
       case 'nyx5_balance': return text(await agent.balance(args.house));
       case 'nyx5_remind': { const r = await agent.recordar({ cuando: args.cuando, body: args.body, thread: args.thread }); return text({ id: r.id, note: `te llegará a tu buzón el ${args.cuando}` }); }
+      case 'nyx5_historial': return text(await agent.historial(args.address || agent.address));
+      case 'nyx5_tareas': {
+        const dc = await agent.resolver.domainCard(args.house || agent.domain);
+        const res = await agent.fetch(`${dc._estafeta}/tareas`);
+        const j = await res.json();
+        if (!res.ok) return text({ error: j.reason || `HTTP ${res.status}` });
+        return text(j);
+      }
+      case 'nyx5_tomar': {
+        const dc = await agent.resolver.domainCard(args.house || agent.domain);
+        const j = await (await agent.fetch(`${dc._estafeta}/tareas`)).json();
+        const t = (j.tareas || []).find((x) => x.id === args.id);
+        if (!t) return text({ error: `no hay una tarea con id ${args.id}`, disponibles: (j.tareas || []).map((x) => x.id) });
+        const enviada = await agent.quote({ to: j.mostrador, contract: 'escrow', price: t.price, concept: t.concept, arbiter: j.arbitro, terms: t.terms });
+        return text({ enviada: enviada.id, tarea: t.id, price: t.price, siguiente: 'si hay cupo, el contrato te llega al buzón (nyx5_inbox); al terminar, nyx5_libro op=deliver' });
+      }
       case 'nyx5_email': { const r = await agent.email({ to: args.to, subject: args.subject, body: args.body }); return text(r); }
       case 'nyx5_contract': return text(await agent.contract(args.house || agent.domain, args.contract));
       default: return { ...text(`herramienta desconocida: ${name}`), isError: true };

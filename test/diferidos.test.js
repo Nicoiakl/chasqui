@@ -13,7 +13,7 @@ import { Libro } from '../src/libro/libro.js';
 let puerto = 4180;
 async function casa() {
   const p = puerto++;
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-dif-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-dif-'));
   const dom = `d${p}.test`;
   const e = new Estafeta({ domain: dom, port: p, dataDir: path.join(tmp, dom), adminToken: 't', publicUrl: `http://127.0.0.1:${p}`, hosts: { [dom]: { url: `http://127.0.0.1:${p}` } }, workerIntervalMs: 60, retry: { baseMs: 60, maxMs: 200 }, log: () => {} });
   await e.start();

@@ -19,7 +19,7 @@ const hosts = {
 let tmp, indice, uno, dos;
 
 before(async () => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-idx-'));
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-idx-'));
   const mk = (domain, port, extra = {}) => new Estafeta({ domain, port, dataDir: path.join(tmp, domain), adminToken: 't', hosts, workerIntervalMs: 120, log: () => {}, ...extra });
   indice = await mk('indice.test', P1, { index: { enabled: true, crawlMinutes: 999 } }).start();
   uno = await mk('uno.test', P2).start();
@@ -94,7 +94,7 @@ test('el índice rastrea su PROPIA casa sin salir a la red (el 522 del auto-fetc
     if (String(url).startsWith(propia)) throw new Error('522 connection timed out (el Worker no puede pedirse a sí mismo)');
     return globalThis.fetch(url, opts);
   };
-  const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-idx-self-'));
+  const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-idx-self-'));
   const solo = await new Estafeta({
     domain: 'solo.test', port: P1 + 10, dataDir: path.join(tmp2, 'solo'), adminToken: 't',
     publicUrl: propia, hosts: { ...hosts, 'solo.test': { url: propia } },

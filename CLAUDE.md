@@ -34,7 +34,12 @@ src/plataformas/worker.js adaptador Cloudflare Workers (fetch + scheduled); conf
 migrations/000{2,3,4}*.sql   esquema D1, candado del ledger y pins por fila
 bin/nyx5.js           CLI
 demo/                    e2e, offline, spam (correo) · contratos (libro) · piloto-d4 (economía de una flota + costo por entrega)
-test/                    correo (9) · libro (11) · registro (6) · invariantes+D1 (13) · indice (5) · concurrencia (5) · altos (9) · diferidos (6) -> `npm test` (70)
+src/correo/unirse.js     join (alta en un paso) y mandate (tope del humano) como funciones testeables
+src/libro/verifica.js    evaluador de referencia: http_status | sha256 | exit_0; veredicto y "indeciso"
+src/libro/tareas.js      trabajo sembrado: catálogo, cupos por agente/día, y que la cotización coincida
+test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
+                         diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
+                         puertos (guard de colisión) -> `npm test` (112)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -42,12 +47,14 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 70 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 112 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
 npm run demo:contratos   # libro: spot, escrow, fianza, mandato en cadena, delegación, estampilla
 npm run demo:piloto      # D4: una flota con presupuesto, escrow + verificación medida, costo por entrega
+node bin/nyx5.js join        # alta en un paso (lo que corre un agente que llega)
+node bin/nyx5.js tareas      # catálogo de trabajo sembrado de una casa
 node bin/nyx5.js      # ayuda de la CLI
 ```
 
@@ -96,12 +103,12 @@ presupuesto cargado por topup, trabajo delegado como escrow, verificación como 
 reporte de costo por entrega leído del diario (con cuadre de doble entrada). El costo por entrega no es
 estimación: es lo que el asiento dice que salió de la cuenta del frente.
 
-**Casa oficial en nyx5.com (2026-09-07)**: MIGRADA. `CHASQUI_DOMAIN=nyx5.com`, D1 limpio "nyx5"
+**Casa oficial en nyx5.com (2026-09-07)**: MIGRADA. `NYX5_DOMAIN=nyx5.com`, D1 limpio "nyx5"
 (d51f69cf…); el D1 viejo "chsq" queda abandonado a propósito (partir limpio, como sigo.uk). Los agentes
-son @nyx5.com; `nicholas@nyx5.com` registrado y el conector MCP (`~/.chasqui/nicholas.json`) apunta ahí
+son @nyx5.com; `nicholas@nyx5.com` registrado y el conector MCP (`~/.chasqui/nicholas.json` (el directorio conserva el nombre viejo)) apunta ahí
 (respaldo `.chsq-uk.bak`; requiere reiniciar la app de Claude para tomarlo). chsq.uk queda como alias del
 mismo Worker. El protocolo sigue siendo Nyx5/1 (id firmado en cada sobre). Repo público:
-**github.com/Nicoiakl/chasqui**, CI verde (Node 20 y 24; el emulador D1 usa node:sqlite, que no está en
+**github.com/Nicoiakl/nyx5**, CI verde (Node 20 y 24; el emulador D1 usa node:sqlite, que no está en
 Node 20 → esas suites saltan, ver `sqliteAvailable`). `docs/SPEC.en.md`: traducción al inglés (borrador §5).
 
 **D2 hecho (2026-09-06)**: presencia pública. LICENSE Apache-2.0, package.json publicable
@@ -109,14 +116,38 @@ Node 20 → esas suites saltan, ver `sqliteAvailable`). `docs/SPEC.en.md`: tradu
 CI (Node 20/22), y el sitio de la spec generado desde `docs/SPEC.md` por `scripts/build-spec-site.mjs`
 (§6: el documento no pasa por ninguna mano) y servido en **https://chsq.uk/spec** + `/llms.txt`
 (meta + JSON-LD para indexación LLM). Falta lo que requiere credenciales de Nicholas: `npm publish`
-(npm no autenticado aquí; nombre "chasqui" figura unpublished-2023, reclamable) y el repo GitHub público.
+(publicado como **@nyx5/nyx5**; el nombre suelto `nyx5` lo bloquea npm por parecerse a nx/nyc) y el repo GitHub público.
 
 **Brief de distribución COMPLETO** (`docs/DISTRIBUCION.md`): D1, V1, D4, D2, D5, D6, D7, D3 hechos y
 desplegados (npm test = 80, CI verde). D3 (puente de correo) queda inerte hasta que Nicholas active
 Email Routing (entrada) y ponga RESEND_KEY/EMAIL_SENDER (salida). Pendientes fuera del brief: migrar la
 identidad de las casas a nyx5.com, `npm publish`, re-traducir SPEC.en.md, ancla DNS TXT, ~20 medios/bajos.
 
-**Dos trampas de este proyecto** (nacieron de defectos reales, no las repitas):
+**Sprint join/mandate/verifica DESPLEGADO en el repo (2026-09-08)** — §6 del `docs/SPEC-MAESTRO.md`,
+los 8 puntos, 112 pruebas:
+- `nyx5 join`: un comando y el agente tiene dirección, buzón, saldo y bloque MCP. Sin humano.
+- `nyx5 mandate`: el humano fija tope una vez; se confirma con el recibo del Libro, no por optimismo.
+- **Reputación = el libro**: `GET /agents/<local>/historial`, PÚBLICO. Solo cuenta lo que movió
+  tokens; cero de cero devuelve `null`, nunca 100 %.
+- `verifica@<casa>`: 3 pruebas deterministas (`http_status`, `sha256`, `exit_0` — esta última solo
+  fuera del edge). Libera o devuelve el escrow según el resultado; si la prueba NO PUDO correr,
+  queda indeciso y nadie decide. `exit_0` exige `argv`, jamás una línea de shell.
+- `tareas@<casa>`: trabajo sembrado. La casa es el primer comprador; el agente cotiza con los
+  términos publicados TAL CUAL. Tope por agente/día, una a la vez, cada tarea se paga una vez.
+- Vocabulario ACP (ERC-8183) en las vistas públicas (`acp.phase` / `acp.outcome`).
+- Instrumentación: `join`, `mandate_created`, `first_quote`, `escrow_released`, `escrow_refunded`,
+  `bond_forfeited`, `seed_task_taken`, `verificado`. `GET /eventos` (solo la casa).
+- Variables `NYX5_*` con respaldo `CHASQUI_*`. El nombre del Worker (`chsq`) NO se toca: renombrarlo
+  obliga a recrearlo y remapear dominios, secrets y Email Routing, con caída de nyx5.com.
+- FALTA: desplegar a producción (`wrangler deploy` + migración 0005 + catálogo de tareas), y decidir
+  qué tareas siembra la casa real.
+
+**Cuatro trampas de este proyecto** (nacieron de defectos reales, no las repitas):
+- `_systemSend` deja el sobre en el buzón SIN pasar por `inbound`. Sirve para avisos del
+  postmaster, NO para operar el Libro: una op a `libro@` enviada así nunca se ejecuta. Si un
+  agente de sistema tiene que operar el Libro, firma el sobre y entra por `inbound` (invariante 2).
+- `npm test` corre los archivos EN PARALELO: dos suites con el mismo puerto se cuelgan sin decir
+  por qué (se ve como "el buzón no recibe"). Lo cuida `test/puertos.test.js`.
 - Un Worker NO puede pedirse su propia URL pública ni un `*.workers.dev` (522 / 1042). Todo lo
   propio se resuelve local: ver `resolver.self` y el `propia` de `_indexCrawlHouse`.
 - Una prueba que corre sobre node:http puede pasar en verde con el defecto vivo, porque el

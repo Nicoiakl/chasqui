@@ -4,6 +4,8 @@
 //   nyx5 join     [--name mi-agente] [--house nyx5.com] [--listed] [--mcp URL] [--out ARCHIVO] [--json]
 //   nyx5 mandate  --agent ./keys/nicolas.json --grantee bot@nyx5.com --cap 20000 [--scope '{...}'] [--expires ISO]
 //   nyx5 historial [--address alguien@nyx5.com | --agent ./keys/mio.json]
+//   nyx5 tareas   [--house nyx5.com]                       (catálogo de trabajo sembrado)
+//   nyx5 tomar    --agent ./keys/mio.json --id ping         (toma una tarea sembrada)
 //   nyx5 estafeta --domain alfa.local --port 4001 --data ./data/alfa --admin-token secreto [--registration admin|invite|open] [--welcome 100] [--fee 0.10]
 //   nyx5 keygen   --address nicolas@alfa.local --estafeta http://127.0.0.1:4001 --out ./keys/nicolas.json
 //   nyx5 register --agent ./keys/nicolas.json --admin-token secreto [--policy open|allowlist|pow|stamp] [--allow a@b,c@d] [--pow-bits 16] [--webhook URL] [--mcp URL] [--a2a URL]
@@ -115,6 +117,36 @@ try {
       for (const [k, v] of Object.entries(resumen.siguiente)) console.log(`  ${k.replace(/_/g, ' ')}: ${v}`);
       console.log('');
       console.log(JSON.stringify(resumen));
+      break;
+    }
+    // ----- Trabajo sembrado: qué hay que hacer y cómo tomarlo -----
+    case 'tareas': {
+      const casa = o.house || 'nyx5.com';
+      const r = new Resolver({ hosts: loadHosts() });
+      const dc = await r.domainCard(casa);
+      const res = await fetch(`${dc._estafeta}/tareas`);
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.reason || `HTTP ${res.status}`);
+      if (o.json) { print(j); break; }
+      console.log(`Trabajo sembrado en ${casa} (mostrador ${j.mostrador}, árbitro ${j.arbitro}):`);
+      for (const t of j.tareas) console.log(`  ${t.id}  ${t.price} tok  ${t.concept}\n      se comprueba con: ${t.verify.map((v) => v.type).join(', ')}`);
+      console.log(`\nPara tomar una: npx @nyx5/nyx5 tomar --agent <tu-llave> --id <tarea>`);
+      break;
+    }
+    case 'tomar': {
+      const a = await loadAgent();
+      const dc = await a.resolver.domainCard(o.house || a.domain);
+      const j = await (await fetch(`${dc._estafeta}/tareas`)).json();
+      const t = (j.tareas || []).find((x) => x.id === need('id'));
+      if (!t) throw new Error(`no hay una tarea con id ${o.id}. Disponibles: ${(j.tareas || []).map((x) => x.id).join(', ') || '(ninguna)'}`);
+      // Se copian los términos publicados TAL CUAL: la casa compara contra su catálogo y
+      // rechaza cualquier diferencia, así que aquí no hay nada que ajustar.
+      const enviada = await a.quote({ to: j.mostrador, contract: 'escrow', price: t.price, concept: t.concept, arbiter: j.arbitro, terms: t.terms });
+      console.log(`Cotización enviada por "${t.concept}" (${t.price} tok).`);
+      console.log('Si hay cupo, la casa retiene los tokens y te llega el contrato al buzón.');
+      console.log(`  ver buzón:  npx @nyx5/nyx5 inbox --agent ${o.agent}`);
+      console.log(`  al terminar: npx @nyx5/nyx5 libro --agent ${o.agent} --op deliver --args '{"contract":"<id>"}'`);
+      if (o.json) print(enviada);
       break;
     }
     // ----- El humano fija tope y ámbito UNA vez; dentro de eso el agente contrata solo -----
@@ -263,7 +295,7 @@ try {
       console.log(`agente delegado ${sub.address} creado; claves en ${out}`); break;
     }
     default:
-      console.log(fs.readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 31).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      console.log(fs.readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 33).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
       process.exit(cmd ? 1 : 0);
   }
 } catch (e) {

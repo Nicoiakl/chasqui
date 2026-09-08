@@ -15,7 +15,7 @@ const mk = (domain, port, registration, extra = {}) => new Estafeta({ domain, po
 const post = async (port, body, headers = {}) => { const r = await fetch(`http://127.0.0.1:${port}/agents`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) }); return { status: r.status, ...(await r.json()) }; };
 
 before(async () => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-reg-'));
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-reg-'));
   cerrada = await mk('cerrada.test', P1, 'admin').start();
   invitada = await mk('invitada.test', P2, 'invite', { libro: { welcome: 50 } }).start();
   abierta = await mk('abierta.test', P3, 'open').start();

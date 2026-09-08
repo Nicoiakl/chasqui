@@ -30,7 +30,7 @@ const inbound = async (port, e, headers = {}) => { const r = await fetch(`http:/
 
 before(async () => {
   if (!sqliteAvailable) return; // sin node:sqlite la suite entera salta; no montamos nada
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chasqui-inv-'));
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-inv-'));
   // gamma corre sobre D1 (emulado): toda esta suite ejerce la D1Store de punta a punta
   gamma = await new Estafeta({ domain: 'gamma.test', port: P1, store: d1store(), adminToken: 'g', hosts, workerIntervalMs: 120, retry: { baseMs: 120, maxMs: 500 }, libro: { welcome: 0 }, log: () => {} }).start();
   delta = await new Estafeta({ domain: 'delta.test', port: P2, dataDir: path.join(tmp, 'delta'), adminToken: 'd', hosts, workerIntervalMs: 120, retry: { baseMs: 120, maxMs: 500 }, log: () => {} }).start();
