@@ -12,9 +12,12 @@ const tools = [...src.matchAll(/\{ name: '([a-z0-9_]+)', description: '((?:[^'\\
   .map((m) => ({ name: m[1], description: m[2].replace(/\\'/g, "'").replace(/\\\\/g, '\\') }));
 
 // una garantía del sistema que un modelo no obtiene de otra forma
-const GARANTIA = /firma|firmad|buzón|asiento|recibo|reteni|retén|verific|certific|cifr|descifr|irreversible|hash|negar/i;
+// Las descriptions las lee un MODELO y ahora van en inglés, como todo lo público. Lo que el
+// guard protege no cambia: cada una debe declarar una garantía del sistema (por qué creerle) y
+// decir cuándo conviene usarla, no describir el mecanismo.
+const GARANTIA = /signed|signature|mailbox|entry|ledger|receipt|held|hold|verif|certif|encrypt|decrypt|irreversible|hash|deny|proof|bond/i;
 // palabra que ancla el MOMENTO de uso o la capacidad (no el mecanismo)
-const CAPACIDAD = /úsalo|cuando|encuentra|delega|ofréce|acepta|comprueba|mueve|aunque|no sabes|no conoces|antes de|revísa|revisa|consúlta|consulta/i;
+const CAPACIDAD = /use it|when you|find|delegate|offer|accept|check it|check|move|even if|do not know|before |take |leave yourself/i;
 
 test('D1 · hay 17 herramientas y ninguna description quedó como la vieja documentación de API', () => {
   assert.equal(tools.length, 17, `se esperaban 17 herramientas, hay ${tools.length}`);
@@ -49,8 +52,11 @@ test('D1 · instructions describe el sistema en pocas frases con capacidad y gar
   assert.ok(m, 'falta instructions');
   const inst = m[1];
   assert.ok(GARANTIA.test(inst), 'instructions no menciona una garantía');
-  assert.ok(CAPACIDAD.test(inst) || /necesites/.test(inst), 'instructions no dice cuándo conviene usarlo');
+  assert.ok(CAPACIDAD.test(inst), 'instructions no dice cuándo conviene usarlo');
   assert.ok(!/nyx5_send|nyx5_inbox|tools\/list/.test(inst), 'instructions no debe listar herramientas (eso lo hace tools/list)');
+  // Todo lo que lee un modelo va en inglés, igual que el resto de lo público.
+  assert.ok(!/[áéíóúñ¿¡]/.test(inst), 'instructions quedó en español');
+  for (const t of tools) assert.ok(!/[áéíóúñ¿¡]/.test(t.description), `${t.name} quedó en español`);
   assert.ok(inst.length <= 700, `instructions demasiado largo: ${inst.length}`);
 });
 
@@ -90,4 +96,24 @@ test('la portada apunta a que un agente se una', async () => {
   }
   assert.match(cli, /case 'join':/, 'el CLI implementa lo que la portada promete');
   assert.match(HOME_HTML, /href="\/spec"/);
+});
+
+// Nació de dos roturas idénticas: "the parent's grantee" y "An agent's reputation" dentro de
+// comillas simples tiraron el archivo completo. En inglés los apóstrofos aparecen solos.
+test('ningún archivo fuente tiene un apóstrofo dentro de comillas simples', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const dirs = ['src/correo', 'src/libro', 'src/nucleo', 'src/puentes', 'src/plataformas', 'bin'];
+  const malos = [];
+  for (const d of dirs) {
+    for (const f of fs.readdirSync(path.join(raiz, d)).filter((x) => x.endsWith('.js') && !x.includes('html'))) {
+      const rel = `${d}/${f}`;
+      const src = fs.readFileSync(path.join(raiz, rel), 'utf8');
+      // Una comilla simple abierta, texto sin comillas, un apóstrofo entre letras, más texto.
+      for (const m of src.matchAll(/'[^'\n\\]*[a-zA-Z]'[a-z]/g)) malos.push(`${rel}: …${m[0]}…`);
+    }
+  }
+  assert.deepEqual(malos, [], `apóstrofo dentro de comillas simples:\n  ${malos.join('\n  ')}`);
 });

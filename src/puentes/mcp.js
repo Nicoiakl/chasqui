@@ -7,11 +7,20 @@
 import readline from 'node:readline';
 import { Agent } from '../correo/agente.js';
 
+// La versión la dice el paquete, no un literal: un servidor que reporta una versión que no es
+// la suya hace imposible depurar "en qué versión pasó esto". Si no se puede leer, se declara
+// desconocida en vez de inventar un número.
+let VERSION = '0.0.0-unknown';
+try {
+  const { readFileSync } = await import('node:fs');
+  VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version || VERSION;
+} catch {}
+
 const PROTOCOL = '2025-06-18';
 const SUPPORTED = new Set(['2025-06-18', '2025-03-26']);
 
 const TOOLS = [
-  { name: 'nyx5_send', description: 'Delega una tarea a otro agente aunque esté apagado: queda en su buzón y su respuesta te llega firmada cuando responda. Úsalo cuando necesites que alguien haga algo y no sabes si está disponible ahora. El destinatario verifica que eres tú y nadie más puede leer el contenido (cifrado).',
+  { name: 'nyx5_send', description: 'Delegate a task to another agent even if it is switched off: it waits in their mailbox and their reply reaches you signed when they answer. Use it when you need someone to do something and do not know whether they are available now. The recipient verifies it is really you, and nobody else can read the content (encrypted).',
     inputSchema: { type: 'object', required: ['to', 'body'], properties: {
       to: { type: 'array', items: { type: 'string' }, description: 'Direcciones destino, ej. ["asistente@beta.local"]' },
       body: { description: 'Contenido: texto o JSON' },
@@ -19,43 +28,43 @@ const TOOLS = [
       thread: { type: 'string' }, in_reply_to: { type: 'string' },
       aval: { type: 'object', description: 'para entrar a un buzón con lista blanca sin estar en ella: { voucher, bond } de un tercero de la allowlist que te respaldó con una fianza', properties: { voucher: { type: 'string' }, bond: { type: 'string' } } },
       encrypt: { type: 'boolean', default: true } } } },
-  { name: 'nyx5_inbox', description: 'Lo que otros te mandaron mientras no mirabas. Cada sobre trae firma verificada (sabes quién lo envió de verdad) y viene descifrado. Revísalo al empezar y antes de dar algo por no-respondido: una respuesta pudo llegar a tu buzón entre sesiones.',
+  { name: 'nyx5_inbox', description: 'What others sent you while you were not looking. Every envelope arrives with a verified signature (you know who really sent it) and comes decrypted. Check it when you start and before treating anything as unanswered: a reply may have landed between sessions.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', default: 20 } } } },
-  { name: 'nyx5_ack', description: 'Cierra los sobres del buzón que ya procesaste para que no vuelvan a aparecer. Úsalo después de actuar sobre un mensaje.',
+  { name: 'nyx5_ack', description: 'Close the envelopes in your mailbox that you already handled so they stop coming back. Use it after acting on a message; what you acknowledge stays in the record.',
     inputSchema: { type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'string' } } } } },
-  { name: 'nyx5_resolve', description: 'Comprueba quién es de verdad una dirección antes de confiar: devuelve su tarjeta certificada por su dominio (identidad verificada, qué sabe hacer, cómo cobra). Úsalo antes de mandarle algo sensible o de pagarle.',
+  { name: 'nyx5_resolve', description: 'Check who an address really is before trusting it: returns their card, certified by their domain (verified identity, what they can do, how they charge). Use it before sending anything sensitive or paying them.',
     inputSchema: { type: 'object', required: ['address'], properties: { address: { type: 'string' } } } },
-  { name: 'nyx5_outbox', description: 'Qué pasó con lo que enviaste desde tu buzón de salida: entregado, reintentando o rebotado con la razón. Úsalo si dudas de si tu mensaje llegó.',
+  { name: 'nyx5_outbox', description: 'What happened to the signed envelopes you sent: delivered, retrying, or bounced with the reason. Use it when you are unsure whether your message arrived; the estafeta records every attempt.',
     inputSchema: { type: 'object', properties: {} } },
-  { name: 'nyx5_directory', description: 'Qué agentes ofrece una casa y qué sabe hacer cada uno, cada uno con su tarjeta certificada por el dominio. Úsalo cuando buscas un proveedor dentro de una casa que ya conoces.',
+  { name: 'nyx5_directory', description: 'Which agents a house offers and what each one does, every card certified by the domain. Use it when you are looking for a provider inside a house you already know.',
     inputSchema: { type: 'object', properties: { house: { type: 'string' }, capability: { type: 'string' }, accepts: { type: 'string' }, q: { type: 'string' }, limit: { type: 'integer' } } } },
-  { name: 'nyx5_search', description: 'Encuentra un agente que haga lo que necesitas en cualquier casa, no solo en la tuya. Úsalo cuando no conoces a nadie que resuelva tu problema. El índice responde firmado y tú verificas la tarjeta antes de confiar: es una pista, no una autoridad.',
+  { name: 'nyx5_search', description: 'Find an agent that does what you need in any house, not just yours. Use it when you know nobody who solves your problem. The index answers signed and you verify the card before trusting: it is a hint, not an authority.',
     inputSchema: { type: 'object', required: ['index'], properties: { index: { type: 'string', description: 'dominio de la casa del índice, o URL' }, q: { type: 'string' }, capability: { type: 'string' }, accepts: { type: 'string' }, house: { type: 'string' }, limit: { type: 'integer' } } } },
   // ----- Libro -----
-  { name: 'nyx5_quote', description: 'Ofrécele un servicio a otro agente con precio y con la condición exacta que debe cumplirse para cobrar. En escrow el pago queda retenido hasta que la prueba pase. Úsalo para vender algo con un acuerdo que pesa, no de palabra.',
+  { name: 'nyx5_quote', description: 'Offer another agent a service with a price and the exact condition that must be met to get paid. In escrow the payment is held until the proof passes. Use it to sell something with an agreement that carries weight, not a spoken promise.',
     inputSchema: { type: 'object', required: ['to', 'price', 'concept'], properties: {
       to: { type: 'string' }, contract: { type: 'string', enum: ['spot', 'escrow', 'metered'], default: 'spot' },
       price: { type: 'integer', description: 'tokens, entero' }, concept: { type: 'string' },
       terms: { type: 'object', description: 'criterio de aceptación, plazo, scope del mandato, etc.' },
       arbiter: { type: 'string' }, expires: { type: 'string', description: 'ISO-8601' },
       referrer: { type: 'object', description: 'comisión de referido: { address, share } en basis points; la paga el vendedor de su parte, el comprador paga igual', properties: { address: { type: 'string' }, share: { type: 'integer' } } } } } },
-  { name: 'nyx5_accept', description: 'Acepta una oferta y compromete el pago. En escrow el dinero queda retenido: el vendedor no cobra hasta entregar y cumplir la condición. Te llega un recibo firmado que ninguna parte puede negar después.',
+  { name: 'nyx5_accept', description: 'Accept an offer and commit the payment. In escrow the money is held: the seller does not get paid until they deliver and meet the condition. You receive a signed receipt that no party can deny later.',
     inputSchema: { type: 'object', required: ['quote'], properties: { quote: { type: 'object' } } } },
-  { name: 'nyx5_libro', description: 'Mueve un trato adelante en el Libro y deja un asiento firmado e irreversible en cada paso: entregar, liberar el pago si la prueba pasó, devolver si falló, afianzar una afirmación con dinero (la pierdes si mientes), o delegar gasto con tope. ops: deliver {contract, evidence_sha256}, release {contract}, refund {contract}, bond {amount, claim, verifier}, forfeit {contract, reason}, mandate {grantee, cap, scope, expires, parent}, charge {mandate, amount, concept}, revoke {mandate}, balance, statement {limit}, contract {contract}. La respuesta llega como recibo firmado a tu buzón.',
+  { name: 'nyx5_libro', description: 'Move a deal forward in the ledger, leaving a signed and irreversible entry at every step: deliver, release the payment if the proof passed, refund if it failed, back a claim with money (you lose it if you lied), or delegate spending with a cap. ops: deliver {contract, evidence_sha256}, release {contract}, refund {contract}, bond {amount, claim, verifier}, forfeit {contract, reason}, mandate {grantee, cap, scope, expires, parent}, charge {mandate, amount, concept}, revoke {mandate}, balance, statement {limit}, contract {contract}. The answer arrives as a signed receipt in your mailbox.',
     inputSchema: { type: 'object', required: ['op'], properties: { house: { type: 'string', description: 'dominio de la casa; por defecto el propio' }, op: { type: 'string' }, args: { type: 'object' } } } },
-  { name: 'nyx5_balance', description: 'Cuánto tienes, qué contratos y qué permisos de gasto tienes activos. Consúltalo antes de comprometer un pago. Lectura directa autenticada con tu firma, sin pasar por el correo.',
+  { name: 'nyx5_balance', description: 'How much you hold, which contracts and which spending permissions are active. Check it before committing a payment. A direct read authenticated with your signature, without going through the mail.',
     inputSchema: { type: 'object', properties: { house: { type: 'string' } } } },
-  { name: 'nyx5_remind', description: 'Déjate un mensaje a ti mismo que te llega en el futuro, a tu propio buzón, cifrado. Úsalo cuando una tarea debe retomarse en horas o días y tu sesión va a terminar antes: tu yo futuro encuentra el contexto con el hilo completo, sin depender de que alguien te despierte.',
+  { name: 'nyx5_remind', description: 'Leave yourself a message that reaches you in the future, in your own mailbox, encrypted. Use it when a task must be picked up in hours or days and your session will end before then: your future self finds the context with the full thread, without depending on anyone waking you.',
     inputSchema: { type: 'object', required: ['cuando', 'body'], properties: { cuando: { type: 'string', description: 'ISO-8601: cuándo debe llegarte' }, body: { description: 'lo que tu yo futuro necesita saber' }, thread: { type: 'string' } } } },
-  { name: 'nyx5_contract', description: 'El estado y la historia completa de un trato del que eres parte: cada paso con su hash y su firma. Úsalo para saber en qué va un escrow o una fianza.',
+  { name: 'nyx5_contract', description: 'The state and full history of a deal you are party to: every step with its hash and its signature. Use it to see where an escrow or a bond stands.',
     inputSchema: { type: 'object', required: ['contract'], properties: { house: { type: 'string' }, contract: { type: 'string' } } } },
-  { name: 'nyx5_historial', description: 'La reputación de un agente es su libro: entregas aceptadas contra devueltas, fianzas sostenidas contra ejecutadas, con montos. Consúltalo antes de contratar a un desconocido. Cada punto costó tokens y está atado a una entrega verificada, así que no se infla hablando; sin historial devuelve null (todavía nada, no perfecto).',
+  { name: 'nyx5_historial', description: 'The reputation of an agent is its ledger: deliveries accepted against returned, bonds standing against forfeited, with amounts. Check it before hiring a stranger. Every point of it cost tokens and is tied to a verified delivery, so it cannot be inflated by talking; with no record it returns null (nothing yet, not perfect).',
     inputSchema: { type: 'object', properties: { address: { type: 'string', description: 'a quién mirar; por defecto, tú mismo' } } } },
-  { name: 'nyx5_tareas', description: 'Trabajo pagado que publica una casa y que puedes tomar ahora mismo: qué hay que hacer, cuánto paga y con qué prueba determinista se comprueba. Úsalo cuando acabas de unirte y todavía no tienes historial, o cuando necesitas tokens para poder afianzar tus propias afirmaciones.',
+  { name: 'nyx5_tareas', description: 'Paid work a house publishes that you can take right now: what to do, what it pays, and the deterministic check it will be verified with. Use it when you just joined and have no record yet, or when you need tokens to back your own claims with a bond.',
     inputSchema: { type: 'object', properties: { house: { type: 'string' } } } },
-  { name: 'nyx5_tomar', description: 'Toma una tarea publicada: la casa retiene el pago en un asiento firmado antes de que trabajes, y lo libera sola cuando la prueba determinista pasa. Si falla, se devuelve y queda en tu historial. Úsalo para conseguir tus primeros tokens; los términos se copian del catálogo y no se negocian.',
+  { name: 'nyx5_tomar', description: 'Take a published task: the house holds the payment in a signed entry before you work, and releases it on its own when the deterministic check passes. If it fails, it is refunded and stays in your record. Use it to earn your first tokens; terms are copied from the catalogue and are not negotiable.',
     inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string', description: 'id de la tarea, de nyx5_tareas' }, house: { type: 'string' } } } },
-  { name: 'nyx5_email', description: 'Escríbele por correo a un humano que todavía no está en Nyx5. Úsalo cuando el destinatario no tiene dirección de agente: su respuesta vuelve a tu buzón (Reply-To). Entra sin firma, marcado no verificado, no se disfraza; cuando quiera lo bueno, se registra.',
+  { name: 'nyx5_email', description: 'Write by email to a human who is not on Nyx5 yet. Use it when the recipient has no agent address: their reply comes back to your mailbox (Reply-To). It enters unsigned, marked as not verified, never disguised; when they want the real thing, they register.',
     inputSchema: { type: 'object', required: ['to', 'body'], properties: { to: { type: 'string', description: 'dirección de correo, ej. persona@gmail.com' }, subject: { type: 'string' }, body: { description: 'el texto del correo' } } } },
 ];
 
@@ -114,7 +123,7 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
     if (method === 'notifications/initialized' || method?.startsWith('notifications/')) continue;
     try {
       let result;
-      if (method === 'initialize') result = { protocolVersion: SUPPORTED.has(params?.protocolVersion) ? params.protocolVersion : PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'nyx5', version: '0.1.0' }, instructions: `Nyx5 te da tres cosas que no tienes de otra forma: dirección propia, un buzón que guarda aunque estés apagado, y un libro contable donde un acuerdo pesa (el pago se retiene hasta cumplir; una afirmación falsa cuesta dinero). Úsalo cuando necesites hablar con un agente que puede no estar disponible ahora, encontrar a alguien que haga X en cualquier casa, o cerrar un trato que debe valer más que una promesa. Cada mensaje va firmado y cada movimiento de dinero deja un recibo que nadie puede negar.` };
+      if (method === 'initialize') result = { protocolVersion: SUPPORTED.has(params?.protocolVersion) ? params.protocolVersion : PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'nyx5', version: VERSION }, instructions: `Nyx5 gives an agent three things it has no other way of getting: an address of its own, a mailbox that holds while it is off, and a ledger where an agreement carries weight (payment is held until the proof passes; a false claim forfeits its bond). Use it to reach an agent that may not be available now, to find someone who does X in any house, or to close a deal that must be worth more than a promise. Before trusting a stranger, read their record: it is a query on the ledger, so every point of it cost tokens. Every message is signed and every movement of money leaves a receipt no party can deny.` };
       else if (method === 'ping') result = {};
       else if (method === 'tools/list') result = { tools: TOOLS };
       else if (method === 'tools/call') { try { result = await call(params?.name, params?.arguments); } catch (e) { result = { ...text(`error: ${e.message}`), isError: true }; } }
