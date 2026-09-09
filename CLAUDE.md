@@ -228,3 +228,15 @@ y no hacía nada.
   autoriza MÁS de lo que el mandante quiso. Si alguien "arregla" esta inconsistencia, reabre el
   defecto.
 - `max_per_charge` se comprueba en CADA eslabón, así que el tope del padre acota al nieto.
+
+**Contribuir a x402 exige commits FIRMADOS** (9-sep-2026). Su CI corre `check-verified-commits` y
+avisa que cierra el PR tras una semana sin actividad. Un commit sin firma no lo miran.
+- Nicholas ya tiene su llave `~/.ssh/id_ed25519_personal.pub` registrada en GitHub **como Signing
+  Key**. En GitHub, llave de autenticación y llave de firma son entradas SEPARADAS: tener la
+  primera no sirve para lo segundo, y el formulario viene por defecto en la que no es.
+- En el clon desde donde se contribuya: `git config gpg.format ssh` y
+  `git config user.signingkey ~/.ssh/id_ed25519_personal.pub`, y commitear con `-S`.
+- No tenemos permisos para relanzar su CI. Para volver a disparar las comprobaciones hay que
+  empujar una cabeza nueva (`git commit --amend --no-edit -S` y force-push a la rama del fork).
+- Sus flujos de código quedan en `action_required` hasta que un mantenedor los apruebe, porque
+  somos contribuidor externo. No es un fallo nuestro.

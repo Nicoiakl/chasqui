@@ -29,6 +29,11 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 ## Hecho
 
 ### 9-sep-2026
+- **PR a x402 desbloqueado.** Exigen commits firmados y cierran el PR tras una semana sin
+  actividad. El commit se firmó con SSH usando la llave personal de Nicholas, y él la registró en
+  GitHub como Signing Key, que es una entrada distinta de la de autenticación. `check-verified-commits`
+  pasó. Queda esperando revisión humana. El rojo de Vercel NO es nuestro: para un PR externo, alguien
+  del equipo de Coinbase tiene que autorizar el despliegue de vista previa.
 - **Cerrado el hueco de los mandatos** (lo decidió Nicholas). Una restricción que el Libro no sabe
   aplicar ya no se guarda: el mandato se rechaza al crearlo diciendo qué clave sobra y qué sí se
   aplica, y un mandato viejo que la lleve no cobra. Se agregó `max_per_charge`, que se comprueba en
