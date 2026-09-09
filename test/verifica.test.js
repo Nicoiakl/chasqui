@@ -45,7 +45,7 @@ test('http_status: pasa con el código esperado y falla con otro, diciendo cuál
     fetchImpl: async () => ({ status: 500 }),
   });
   assert.equal(mal.pasa, false);
-  assert.match(mal.razon, /respondió 500, se esperaba 200/);
+  assert.match(mal.razon, /responded 500, expected 200/g);
   // http, no https: no se verifica contra un canal que cualquiera puede alterar.
   const inseguro = await correrPrueba({ type: 'http_status', url: 'http://ejemplo.invalid/x' });
   assert.equal(inseguro.pasa, false);
@@ -222,7 +222,7 @@ test('si la prueba falla, el escrow se DEVUELVE y nadie cobra por haber dicho qu
   assert.equal((await vendedor._agente.balance()).balance, antesV, 'el que afirmó en falso no cobró un token');
   assert.equal((await comprador._agente.balance()).balance, antesC, 'y el comprador recuperó todo, sin fee');
   const paso = fin.history.find((h) => h.op === 'refund');
-  assert.match(paso.note, /respondió 500, se esperaba 200/, 'la razón queda escrita en el contrato');
+  assert.match(paso.note, /responded 500, expected 200/g, 'la razón queda escrita en el contrato');
 
   const h = await vendedor._agente.historial();
   assert.equal(h.resumen.entregas_falladas, 1);
@@ -345,4 +345,34 @@ test('la detección de shell prueba a cargar el módulo, no a mirar una variable
   assert.match(src, /Cloudflare-Workers/, 'la detección debe reconocer el runtime del edge');
   // Y en Node, donde sí hay, la lista completa está disponible.
   assert.deepEqual(pruebasDisponibles(), ['http_status', 'sha256', 'json_path', 'exit_0']);
+});
+
+// Un 52x lo emite la infraestructura que hay delante, no el servidor que se comprueba. Nació de
+// un caso real: una tarea sembrada apuntaba a la propia casa, el Worker no puede pedirse a sí
+// mismo (trampa conocida de este proyecto), el borde devolvió 522 y el trabajo del agente se
+// devolvió como si hubiera mentido. Castigar por una red que no controla destruye el sistema.
+test('un error del borde deja indeciso, no declara falsa la afirmación', async () => {
+  for (const code of [520, 521, 522, 523, 525, 527]) {
+    const r = await correrPrueba({ type: 'http_status', url: 'https://x.example/' }, { fetchImpl: async () => ({ status: code }) });
+    assert.equal(r.indeciso, true, `${code} debería dejar indeciso`);
+    assert.equal(r.pasa, false);
+    assert.match(r.razon, /could not reach/);
+  }
+  // Un 500 del servidor comprobado SÍ es un fallo suyo: ahí la afirmación es falsa.
+  const quinientos = await correrPrueba({ type: 'http_status', url: 'https://x.example/' }, { fetchImpl: async () => ({ status: 500 }) });
+  assert.equal(quinientos.pasa, false);
+  assert.ok(!quinientos.indeciso, 'un 500 del propio servidor sí decide');
+  assert.match(quinientos.razon, /responded 500, expected 200/);
+});
+
+// Ninguna tarea sembrada puede apuntar a la casa que la verifica: el Worker no puede pedirse su
+// propia URL pública y la comprobación nunca podría pasar.
+test('el catálogo sembrado no se verifica contra la propia casa', async () => {
+  const { NYX5_TAREAS } = await import('../src/plataformas/worker.js');
+  for (const t of NYX5_TAREAS.catalogo) {
+    for (const v of (Array.isArray(t.verify) ? t.verify : [t.verify])) {
+      if (!v.url) continue;
+      assert.ok(!/nyx5\.com/.test(v.url), `la tarea "${t.id}" se verifica contra la propia casa (${v.url}): nunca podrá pasar`);
+    }
+  }
 });

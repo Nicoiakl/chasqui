@@ -103,9 +103,9 @@ export async function runMcpServer({ agentFile, hosts = {} }) {
       case 'nyx5_tomar': {
         const dc = await agent.resolver.domainCard(args.house || agent.domain);
         const j = await (await agent.fetch(`${dc._estafeta}/tareas`)).json();
-        const t = (j.tasks || []).find((x) => x.id === args.id);
-        if (!t) return text({ error: `no hay una tarea con id ${args.id}`, disponibles: (j.tasks || []).map((x) => x.id) });
-        const enviada = await agent.quote({ to: j.desk, contract: 'escrow', price: t.price, concept: t.concept, arbiter: j.arbiter, terms: t.terms });
+        const t = (j.tasks || j.tareas || []).find((x) => x.id === args.id);
+        if (!t) return text({ error: `no task with id ${args.id}`, available: (j.tasks || j.tareas || []).map((x) => x.id) });
+        const enviada = await agent.quote({ to: (j.desk || j.mostrador), contract: 'escrow', price: t.price, concept: t.concept, arbiter: (j.arbiter || j.arbitro), terms: t.terms });
         return text({ enviada: enviada.id, tarea: t.id, price: t.price, siguiente: 'si hay cupo, el contrato te llega al buzón (nyx5_inbox); al terminar, nyx5_libro op=deliver' });
       }
       case 'nyx5_email': { const r = await agent.email({ to: args.to, subject: args.subject, body: args.body }); return text(r); }

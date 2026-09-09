@@ -45,8 +45,15 @@ export async function correrPrueba(prueba, { fetchImpl = globalThis.fetch, timeo
       const esperado = Number(prueba.expect ?? 200);
       if (!/^https:\/\//.test(prueba.url || '')) return { pasa: false, prueba: tipo, razon: 'la URL a verificar debe ser https', evidencia: { url: prueba.url } };
       const res = await fetchImpl(prueba.url, { method: prueba.method || 'GET', redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
+      // Un 52x no lo emite el servidor que se está comprobando: lo emite la infraestructura que
+      // hay delante cuando no logra llegar. Tratarlo como "la afirmación es falsa" castiga al
+      // agente por una red que no controla — pasó de verdad: una tarea sembrada apuntaba a la
+      // propia casa, el borde devolvió 522 y el trabajo se devolvió como si fuera mentira.
+      if (res.status >= 520 && res.status <= 527) {
+        return { pasa: false, indeciso: true, prueba: tipo, razon: `could not reach ${prueba.url} (${res.status} from the edge, not from the server being checked)`, evidencia: { url: prueba.url, status: res.status } };
+      }
       const pasa = res.status === esperado;
-      return { pasa, prueba: tipo, razon: pasa ? `${prueba.url} respondió ${res.status}` : `${prueba.url} respondió ${res.status}, se esperaba ${esperado}`, evidencia: { url: prueba.url, status: res.status, expect: esperado } };
+      return { pasa, prueba: tipo, razon: pasa ? `${prueba.url} responded ${res.status}` : `${prueba.url} responded ${res.status}, expected ${esperado}`, evidencia: { url: prueba.url, status: res.status, expect: esperado } };
     }
     if (tipo === 'sha256') {
       const esperado = String(prueba.expect || '').toLowerCase();

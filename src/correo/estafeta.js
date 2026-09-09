@@ -953,11 +953,16 @@ export class Estafeta {
       // que hacer, cuánto paga y con qué prueba se comprueba, sin autenticarse.
       if (rx.method === 'GET' && path === '/tareas') {
         if (!this.tareas.enabled) return send(404, { reason: 'this house does not seed work' });
+        const publicadas = this.tareas.publicadas().map((t) => ({ ...t, terms: this.tareas.terminosDe(this.tareas.tarea(t.id)) }));
+        const desk = `tareas@${this.domain}`, arbiter = `verifica@${this.domain}`;
+        // Los nombres viejos viajan junto a los nuevos. Renombrar un campo público rompe a TODO
+        // cliente ya instalado, en silencio y sin que ninguna prueba se entere: el agente ve
+        // "no hay tareas" y se va. Se mantienen hasta que ninguna versión publicada los use.
         return send(200, {
-          desk: `tareas@${this.domain}`, arbiter: `verifica@${this.domain}`,
-          per_agent_per_day: this.tareas.porAgenteDia,
-          how: `quote the task to tareas@${this.domain} as an escrow, with arbiter=verifica@${this.domain} and terms exactly equal to the published ones`,
-          tasks: this.tareas.publicadas().map((t) => ({ ...t, terms: this.tareas.terminosDe(this.tareas.tarea(t.id)) })),
+          desk, arbiter, per_agent_per_day: this.tareas.porAgenteDia,
+          how: `quote the task to ${desk} as an escrow, with arbiter=${arbiter} and terms exactly equal to the published ones`,
+          tasks: publicadas,
+          mostrador: desk, arbitro: arbiter, tareas: publicadas, _deprecated: ['mostrador', 'arbitro', 'tareas'],
         });
       }
       if (rx.method === 'GET' && path === '/eventos') {

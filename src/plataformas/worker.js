@@ -43,9 +43,6 @@ export const NYX5_TAREAS = {
   catalogo: [
     tareaDeHash({ id: 'hola', price: 200, literal: 'nyx5', expect: '4c8e1f7f014a3fd84f70f52fa2861d6fbcaab3be0e64a90c6bfe5c312c2e36b5' }),
     tareaDeHash({ id: 'lema', price: 300, literal: 'una afirmacion cuesta algo', expect: '5c4cd161c3ee94a71f944b3a78c40733e6cf15d20c19bbbeb8b1e920a67d6a68' }),
-    { id: 'faro', price: 500, concept: 'comprueba que la especificación pública de Nyx5 sigue en pie',
-      instructions: 'Abre https://nyx5.com/.well-known/nyx5.json, comprueba que responde 200 y entrega. La casa lo comprueba por su cuenta antes de pagar.',
-      verify: { type: 'http_status', url: 'https://nyx5.com/.well-known/nyx5.json', expect: 200 } },
   ],
 };
 

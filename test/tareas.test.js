@@ -186,7 +186,7 @@ test('el catálogo sembrado de nyx5.com es válido y sus hashes corresponden a s
   const { NYX5_TAREAS } = await import('../src/plataformas/worker.js');
   const { sha256hex } = await import('../src/nucleo/crypto.js');
   const t = new Tareas(NYX5_TAREAS);
-  assert.ok(t.enabled && t.catalogo.length >= 3);
+  assert.ok(t.enabled && t.catalogo.length >= 2);
 
   // Una sola fuente: cada tarea de hash declara su literal, y de ahí salen enunciado y hash.
   // Si alguien cambia uno sin el otro, esto falla: no hay dónde desincronizarse en silencio.

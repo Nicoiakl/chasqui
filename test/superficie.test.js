@@ -60,12 +60,22 @@ test('la tarjeta del dominio se firma una vez, no en cada arranque', () => {
   assert.match(estafeta, /no se pudo guardar la tarjeta del dominio/, 'si no se puede guardar, se sirve igual');
 });
 
-test('el endpoint de trabajo habla el mismo idioma que el resto de lo público', () => {
-  const bloque = estafeta.slice(estafeta.indexOf("path === '/tareas'"), estafeta.indexOf("path === '/tareas'") + 900);
-  for (const es of ['mostrador:', 'arbitro:', 'por_agente_dia:', 'como:', 'tareas:']) {
-    assert.ok(!bloque.includes(es), `/tareas devuelve "${es}" en español y lo lee un agente`);
+test('el endpoint de trabajo habla inglés, y lo español que queda es solo compatibilidad', () => {
+  const i = estafeta.indexOf("path === '/tareas'");
+  const bloque = estafeta.slice(i, i + 1400);
+  // Los campos que un cliente NUEVO lee van en inglés.
+  for (const en of ['desk,', 'arbiter,', 'per_agent_per_day:', 'how:', 'tasks: publicadas']) {
+    assert.ok(bloque.includes(en), `falta el campo ${en}`);
   }
-  for (const en of ['desk:', 'arbiter:', 'per_agent_per_day:', 'how:', 'tasks:']) assert.ok(bloque.includes(en), `falta ${en}`);
+  // Los nombres viejos pueden quedarse, pero SOLO declarados como obsoletos: si alguien añade
+  // un campo en español sin marcarlo, esto lo caza.
+  const espanoles = ['mostrador', 'arbitro', 'tareas:'];
+  for (const es of espanoles) {
+    if (!bloque.includes(es)) continue;
+    assert.match(bloque, /_deprecated: \['mostrador', 'arbitro', 'tareas'\]/, `"${es}" sigue ahí sin declararse obsoleto`);
+  }
+  // Y el texto explicativo, que es lo que de verdad lee un agente, va en inglés.
+  assert.ok(!/cotiza la tarea|el mostrador|el árbitro/.test(bloque), 'la explicación quedó en español');
 });
 
 // La spec se renderiza desde markdown con un conversor propio. Dos defectos que una auditoría
@@ -188,4 +198,34 @@ test('la app web está en inglés y hace lo que promete', async () => {
     assert.ok(!APP_HTML.includes(rastro), `la app conserva "${rastro}"`);
   }
   assert.match(APP_HTML, /yourname/, 'el ejemplo del campo debe ser genérico y en inglés');
+});
+
+// Renombrar un campo de una respuesta pública rompe a TODO cliente ya instalado, en silencio:
+// el agente ve "no hay tareas" y se va, y ninguna prueba se entera porque el servidor y el
+// cliente del repositorio cambiaron a la vez. Pasó de verdad al traducir /tareas al inglés.
+test('el endpoint de trabajo sigue sirviendo los nombres viejos junto a los nuevos', async () => {
+  const { Estafeta } = await import('../src/correo/estafeta.js');
+  const os = await import('node:os');
+  const P2 = 4165;
+  const cat = [{ id: 'x', concept: 'algo', price: 10, verify: { type: 'http_status', url: 'https://x.invalid/' } }];
+  const casa = new Estafeta({
+    domain: 'c.test', port: P2, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-compat-')),
+    adminToken: 't', hosts: { 'c.test': { url: `http://127.0.0.1:${P2}` } }, workerIntervalMs: 9999,
+    policy: { registration: 'open' }, tareas: { catalogo: cat }, log: () => {},
+  });
+  await casa.start();
+  try {
+    const r = await casa.handleRequest({ method: 'GET', path: '/tareas', query: new URLSearchParams(), headers: {}, body: null });
+    const j = r.body;
+    // Un cliente viejo (0.4.1 y anteriores) lee estos tres.
+    assert.equal(j.mostrador, 'tareas@c.test');
+    assert.equal(j.arbitro, 'verifica@c.test');
+    assert.equal(j.tareas.length, 1);
+    // Uno nuevo lee estos, y ambos apuntan a lo mismo.
+    assert.equal(j.desk, j.mostrador);
+    assert.equal(j.arbiter, j.arbitro);
+    assert.deepEqual(j.tasks, j.tareas);
+    // Y la respuesta dice cuáles son los que van a desaparecer, para que se puedan retirar.
+    assert.deepEqual(j._deprecated, ['mostrador', 'arbitro', 'tareas']);
+  } finally { await casa.stop(); }
 });
