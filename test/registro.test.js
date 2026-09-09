@@ -18,12 +18,14 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-reg-'));
   cerrada = await mk('cerrada.test', P1, 'admin').start();
   invitada = await mk('invitada.test', P2, 'invite', { libro: { welcome: 50 } }).start();
-  abierta = await mk('abierta.test', P3, 'open').start();
+  // Tope alto: esta suite hace muchas altas seguidas y el límite por IP (10/min) las cortaba,
+  // devolviendo 429 donde el test esperaba el 409 de la regla que estaba comprobando.
+  abierta = await mk('abierta.test', P3, 'open', { policy: { registration: 'open', registrations_per_minute: 500 } }).start();
 });
 after(async () => { await cerrada.stop(); await invitada.stop(); await abierta.stop(); });
 
 test('la tarjeta del dominio publica el modo de registro', async () => {
-  const a = Agent.create('x@abierta.test', hosts['abierta.test'].url, { hosts });
+  const a = Agent.create('libre2@abierta.test', hosts['abierta.test'].url, { hosts });
   assert.equal((await a.resolver.domainCard('abierta.test')).policy.registration, 'open');
   assert.equal((await a.resolver.domainCard('cerrada.test')).policy.registration, 'admin');
 });
@@ -67,14 +69,14 @@ test('un nombre tomado no se puede pisar desde afuera; su dueño sí lo actualiz
 });
 
 test('casa por invitación: código de la casa, con usos y vencimiento; regalo de bienvenida configurable por invitación', async () => {
-  const sin = Agent.create('sin@invitada.test', hosts['invitada.test'].url, { hosts });
+  const sin = Agent.create('sincodigo@invitada.test', hosts['invitada.test'].url, { hosts });
   await assert.rejects(() => sin.register(), /no such invitation/);
   await assert.rejects(() => sin.register({ invite: 'nope' }), /no such invitation/);
   const inv = await invitada.createInvite({ uses: 2, note: 'para el equipo', welcome: 500 });
-  const a = Agent.create('uno@invitada.test', hosts['invitada.test'].url, { hosts });
+  const a = Agent.create('unode@invitada.test', hosts['invitada.test'].url, { hosts });
   assert.equal((await a.register({ invite: inv.code })).registered_via, `invite:${inv.code}`);
-  assert.equal(await invitada.libro.balance('uno@invitada.test'), 500);
-  const b = Agent.create('dos@invitada.test', hosts['invitada.test'].url, { hosts });
+  assert.equal(await invitada.libro.balance('unode@invitada.test'), 500);
+  const b = Agent.create('dosde@invitada.test', hosts['invitada.test'].url, { hosts });
   await b.register({ invite: inv.code });
   const c = Agent.create('tres@invitada.test', hosts['invitada.test'].url, { hosts });
   await assert.rejects(() => c.register({ invite: inv.code }), /used up/);
@@ -105,8 +107,37 @@ test('directorio: opt-in (listed), público, sin datos privados, con filtros', a
   // No listar no es esconderse: el lookup directo por dirección sigue resolviendo al oculto.
   assert.equal((await b.resolver.agentCard('oculto@abierta.test')).address, 'oculto@abierta.test');
   // desde otra casa se consulta igual (es público), y ve exactamente a los listados
-  const remoto = Agent.create('r@cerrada.test', hosts['cerrada.test'].url, { hosts });
+  const remoto = Agent.create('remoto@cerrada.test', hosts['cerrada.test'].url, { hosts });
   await remoto.register({ adminToken: 't' });
   const desdeAfuera = (await remoto.directory('abierta.test')).agents.map((c) => c.address);
   assert.ok(desdeAfuera.includes('mcpbot@abierta.test') && !desdeAfuera.includes('oculto@abierta.test'));
+});
+
+// Nombres cortos reservados: en una casa de registro abierto son lo primero que alguien acapara
+// para revender o suplantar (a@casa se confunde con cualquiera). Pedido por Nicholas el 9-sep-2026.
+test('los nombres de 1 a 3 caracteres están reservados, y los delegados no cuentan', async () => {
+  for (const corto of ['a', 'ab', 'abc', 'x1', '123']) {
+    const a = Agent.create(`${corto}@abierta.test`, hosts['abierta.test'].url, { hosts });
+    await assert.rejects(() => a.register(), (e) => {
+      assert.equal(e.status, 409, `"${corto}": se esperaba 409 y vino ${e.status} (${e.message})`);
+      assert.match(e.message, /shorter than 4 characters/, `"${corto}": ${e.message}`);
+      return true;
+    });
+  }
+  // Cuatro sí entra: el límite es exactamente donde se dijo.
+  const ok = Agent.create('abcd@abierta.test', hosts['abierta.test'].url, { hosts });
+  assert.equal((await ok.register()).address, 'abcd@abierta.test');
+
+  // Un subagente hereda el nombre del padre (`bot.abcd`), así que la regla no puede bloquearlo
+  // por el trozo corto: se mide el nombre completo y además los delegados quedan exentos.
+  const sub = await ok.delegate('bo', { scope: { types: ['message'] } });
+  assert.equal(sub.address, 'bo.abcd@abierta.test');
+
+  // Y una casa puede aflojar la regla si quiere: es política suya, no del protocolo.
+  const suelta = new Estafeta({ domain: 'corta.test', port: 4128, dataDir: path.join(tmp, 'corta.test'), adminToken: 't', hosts, workerIntervalMs: 5000, policy: { registration: 'open', min_name_length: 1 }, log: () => {} });
+  await suelta.start();
+  try {
+    const b = Agent.create('a@corta.test', `http://127.0.0.1:4128`, { hosts: { ...hosts, 'corta.test': { url: 'http://127.0.0.1:4128' } } });
+    assert.equal((await b.register()).address, 'a@corta.test');
+  } finally { await suelta.stop(); }
 });

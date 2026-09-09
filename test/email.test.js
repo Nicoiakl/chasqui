@@ -24,9 +24,9 @@ async function casa(email = {}) {
 test('D3 · un email entrante cae al buzón como sobre SIN FIRMA, marcado no verificado', async () => {
   const { e, url, dom } = await casa();
   try {
-    const bot = Agent.create(`bot@${dom}`, url, { hosts: { [dom]: { url } } });
+    const bot = Agent.create(`botsy@${dom}`, url, { hosts: { [dom]: { url } } });
     await bot.register({ adminToken: 't' });
-    const r = await e.receiveEmail({ from: 'alice@gmail.com', to: `bot@${dom}`, subject: 'hola', text: 'te escribo desde el correo de siempre', messageId: 'msg-abc-123' });
+    const r = await e.receiveEmail({ from: 'alice@gmail.com', to: `botsy@${dom}`, subject: 'hola', text: 'te escribo desde el correo de siempre', messageId: 'msg-abc-123' });
     assert.equal(r.code, 202);
     const inbox = await bot.inbox();
     assert.equal(inbox.length, 1);
@@ -39,7 +39,7 @@ test('D3 · un email entrante cae al buzón como sobre SIN FIRMA, marcado no ver
     assert.equal(abierto.subject, 'hola');
     assert.equal(abierto.content.body, 'te escribo desde el correo de siempre');
     // dedupe por message-id: reentregar no duplica
-    const dup = await e.receiveEmail({ from: 'alice@gmail.com', to: `bot@${dom}`, text: 'otra vez', messageId: 'msg-abc-123' });
+    const dup = await e.receiveEmail({ from: 'alice@gmail.com', to: `botsy@${dom}`, text: 'otra vez', messageId: 'msg-abc-123' });
     assert.ok(dup.duplicate);
     assert.equal((await bot.inbox()).length, 1);
   } finally { await e.stop(); }
@@ -56,7 +56,7 @@ test('D3 · un email a un agente inexistente o de un remitente inválido se rech
 test('D3 · salida SIN proveedor queda pendiente (no se inventa canal)', async () => {
   const { e, url, dom } = await casa();
   try {
-    const bot = Agent.create(`bot@${dom}`, url, { hosts: { [dom]: { url } } });
+    const bot = Agent.create(`botsy@${dom}`, url, { hosts: { [dom]: { url } } });
     await bot.register({ adminToken: 't' });
     const r = await bot.email({ to: 'humano@ejemplo.com', subject: 'hey', body: 'primer contacto' });
     assert.equal(r.pending, true);
@@ -69,13 +69,13 @@ test('D3 · salida CON proveedor envía, con Reply-To = la dirección del agente
   const provider = async (payload) => { captured = payload; return { id: 'prov-1' }; };
   const { e, url, dom } = await casa({ provider });
   try {
-    const bot = Agent.create(`bot@${dom}`, url, { hosts: { [dom]: { url } } });
+    const bot = Agent.create(`botsy@${dom}`, url, { hosts: { [dom]: { url } } });
     await bot.register({ adminToken: 't' });
     const r = await bot.email({ to: 'humano@ejemplo.com', subject: 'hey', body: 'primer contacto' });
     assert.equal(r.ok, true);
     assert.equal(r.provider, 'prov-1');
     assert.deepEqual(captured.to, ['humano@ejemplo.com']);
-    assert.equal(captured.reply_to, `bot@${dom}`, 'la respuesta del humano vuelve al buzón del agente');
+    assert.equal(captured.reply_to, `botsy@${dom}`, 'la respuesta del humano vuelve al buzón del agente');
     assert.equal(captured.text, 'primer contacto');
   } finally { await e.stop(); }
 });
@@ -104,8 +104,8 @@ test('D3 · notify_email: quien registró un correo recibe un aviso cuando le es
   const provider = async (p) => { captured = p; return { id: 'n1' }; };
   const { e, url, dom } = await casa({ provider });
   try {
-    const a = Agent.create(`a@${dom}`, url, { hosts: { [dom]: { url } } });
-    const b = Agent.create(`b@${dom}`, url, { hosts: { [dom]: { url } } });
+    const a = Agent.create(`agentea@${dom}`, url, { hosts: { [dom]: { url } } });
+    const b = Agent.create(`agenteb@${dom}`, url, { hosts: { [dom]: { url } } });
     await a.register({ adminToken: 't', notify_email: 'nicholas@gmail.test' });
     await b.register({ adminToken: 't' });
     await b.send({ to: a.address, body: 'hola a' });

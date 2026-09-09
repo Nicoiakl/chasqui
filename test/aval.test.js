@@ -25,7 +25,7 @@ test('D6 · un desconocido NO entra a un buzón con lista blanca sin aval', asyn
   try {
     const alice = Agent.create(`alice@${dom}`, url, { hosts: { [dom]: { url } } });
     const carol = Agent.create(`carol@${dom}`, url, { hosts: { [dom]: { url } } });
-    await alice.register({ adminToken: 't', inbox: { policy: 'allowlist', allowlist: [`bob@${dom}`] } });
+    await alice.register({ adminToken: 't', inbox: { policy: 'allowlist', allowlist: [`bobby@${dom}`] } });
     await carol.register({ adminToken: 't' });
     const s = await carol.send({ to: alice.address, body: 'hola, no me conoces' });
     const b = await bounce(carol, s.id);
@@ -38,7 +38,7 @@ test('D6 · con un aval respaldado por fianza, el desconocido entra; y el recept
   const { e, url, dom } = await casa();
   try {
     const alice = Agent.create(`alice@${dom}`, url, { hosts: { [dom]: { url } } });
-    const bob = Agent.create(`bob@${dom}`, url, { hosts: { [dom]: { url } } });
+    const bob = Agent.create(`bobby@${dom}`, url, { hosts: { [dom]: { url } } });
     const carol = Agent.create(`carol@${dom}`, url, { hosts: { [dom]: { url } } });
     await alice.register({ adminToken: 't', inbox: { policy: 'allowlist', allowlist: [bob.address] } });
     await bob.register({ adminToken: 't' });
@@ -68,7 +68,7 @@ test('D6 · un aval que apunta a una fianza de otro avalado se rechaza', async (
   const { e, url, dom } = await casa();
   try {
     const alice = Agent.create(`alice@${dom}`, url, { hosts: { [dom]: { url } } });
-    const bob = Agent.create(`bob@${dom}`, url, { hosts: { [dom]: { url } } });
+    const bob = Agent.create(`bobby@${dom}`, url, { hosts: { [dom]: { url } } });
     const carol = Agent.create(`carol@${dom}`, url, { hosts: { [dom]: { url } } });
     const dave = Agent.create(`dave@${dom}`, url, { hosts: { [dom]: { url } } });
     await alice.register({ adminToken: 't', inbox: { policy: 'allowlist', allowlist: [bob.address] } });

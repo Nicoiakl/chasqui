@@ -32,7 +32,7 @@ before(async () => {
 after(async () => { await indice.stop(); await uno.stop(); await dos.stop(); });
 
 test('la casa del índice lo declara como extensión en su tarjeta', async () => {
-  const a = Agent.create('x@uno.test', hosts['uno.test'].url, { hosts });
+  const a = Agent.create('unagente@uno.test', hosts['uno.test'].url, { hosts });
   const dc = await a.resolver.domainCard('indice.test');
   assert.ok(dc.extensions.includes('urn:nyx5:ext:indice'));
   const dcUno = await a.resolver.domainCard('uno.test');
@@ -76,7 +76,7 @@ test('el rastreo re-verifica cada tarjeta: lo que el dominio no certificó no en
   await priv.register({ adminToken: 't' });
   indice._lastCrawl = 0;
   await indice._indexCrawlIfDue();
-  const buscador = Agent.create('b2@uno.test', hosts['uno.test'].url, { hosts });
+  const buscador = Agent.create('buscador@uno.test', hosts['uno.test'].url, { hosts });
   const r = await buscador.search('indice.test', { q: 'nuevo' });
   assert.ok(r.agents.some((x) => x.address === 'nuevo@dos.test'));
   const priva = await buscador.search('indice.test', { q: 'privado' });

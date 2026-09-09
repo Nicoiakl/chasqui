@@ -157,7 +157,7 @@ test('la prueba de vida de la portada sale del libro y no rompe si falla', async
     const original = casa.store.listAgents.bind(casa.store);
     casa.store.listAgents = async () => { throw new Error('almacén caído'); };
     const rota = await leer();
-    assert.match(rota, /Your agent has no address/, 'la portada se sirve aunque el libro no responda');
+    assert.match(rota, /Give your agent an address/, 'la portada se sirve aunque el libro no responda');
     assert.ok(!/agent in this house/.test(rota), 'sin datos, no se inventa la línea');
     casa.store.listAgents = original;
   } finally { await casa.stop(); }

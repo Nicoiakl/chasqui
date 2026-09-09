@@ -79,7 +79,7 @@ test('mandate_created se emite con el tope real, y solo cuando el Libro lo confi
 
 test('escrow_released y bond_forfeited salen del asiento, con quién decidió', async () => {
   const vendedor = await join({ house: 'i.test', hosts, name: 'prov' });
-  const comprador = await join({ house: 'i.test', hosts, name: 'cli' });
+  const comprador = await join({ house: 'i.test', hosts, name: 'cliente' });
   await vendedor._agente.quote({ to: comprador.address, contract: 'escrow', price: 120, concept: 'trabajo' });
   const sobre = await comprador._agente.waitFor((e) => e.from === vendedor.address && e.type === 'message', { timeoutMs: 5000 });
   const aceptada = await comprador._agente.accept((await comprador._agente.open(sobre.envelope)).content.body);

@@ -56,7 +56,7 @@ export class Estafeta {
     this.fetch = (...a) => fetchImpl(...a); // envuelto: workerd exige fetch con this=globalThis
     this.log = log;
     // registration: 'admin' (solo la casa inscribe) | 'invite' (código emitido por la casa) | 'open' (cualquiera, con prueba de posesión de clave)
-    this.policy = { inbound: 'verified', max_bytes: 1_048_576, rate_per_minute: 120, registration: 'admin', registrations_per_minute: 10, ...policy };
+    this.policy = { inbound: 'verified', max_bytes: 1_048_576, rate_per_minute: 120, registration: 'admin', registrations_per_minute: 10, min_name_length: 4, ...policy };
     this.retry = { baseMs: 1000, maxMs: 60_000, giveUpMs: 3 * 24 * 3600 * 1000, ...retry };
     this.workerIntervalMs = workerIntervalMs;
     this.index = { enabled: false, crawlMinutes: 15, maxHouses: 500, ...index };
@@ -228,6 +228,12 @@ export class Estafeta {
     const address = `${local}@${this.domain}`;
     parseAddress(address);
     if (Estafeta.RESERVED.has(local) && !this.isSystem(local)) throw Object.assign(new Error(`name reserved by the protocol: ${local}`), { status: 409 });
+    // Nombres de 1 a 3 caracteres: reservados en una casa de registro abierto. Son lo primero
+    // que alguien acapara para revender o para suplantar (a@casa se confunde con cualquiera), y
+    // un agente que llega no necesita un nombre corto: necesita uno suyo. Los de sistema pasan.
+    if (local.length <= this.policy.min_name_length - 1 && !this.isSystem(local) && !delegation) {
+      throw Object.assign(new Error(`names shorter than ${this.policy.min_name_length} characters are reserved in this house`), { status: 409 });
+    }
     if (delegation) {
       // Tarjeta delegada: el agente padre firma { by, address, sig, scope, valid_until }; el dominio la certifica igual.
       const { local: parentLocal, domain: parentDomain } = parseAddress(delegation.by);

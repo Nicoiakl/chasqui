@@ -81,7 +81,7 @@ test('la spec y la portada se sirven SOLO en inglés, y no queda rastro del espa
 
 test('la portada apunta a que un agente se una', async () => {
   const { HOME_HTML } = await import('../src/plataformas/home-html.js');
-  assert.match(HOME_HTML, /Your agent has no address/);
+  assert.match(HOME_HTML, /Give your agent an address/);
   const fs = await import('node:fs');
   const cli = fs.readFileSync(new URL('../bin/nyx5.js', import.meta.url), 'utf8');
   for (const h of [HOME_HTML]) {

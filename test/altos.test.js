@@ -82,12 +82,12 @@ for (const modo of ['FileStore', 'D1']) {
       const a = generateKeys(), b = generateKeys();
       // Dos altas del mismo nombre a la vez, como dos isolates atendiendo dos requests.
       const r = await Promise.allSettled([
-        e.registerAgent({ local: 'duo', sig: a.sig, enc: a.enc }),
-        e.registerAgent({ local: 'duo', sig: b.sig, enc: b.enc }),
+        e.registerAgent({ local: 'duplo', sig: a.sig, enc: a.enc }),
+        e.registerAgent({ local: 'duplo', sig: b.sig, enc: b.enc }),
       ]);
       const ok = r.filter((x) => x.status === 'fulfilled');
       assert.equal(ok.length, 1, `solo una alta gana el nombre (ganaron ${ok.length})`);
-      const card = await e.agentCard('duo');
+      const card = await e.agentCard('duplo');
       assert.ok([a.sig, b.sig].includes(card.sig), 'la tarjeta guardada es la del ganador, no una mezcla');
       assert.equal(card.sig, ok[0].value.sig, 'y es la del alta que respondió éxito');
       const emitido = 0 - (await e.libro.balance(`casa@${dom}`));
@@ -147,7 +147,7 @@ test('ALTO · el aviso por webhook se espera, no queda como promesa suelta', asy
     const puertoWh = server.address().port;
     const dest = Agent.create(`dest@${dom}`, url, { hosts: { [dom]: { url } } });
     await dest.register({ adminToken: 't', webhook: `http://127.0.0.1:${puertoWh}/aviso` });
-    const emisor = Agent.create(`emi@${dom}`, url, { hosts: { [dom]: { url } } });
+    const emisor = Agent.create(`emisor2@${dom}`, url, { hosts: { [dom]: { url } } });
     await emisor.register({ adminToken: 't' });
     // El sobre se arma a mano y se entrega por la puerta de entrada — que es donde nace el aviso
     // en producción. (Mandarlo con send() lo entregaría por la cola antes, y llegaría duplicado.)
@@ -186,12 +186,12 @@ test('BUG BUZÓN · con muchos mensajes sin leer, el más reciente SÍ aparece (
     // 60 mensajes viejos + 1 nuevo distinguible, todos sin ackear
     const { signObject, uuid } = await import('../src/nucleo/crypto.js');
     const emisor = generateKeys();
-    await e.registerAgent({ local: 'emi', sig: emisor.sig, enc: emisor.enc });
+    await e.registerAgent({ local: 'emisor2', sig: emisor.sig, enc: emisor.enc });
     for (let i = 0; i < 60; i++) {
-      const s = signObject({ nyx5:'1', id:uuid(), from:`emi@${dom}`, to:[`busy@${dom}`], created:new Date(Date.now()-100000+i).toISOString(), type:'message', content:{media:'text/plain', body:`viejo ${i}`} }, emisor);
+      const s = signObject({ nyx5:'1', id:uuid(), from:`emisor2@${dom}`, to:[`busy@${dom}`], created:new Date(Date.now()-100000+i).toISOString(), type:'message', content:{media:'text/plain', body:`viejo ${i}`} }, emisor);
       await e.handleRequest({ method:'POST', path:'/inbound', query:new URLSearchParams(), headers:{}, body:s, ip:null });
     }
-    const nuevo = signObject({ nyx5:'1', id:uuid(), from:`emi@${dom}`, to:[`busy@${dom}`], created:new Date().toISOString(), type:'message', content:{media:'text/plain', body:'EL MÁS NUEVO'} }, emisor);
+    const nuevo = signObject({ nyx5:'1', id:uuid(), from:`emisor2@${dom}`, to:[`busy@${dom}`], created:new Date().toISOString(), type:'message', content:{media:'text/plain', body:'EL MÁS NUEVO'} }, emisor);
     await e.handleRequest({ method:'POST', path:'/inbound', query:new URLSearchParams(), headers:{}, body:nuevo, ip:null });
     // el destinatario lee su buzón con el límite por defecto de la app (50)
     const auth = (m,p) => 'Nyx5 ' + Buffer.from(JSON.stringify({address:`busy@${dom}`})).toString('base64url'); // placeholder, usamos el cliente real

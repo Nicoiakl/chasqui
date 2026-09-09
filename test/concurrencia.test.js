@@ -110,9 +110,9 @@ test('la casa resuelve su PROPIA tarjeta sin salir a la red (el 522 que colgó e
   await e.init();
   const dc = await e.resolver.domainCard('sola.test');
   assert.equal(dc.domain, 'sola.test', 'la tarjeta del dominio propio se sirve local');
-  const a = Agent.create('yo@sola.test', 'https://sola.test');
-  await e.registerAgent({ local: 'yo', sig: a.keys.sig, enc: a.keys.enc });
-  const ac = await e.resolver.agentCard('yo@sola.test');
+  const a = Agent.create('yomismo@sola.test', 'https://sola.test');
+  await e.registerAgent({ local: 'yomismo', sig: a.keys.sig, enc: a.keys.enc });
+  const ac = await e.resolver.agentCard('yomismo@sola.test');
   assert.equal(ac.sig, a.keys.sig, 'la tarjeta de un agente propio también');
   assert.equal(ac._domain.domain, 'sola.test');
 });

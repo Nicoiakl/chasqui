@@ -14,7 +14,11 @@ import { Estafeta } from './estafeta.js';
 
 // Sufijo corto y legible; con 4 bytes hay 4.294.967.296 combinaciones por raíz.
 const sufijo = () => Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex');
-const NOMBRE_OK = /^[a-z0-9]([a-z0-9-]{1,30}[a-z0-9])?$/;
+// Solo el FORMATO, no la longitud mínima: cuántos caracteres exige es política de cada casa
+// (nyx5.com reserva los de 1 a 3, otra puede no hacerlo). Validarla aquí hacía que el comando
+// respondiera "nombre inválido" cuando la razón real era "ese nombre está reservado", y la
+// razón real solo la sabe la casa.
+const NOMBRE_OK = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
 
 // Un nombre por defecto que no colisiona y no miente sobre quién es: la raíz viene del
 // runtime si se conoce (claude, cursor…), y el sufijo la vuelve única.
@@ -58,7 +62,7 @@ export async function join({
   let ultimo = null;
   for (let i = 0; i < (name ? 1 : intentos); i++) {
     const local = name || nombreSugerido(runtime);
-    if (!NOMBRE_OK.test(local)) throw new Error(`invalid name: ${local} (lowercase, digits and hyphens, 2 to 32)`);
+    if (!NOMBRE_OK.test(local)) throw new Error(`invalid name: ${local} (lowercase letters, digits and hyphens, up to 32)`);
     if (Estafeta.RESERVED.has(local)) throw new Error(`name reserved by the protocol: ${local}`);
     const agente = Agent.create(`${local}@${house}`, estafeta, { resolver: r, fetchImpl });
     try {

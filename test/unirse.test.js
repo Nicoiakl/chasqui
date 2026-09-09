@@ -69,7 +69,7 @@ test('el bloque MCP que emite join es el que un cliente puede pegar', () => {
 
 test('mandate: el agente contrata dentro del tope y la casa rechaza fuera', async () => {
   const humano = await join({ house: 'casa.test', hosts, name: 'humano' });
-  const bot = await join({ house: 'casa.test', hosts, name: 'bot' });
+  const bot = await join({ house: 'casa.test', hosts, name: 'robot' });
   const r = await mandate(humano._agente, { grantee: bot.address, cap: 300 });
   assert.ok(r.mandate?.id, 'el mandato vuelve confirmado por el recibo del Libro, no por optimismo');
   assert.equal(r.mandate.cap, 300);
