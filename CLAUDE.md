@@ -41,7 +41,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop -> `npm test` (176)
+                         puertos (guard de colisión) · x402 · interop -> `npm test` (181)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -49,7 +49,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 176 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 181 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -278,3 +278,19 @@ de x402, que retiene sin que nadie de Nyx5 posea nada.
   del proyecto (`nyx5-la-linea-es-la-custodia`), fuera de este repo por ser público.
 - Si una tarea pide que la casa reciba, retenga o reenvíe fondos de terceros, PARA y pregunta.
   Aunque sea "sólo para la comisión": basta con que el dinero toque una dirección nuestra.
+
+**Cobrar dinero REAL no toca la regla de cero dependencias (9-sep-2026).** En el esquema `exact`
+de x402 sobre EVM, el servidor de recurso no necesita keccak256, ni secp256k1, ni llaves, ni nodo:
+sólo base64, JSON y `fetch` a dos rutas del facilitador (`/verify` y `/settle`). El pagador firma
+una autorización EIP-3009 y el facilitador la difunde y paga el gas.
+- La asimetría importa: **cobrar** es gratis de implementar; **pagar** exige keccak256, que Node NO
+  trae (`sha3-256` no es keccak: cambia el relleno). Por eso `demo/x402-testnet.mjs` recibe el pago
+  ya firmado en un archivo en vez de firmarlo.
+- `extra.name`/`extra.version` son el dominio EIP-712 del CONTRATO del token y CAMBIAN entre redes:
+  en Base Sepolia el USDC se llama `"USDC"`, en Base mainnet `"USD Coin"`. Mal puesto, la firma no
+  valida y el error no dice por qué.
+- El servidor de referencia de x402 NO deduplica. Dos peticiones con la misma firma ejecutan el
+  trabajo dos veces y liquidan una. `claveDePago()` da la clave (el nonce) para usar el candado que
+  ya tenemos (invariante 4).
+- Ejercido contra el facilitador abierto `https://x402.org/facilitator` en Base Sepolia: recupera
+  nuestra dirección desde la firma y simula la transferencia real. Falta sólo fondear la billetera.

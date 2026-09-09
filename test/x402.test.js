@@ -79,6 +79,75 @@ test('la liquidación lleva los tres campos obligatorios aunque no haya cadena',
   assert.equal(s.network, x402.RED);
 });
 
+// ---------- red real: USDC sobre una cadena EVM ----------
+
+test('los requisitos en USDC llevan el dominio del token, que cambia entre redes', () => {
+  const pr = x402.requisitosEvm({
+    url: 'https://casa/x', amount: 1000, payTo: '0x000000000000000000000000000000000000dEaD',
+    network: 'eip155:84532', asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    tokenName: 'USDC', tokenVersion: '2',
+  });
+  const a = pr.accepts[0];
+  assert.equal(a.amount, '1000');            // cadena, no número: son unidades atómicas
+  assert.equal(a.extra.assetTransferMethod, 'eip3009');
+  // `name` y `version` son el dominio EIP-712 del CONTRATO. En Base Sepolia el USDC se llama
+  // "USDC" y en Base mainnet "USD Coin": ponerlo mal invalida la firma del pagador sin decir por qué.
+  assert.equal(a.extra.name, 'USDC');
+  assert.equal(a.extra.version, '2');
+  x402.validarRequisitos(pr);
+  // Falla cerrado si falta cualquier pieza del dominio del token.
+  assert.throws(() => x402.requisitosEvm({ url: 'u', amount: 1, payTo: 'p', network: 'eip155:1', asset: 'a', tokenVersion: '2' }), /tokenName/);
+});
+
+test('una respuesta 402 puede ofrecer el token de la casa Y dólares reales, y el cliente elige', () => {
+  // El array `accepts` del estándar es una LISTA de formas de pago aceptables. Un cliente Nyx5
+  // toma la primera; uno genérico descarta la red que no conoce y paga en USDC. Nadie falla.
+  const casa = x402.requisitos({ url: 'https://casa/x', amount: 25, payTo: 'caro@casa.test' });
+  const usdc = x402.requisitosEvm({ url: 'https://casa/x', amount: 1000, payTo: '0x000000000000000000000000000000000000dEaD', network: 'eip155:8453', asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', tokenName: 'USD Coin', tokenVersion: '2' });
+  const mixto = { ...casa, accepts: [...casa.accepts, ...usdc.accepts] };
+  x402.validarRequisitos(mixto);
+  assert.equal(mixto.accepts.length, 2);
+  assert.equal(mixto.accepts[0].network, x402.RED);
+  assert.equal(mixto.accepts[1].network, 'eip155:8453');
+});
+
+test('la clave de deduplicación sale del nonce, y sin nonce dice que no hay', () => {
+  // El servidor de referencia de x402 NO deduplica: dos peticiones con la MISMA firma ejecutan las
+  // dos el trabajo y sólo una liquida, así que entregas dos veces y cobras una. Aquí nombramos la
+  // clave para poder usar el candado que ya tenemos (invariante 4).
+  const pago = { accepted: { network: 'eip155:84532' }, payload: { authorization: { nonce: '0xABCDEF' } } };
+  assert.equal(x402.claveDePago(pago), 'x402:eip155:84532:0xabcdef');
+  assert.equal(x402.claveDePago({ accepted: { network: 'eip155:1' }, payload: {} }), null);
+  assert.equal(x402.claveDePago({}), null);
+});
+
+test('el cliente del facilitador manda el sobre que el estándar pide, y no inventa el resultado', async () => {
+  const vistas = [];
+  const falso = async (url, opts) => {
+    vistas.push({ url, cuerpo: opts?.body ? JSON.parse(opts.body) : null });
+    if (url.endsWith('/verify')) return new Response(JSON.stringify({ isValid: true, payer: '0xabc' }), { status: 200 });
+    return new Response(JSON.stringify({ success: true, transaction: '0xdead', network: 'eip155:84532' }), { status: 200 });
+  };
+  const f = x402.facilitador('https://facilitador.test/', { fetchImpl: falso });
+  const req = { scheme: 'exact', network: 'eip155:84532' };
+  const pago = { x402Version: 2, accepted: req, payload: {} };
+  const v = await f.verificar(pago, req);
+  assert.equal(v.body.isValid, true);
+  const s = await f.liquidar(pago, req);
+  assert.equal(s.body.transaction, '0xdead');
+  // El sobre lleva las tres piezas que el spec exige, y la barra final de la base no se duplica.
+  assert.deepEqual(Object.keys(vistas[0].cuerpo).sort(), ['paymentPayload', 'paymentRequirements', 'x402Version']);
+  assert.equal(vistas[0].url, 'https://facilitador.test/verify');
+});
+
+test('un facilitador que responde basura no se confunde con un pago bueno', async () => {
+  const falso = async () => new Response('<html>502</html>', { status: 502 });
+  const f = x402.facilitador('https://facilitador.test', { fetchImpl: falso });
+  const r = await f.verificar({}, {});
+  assert.equal(r.status, 502);
+  assert.ok(!r.body.isValid, 'nunca se debe leer un fallo como válido');
+});
+
 // ---------- la casa ----------
 
 test('GET /x402/supported declara el scheme y la red de esta casa', async () => {

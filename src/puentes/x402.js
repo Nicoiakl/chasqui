@@ -116,3 +116,69 @@ export function soportado(dominio, clavesCasa = []) {
     signers: { [RED]: clavesCasa },
   };
 }
+
+// ---------- red real: USDC sobre una cadena EVM ----------
+// La casa NO custodia nada. En el esquema `exact` el pagador firma una autorización EIP-3009 y el
+// facilitador la difunde: el dinero va del pagador al que cobra, directo, y el facilitador ni
+// siquiera puede cambiar el monto ni el destino. Nosotros sólo anunciamos el precio, preguntamos
+// si la firma sirve, y pedimos que se liquide. Cero criptografía de cadena de nuestro lado.
+//
+// Por eso esto cabe en un módulo sin dependencias: todo lo que hace falta es base64, JSON y fetch.
+export function requisitosEvm({ url, amount, payTo, network, asset, tokenName, tokenVersion, description, flow = 'authorization' }) {
+  for (const [k, v] of Object.entries({ url, payTo, network, asset, tokenName, tokenVersion })) {
+    if (!v) throw new Error(`x402 evm: falta ${k}`);
+  }
+  const pr = {
+    x402Version: X402_VERSION,
+    error: 'PAYMENT-SIGNATURE header is required',
+    resource: { url, mimeType: 'application/json', ...(description ? { description } : {}) },
+    accepts: [{
+      scheme: 'exact', network, amount: monto(amount), asset, payTo, maxTimeoutSeconds: 60,
+      // `name` y `version` son el dominio EIP-712 del CONTRATO del token, y cambian entre redes:
+      // en Base Sepolia el USDC de Circle se llama "USDC" y en Base mainnet "USD Coin". Ponerlo
+      // mal hace que la firma del pagador no valide, y el error no dice por qué.
+      extra: { paymentFlow: flow, assetTransferMethod: 'eip3009', name: tokenName, version: tokenVersion },
+    }],
+    extensions: {},
+  };
+  validarRequisitos(pr);
+  return pr;
+}
+
+// Cliente del facilitador. Es todo el "código de cadena" que necesita un servidor de recurso.
+export function facilitador(base, { fetchImpl = globalThis.fetch, timeoutMs = 20_000 } = {}) {
+  const raiz = String(base).replace(/\/$/, '');
+  const llamar = async (ruta, cuerpo) => {
+    const r = await fetchImpl(`${raiz}${ruta}`, {
+      method: cuerpo ? 'POST' : 'GET',
+      headers: cuerpo ? { 'content-type': 'application/json' } : {},
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const txt = await r.text();
+    let json; try { json = JSON.parse(txt); } catch { json = { _raw: txt.slice(0, 300) }; }
+    return { status: r.status, body: json };
+  };
+  const sobre = (paymentPayload, paymentRequirements) => ({ x402Version: X402_VERSION, paymentPayload, paymentRequirements });
+  return {
+    soportado: () => llamar('/supported'),
+    // `verify` es SOLO LECTURA por el spec: un isValid:true NO es dinero. Entre verificar y
+    // liquidar el saldo puede gastarse. Se usa para rechazar temprano, nunca como garantía.
+    verificar: (pago, req) => llamar('/verify', sobre(pago, req)),
+    liquidar: (pago, req) => llamar('/settle', sobre(pago, req)),
+  };
+}
+
+// Clave de deduplicación de un pago. El servidor de referencia de x402 NO deduplica: dos
+// peticiones simultáneas con la MISMA firma pasan las dos por `verify` (que es de solo lectura),
+// ejecutan las dos el trabajo, y sólo una liquida. O sea, entregas dos veces y cobras una.
+// Aquí ya tenemos el candado que hace falta (`markSeenIfNew`, invariante 4); esto sólo nombra la
+// clave. La red pone el nonce justamente para esto: es único por autorización.
+export function claveDePago(pago) {
+  const a = pago?.payload?.authorization;
+  const red = pago?.accepted?.network;
+  if (!red) return null;
+  if (a?.nonce) return `x402:${red}:${String(a.nonce).toLowerCase()}`;
+  // Sin nonce no hay antirreplay posible: mejor decirlo que fingir que se dedujo algo.
+  return null;
+}
