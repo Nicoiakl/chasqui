@@ -16,7 +16,7 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 | ☐ | **Leer y aprobar `docs/TERMS.md`**. Se sirven sólo si él los enciende: son declaraciones vinculantes en su nombre | 8-sep |
 | ☐ | **Smithery**: `smithery auth login && smithery mcp publish dist/nyx5-*.mcpb -n <namespace>/nyx5` | 8-sep |
 | ☐ | **AP2**: ¿se queda mapeado o se le construye la segunda llave ECDSA? Recomendación: dejarlo mapeado | 9-sep |
-| ☐ | **x402**: mandar el binding a `specs/schemes/` del repo oficial. Recomendación: hacerlo | 9-sep |
+| ☐ | **x402**: ¿la comisión de la casa puede seguir saliendo de lo que recibe el receptor? Si x402 responde que no, el binding exige cambiar cómo se asienta la comisión. Preguntado en su issue #3435 | 9-sep |
 
 ## Abierto — de la sesión
 
@@ -29,6 +29,13 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 ## Hecho
 
 ### 9-sep-2026
+- **Propuesta abierta en el repo de x402** ([issue #3435](https://github.com/x402-foundation/x402/issues/3435)):
+  el binding de Nyx5 y las dos preguntas que expuso. No se mandó el documento del binding porque
+  el esquema `exact` exige que a `payTo` le llegue el monto anunciado, y nuestra casa descuenta la
+  comisión de ahí. Filarlo igual sería leer por encima de un MUST.
+- **PR enviado a x402** ([#3436](https://github.com/x402-foundation/x402/pull/3436)): §11.1 pasa a
+  decir la gramática de CAIP-2 y que el punto no es legal en una reference. Comprobado contra el
+  documento de CAIP-2, no contra un resumen. Es independiente de la pregunta anterior.
 - **Adaptador x402 v2 desplegado y verificado en producción.** `GET /x402/supported`,
   `GET /x402/inbox/<nombre>`, y `POST /inbound` respondiendo 402 con `PAYMENT-REQUIRED` o 202 con
   `PAYMENT-RESPONSE`. Comprobado contra nyx5.com: un buzón de 25 tok anuncia "25", rechaza sin
