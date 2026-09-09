@@ -33,6 +33,36 @@ function scopeCap(ctx, amount, what) {
   if (cap != null && amount > cap) fail(403, `${what}: ${amount} tok exceeds the subagent cap of ${cap}`);
 }
 function must(cond, code, msg) { if (!cond) fail(code, msg); }
+
+// ---------- alcance de un mandato: vocabulario CERRADO, y se falla cerrado ----------
+// Un mandato es autoridad de gasto. Si el mandante escribe una restricción que el Libro no sabe
+// aplicar, la opción segura NO es guardarla y seguir: es negarse.
+//
+// Nació de un defecto real (9-sep-2026): un mandato con `max_per_charge: 500` y una lista de
+// destinatarios permitidos guardó las dos, las FIRMÓ, y después dejó pasar un cobro único de
+// 90.000. La restricción se veía al leer el mandato de vuelta y no hacía nada. Un instrumento que
+// falla hacia el ruido es peor que uno que no existe: te deja construir encima.
+//
+// Esto contradice a propósito el invariante 7 (los campos desconocidos se conservan y se ignoran).
+// Ese invariante es para MENSAJES, donde ignorar lo que no entiendes es lo que permite extender el
+// protocolo sin romperlo. Para autoridad de gasto es lo contrario: ignorar una restricción
+// autoriza MÁS de lo que el mandante quiso.
+export const ALCANCE_MANDATO = Object.freeze(['concepts', 'max_per_charge']);
+
+function validarAlcance(scope, cap) {
+  if (scope == null) return {};
+  must(typeof scope === 'object' && !Array.isArray(scope), 400, 'scope must be an object');
+  const ajenas = Object.keys(scope).filter((k) => !ALCANCE_MANDATO.includes(k));
+  must(!ajenas.length, 400, `this ledger cannot enforce ${ajenas.map((k) => JSON.stringify(k)).join(', ')} in a mandate scope, so it refuses to store it as if it could. It enforces: ${ALCANCE_MANDATO.join(', ')}`);
+  if (scope.concepts != null) {
+    must(Array.isArray(scope.concepts) && scope.concepts.every((c) => typeof c === 'string'), 400, 'scope.concepts must be a list of strings');
+  }
+  if (scope.max_per_charge != null) {
+    must(Number.isInteger(scope.max_per_charge) && scope.max_per_charge > 0, 400, 'scope.max_per_charge must be a positive integer');
+    must(cap == null || scope.max_per_charge <= cap, 400, `scope.max_per_charge (${scope.max_per_charge}) cannot exceed the mandate cap (${cap})`);
+  }
+  return scope;
+}
 const parties = (c) => [c.seller, c.buyer, c.verifier, c.arbiter].filter(Boolean);
 
 // ============ Operaciones ============
@@ -161,7 +191,7 @@ const ops = {
       must(body.cap <= parent.cap - parent.spent, 403, `the sub-mandate (${body.cap}) exceeds what the parent has left (${parent.cap - parent.spent})`);
       if (parent.expires) must(!body.expires || Date.parse(body.expires) <= Date.parse(parent.expires), 403, 'the sub-mandate cannot outlast its parent');
     }
-    const m = { id: uuid(), house: libro.domain, grantor: from, grantee: body.grantee, cap: body.cap, spent: 0, scope: body.scope || {}, expires: body.expires || parent?.expires || null,
+    const m = { id: uuid(), house: libro.domain, grantor: from, grantee: body.grantee, cap: body.cap, spent: 0, scope: validarAlcance(body.scope, body.cap), expires: body.expires || parent?.expires || null,
       parent: parent?.id || null, root: parent ? parent.root : from, chain: [], state: 'active', created: iso(), op_sha256: ctx.opHash };
     m.chain = parent ? [...parent.chain, m.id] : [m.id];
     libro.putMandate(m);
@@ -180,7 +210,14 @@ const ops = {
       must(cur.state === 'active', 409, `mandate ${cur.id} is not active`);
       must(!cur.expires || Date.parse(cur.expires) > Date.now(), 410, `mandato ${cur.id} vencido`);
       must(cur.cap - cur.spent >= body.amount, 402, `mandate ${cur.id}: ${cur.cap - cur.spent} left, ${body.amount} requested`);
+      // Fallar cerrado: un mandato guardado ANTES de este candado puede llevar una restricción que
+      // no sabemos aplicar. No se cobra contra él hasta que su mandante lo rehaga.
+      const ajenas = Object.keys(cur.scope || {}).filter((k) => !ALCANCE_MANDATO.includes(k));
+      must(!ajenas.length, 403, `mandate ${cur.id} carries ${ajenas.map((k) => JSON.stringify(k)).join(', ')} in its scope, which this ledger cannot enforce; it refuses to charge against a limit it cannot apply`);
       if (cur.scope?.concepts?.length) must(cur.scope.concepts.includes(body.concept), 403, `concept "${body.concept}" is outside the mandate scope`);
+      // Tope por cobro: el total ya no se puede vaciar de un solo golpe. Se comprueba en CADA
+      // eslabón, así que el tope del padre acota lo que cobra el nieto.
+      if (cur.scope?.max_per_charge != null) must(body.amount <= cur.scope.max_per_charge, 403, `mandate ${cur.id} caps a single charge at ${cur.scope.max_per_charge}, and ${body.amount} was requested`);
       chain.push(cur);
     }
     // El descuento de la cadena y el asiento van en la MISMA transacción: si el commit falla,
@@ -235,7 +272,7 @@ export const CONTRATOS = {
   } },
   // Medido: la aceptación crea un mandato del comprador al vendedor con tope = precio cotizado.
   metered: { quoteable: true, async onAccept({ libro, c, q, refs }) {
-    const m = { id: uuid(), house: libro.domain, grantor: c.buyer, grantee: c.seller, cap: c.amount, spent: 0, scope: q.terms?.scope || {}, expires: q.terms?.expires || q.expires || null,
+    const m = { id: uuid(), house: libro.domain, grantor: c.buyer, grantee: c.seller, cap: c.amount, spent: 0, scope: validarAlcance(q.terms?.scope, c.amount), expires: q.terms?.expires || q.expires || null,
       parent: null, root: c.buyer, chain: [], state: 'active', created: iso(), contract: c.id, op_sha256: refs.op_sha256 };
     m.chain = [m.id];
     libro.putMandate(m);

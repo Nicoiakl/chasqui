@@ -29,6 +29,11 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 ## Hecho
 
 ### 9-sep-2026
+- **Cerrado el hueco de los mandatos** (lo decidió Nicholas). Una restricción que el Libro no sabe
+  aplicar ya no se guarda: el mandato se rechaza al crearlo diciendo qué clave sobra y qué sí se
+  aplica, y un mandato viejo que la lleve no cobra. Se agregó `max_per_charge`, que se comprueba en
+  cada eslabón de la cadena. Comprobado con el caso exacto que fallaba: antes 90.000 pasaban de un
+  golpe contra un tope declarado de 500, ahora ni se crea. Escrito también en la spec y desplegado.
 - **Propuesta abierta en el repo de x402** ([issue #3435](https://github.com/x402-foundation/x402/issues/3435)):
   el binding de Nyx5 y las dos preguntas que expuso. No se mandó el documento del binding porque
   el esquema `exact` exige que a `payTo` le llegue el monto anunciado, y nuestra casa descuenta la

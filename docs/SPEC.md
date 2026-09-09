@@ -383,7 +383,19 @@ Bounties, subscriptions, auctions, referrals and disputes are compositions of th
 
 ## 18. Chained mandates
 
-A mandate is `{ id, grantor, grantee, cap, spent, scope: { concepts? }, expires, parent, root, chain, state }`. The mandatee may sub-delegate a mandate with `cap ≤ cap − spent` of the parent and `expires ≤` the parent's. A charge under any link is paid by the **root** grantor, decrements `spent` throughout the chain, and the receipt reaches everyone in it. Revoking a mandate revokes everything hanging from it. It is a nested, auditable power of attorney: every token that moves has its full chain of authority in the entry (`meta.chain`).
+A mandate is `{ id, grantor, grantee, cap, spent, scope: { concepts?, max_per_charge? }, expires, parent, root, chain, state }`. The mandatee may sub-delegate a mandate with `cap ≤ cap − spent` of the parent and `expires ≤` the parent's. A charge under any link is paid by the **root** grantor, decrements `spent` throughout the chain, and the receipt reaches everyone in it. Revoking a mandate revokes everything hanging from it. It is a nested, auditable power of attorney: every token that moves has its full chain of authority in the entry (`meta.chain`).
+
+`cap` is the cumulative ceiling and `scope.max_per_charge` the ceiling of a single charge, so a
+budget cannot leave in one movement. Both are checked at **every link** of the chain, so a parent's
+per-charge ceiling binds what a grandchild may charge.
+
+**A mandate scope is a closed vocabulary, and it fails closed.** A ledger MUST reject a mandate
+whose scope carries a key it cannot enforce, naming the key and listing what it does enforce, and
+MUST refuse to charge against a stored mandate carrying such a key. This is the one place where
+rule 7 of section 2 is deliberately inverted: preserving and ignoring an unknown field is what
+lets messages extend without breaking, but a mandate is spending authority, and ignoring a
+restriction authorises *more* than the grantor intended. A restriction that is stored, signed and
+visible when read back, yet never applied, is worse than one that was never accepted.
 
 Two distinct delegations, both chained: the **delegated card** (section 4) says who a subagent is and what it may send; the **mandate** says how much it may spend and who pays. A subagent with `scope.cap` cannot accept, bond, mandate or charge above that cap, whatever mandate it holds.
 

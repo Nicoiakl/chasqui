@@ -136,6 +136,40 @@ test('mandato en cadena: sub-mandato acotado por el padre, cobro descuenta toda 
   assert.match((await bounce(verifica, (await verifica.charge(H, { mandate: sub.id, amount: 1, concept: 'uso' })).id)).reason, /is not active/);
 });
 
+test('el alcance de un mandato es vocabulario cerrado: lo que el Libro no sabe aplicar, no lo guarda', async () => {
+  // Defecto real del 9-sep-2026: el Libro guardaba y FIRMABA `max_per_charge` y una lista de
+  // destinatarios, y después dejaba pasar un cobro único que las violaba. La restricción se veía
+  // al leer el mandato y no hacía nada. Ahora se niega, y dice qué sí sabe aplicar.
+  const r = await bounce(nicolas, (await nicolas.mandate(H, { grantee: vendedor.address, cap: 1000, scope: { allowed_payees: ['alguien@x.test'] } })).id);
+  assert.match(r.reason, /cannot enforce "allowed_payees"/);
+  assert.match(r.reason, /concepts, max_per_charge/, 'el rechazo tiene que decir qué SÍ se aplica');
+  // Y las formas mal escritas de lo que sí conocemos tampoco entran.
+  assert.match((await bounce(nicolas, (await nicolas.mandate(H, { grantee: vendedor.address, cap: 1000, scope: { max_per_charge: 0 } })).id)).reason, /positive integer/);
+  assert.match((await bounce(nicolas, (await nicolas.mandate(H, { grantee: vendedor.address, cap: 100, scope: { max_per_charge: 500 } })).id)).reason, /cannot exceed the mandate cap/);
+});
+
+test('tope por cobro: el presupuesto ya no se puede vaciar de un solo golpe, ni por un nieto', async () => {
+  const m = (await nicolas.awaitReceipt((await nicolas.mandate(H, { grantee: vendedor.address, cap: 1000, scope: { max_per_charge: 100 } })).id)).receipt.mandate;
+  assert.equal(m.scope.max_per_charge, 100);
+  // Un cobro por encima del tope se rechaza aunque quede saldo de sobra en el total.
+  assert.match((await bounce(vendedor, (await vendedor.charge(H, { mandate: m.id, amount: 900, concept: 'de un golpe' })).id)).reason, /caps a single charge at 100/);
+  // Uno por debajo pasa.
+  await vendedor.awaitReceipt((await vendedor.charge(H, { mandate: m.id, amount: 100, concept: 'ok' })).id);
+  // El tope del padre acota al hijo: el sub-mandato no puede saltárselo cobrando más de una vez.
+  const sub = (await vendedor.awaitReceipt((await vendedor.mandate(H, { grantee: verifica.address, cap: 500, parent: m.id })).id)).receipt.mandate;
+  assert.match((await bounce(verifica, (await verifica.charge(H, { mandate: sub.id, amount: 400, concept: 'saltándome al padre' })).id)).reason, /caps a single charge at 100/);
+  await verifica.awaitReceipt((await verifica.charge(H, { mandate: sub.id, amount: 60, concept: 'dentro' })).id);
+});
+
+test('un mandato viejo con una restricción que no sabemos aplicar no cobra: falla cerrado', async () => {
+  // Los mandatos creados ANTES del candado pueden llevar cualquier cosa en el alcance. El Libro no
+  // puede rehacerlos, pero sí puede negarse a cobrar contra un límite que no sabe aplicar.
+  const m = (await nicolas.awaitReceipt((await nicolas.mandate(H, { grantee: vendedor.address, cap: 1000 })).id)).receipt.mandate;
+  const viejo = { ...m, scope: { daily_limit: 10 } };            // como si viniera del disco de ayer
+  await alfa.store.libroPutMandate(viejo);
+  assert.match((await bounce(vendedor, (await vendedor.charge(H, { mandate: m.id, amount: 5, concept: 'x' })).id)).reason, /cannot enforce/);
+});
+
 test('metered: aceptar una cotización medida crea un mandato con tope = precio', async () => {
   const q = await vendedor.quote({ to: nicolas.address, contract: 'metered', price: 90, concept: 'verificaciones', terms: { scope: { concepts: ['verificación'] } } });
   const r = await nicolas.awaitReceipt((await nicolas.accept(await receiveQuote(nicolas, q))).id);

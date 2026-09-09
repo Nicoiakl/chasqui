@@ -41,7 +41,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop -> `npm test` (171)
+                         puertos (guard de colisión) · x402 · interop -> `npm test` (174)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -49,7 +49,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 171 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 174 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -215,3 +215,16 @@ ahora se firma cuando cambia el contenido y se persiste. `/app` y `/tareas` pasa
 - `test/interop.test.js` obliga a que cada fila de cada mapeo lleve uno de los cuatro veredictos
   (equivalent / partial / missing here / missing there) y a que cada documento diga qué NO reclama.
 - La Agentic Payments Alliance NO es un estándar: sin spec, sin repo, nada que integrar.
+
+**El alcance de un mandato falla CERRADO (9-sep-2026)** — nació de un defecto medido, no de una
+idea: un mandato con `max_per_charge: 500` y una lista de destinatarios guardó las dos, las FIRMÓ,
+y después dejó pasar un cobro único de 90.000. La restricción se veía al leer el mandato de vuelta
+y no hacía nada.
+- `ALCANCE_MANDATO` en `src/libro/contratos.js` es un vocabulario CERRADO: `concepts` y
+  `max_per_charge`. Cualquier otra clave hace que el mandato se rechace al crearlo, nombrándola y
+  diciendo qué sí se aplica. Un mandato ya guardado con una clave ajena NO cobra.
+- Esto contradice el invariante 7 A PROPÓSITO. Ese invariante es para MENSAJES, donde ignorar lo
+  desconocido es lo que deja extender sin romper. En autoridad de gasto, ignorar una restricción
+  autoriza MÁS de lo que el mandante quiso. Si alguien "arregla" esta inconsistencia, reabre el
+  defecto.
+- `max_per_charge` se comprueba en CADA eslabón, así que el tope del padre acota al nieto.
