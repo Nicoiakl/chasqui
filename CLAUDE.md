@@ -41,7 +41,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop -> `npm test` (174)
+                         puertos (guard de colisión) · x402 · interop -> `npm test` (176)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -49,7 +49,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 174 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 176 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -253,3 +253,18 @@ git también pueda VERIFICAR y no sólo firmar.
   suyo: se firma igual, pero GitHub sólo lo marca verificado si ese correo está en la cuenta.
 - Riesgo a tener presente: con `commit.gpgsign=true`, si la llave deja de estar disponible el
   commit FALLA en vez de salir sin firma. Es lo que queremos, pero conviene saberlo.
+
+**La puerta del CORREO también aplica la política del buzón (9-sep-2026)** — era una brecha real,
+medida y ya cerrada. `receiveEmail` iba de `getAgent` directo a `putMail` sin consultar la
+política: un buzón con `stamp` de 500 y otro con lista blanca cerrada aceptaban los dos un correo
+de cualquier desconocido, gratis. La estampilla, la lista y la prueba de trabajo defendían
+`/inbound` mientras la puerta de al lado quedaba abierta, y el precio que la casa anuncia por x402
+era evitable escribiendo un correo.
+- `applyEmailPolicy` (en `politica.js`) falla CERRADO: una política que no se pueda expresar sobre
+  correo no deja pasar, y una desconocida tampoco.
+- Se compara contra el remitente REAL del correo, no contra `email@<casa>`, que es la pasarela y
+  sería la misma para todos.
+- El rechazo vuelve como rechazo SMTP (`message.setReject` en el adaptador del edge), así que el
+  remitente recibe el rebote de su propio proveedor. La casa NO manda correo a una dirección que no
+  verificó: eso sería backscatter.
+- Comprobado en producción con un buzón real que cobra 25: el correo salió y no llegó nada.

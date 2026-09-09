@@ -29,6 +29,12 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 ## Hecho
 
 ### 9-sep-2026
+- **Cerrada una brecha real: la puerta del correo se saltaba toda la política del buzón.** Un buzón
+  que cobraba 500 y otro con lista blanca cerrada aceptaban los dos un correo de un desconocido,
+  gratis. Lo peor no era el spam: el precio que la casa anuncia por x402 era evitable escribiendo un
+  correo. Ahora el correo pasa por la política, comparada contra el remitente real, y falla cerrado
+  cuando el mecanismo no existe sobre correo. El rechazo vuelve como rechazo SMTP, sin backscatter.
+  Comprobado en producción con un buzón que cobra 25: el correo salió y no llegó nada.
 - **PR a x402 desbloqueado.** Exigen commits firmados y cierran el PR tras una semana sin
   actividad. El commit se firmó con SSH usando la llave personal de Nicholas, y él la registró en
   GitHub como Signing Key, que es una entrada distinta de la de autenticación. `check-verified-commits`

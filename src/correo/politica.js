@@ -43,6 +43,41 @@ export function validateEnvelope(env, { maxBytes = 1_048_576 } = {}) {
   return { ok: true };
 }
 
+// ---------- la puerta del correo ----------
+// Un correo entra al buzón SIN firma y sin cuenta en el Libro. Durante un tiempo entró además sin
+// pasar por ninguna política: un buzón que cobraba 500 y otro con lista blanca cerrada aceptaban
+// los dos un correo de cualquier desconocido, gratis. O sea que la estampilla, la lista y la
+// prueba de trabajo defendían una puerta mientras la de al lado quedaba abierta, y el precio que
+// la casa anuncia por x402 era evitable escribiendo un correo.
+//
+// Esta función es esa puerta. Falla CERRADO: si la política del buzón no se puede expresar sobre
+// correo, no se deja pasar. Un mecanismo que no existe en este canal no es un permiso.
+//
+// Se compara contra el remitente REAL del correo, no contra `email@<casa>`, que es la pasarela y
+// sería la misma para todo el mundo.
+export function applyEmailPolicy(agentRecord, emailFrom) {
+  const inbox = agentRecord.inbox || { policy: 'open' };
+  const dominio = String(emailFrom).slice(String(emailFrom).lastIndexOf('@') + 1).toLowerCase();
+  const de = String(emailFrom).toLowerCase();
+  switch (inbox.policy) {
+    case undefined:
+    case 'open':
+      return { ok: true };
+    case 'allowlist': {
+      const ok = inbox.allowlist?.some((x) => String(x).toLowerCase() === de || String(x).toLowerCase() === dominio);
+      // El "intro" y el aval del canal firmado NO tienen equivalente aquí: uno se apoya en el tipo
+      // de sobre y el otro en una fianza del Libro, y un correo no trae ninguno de los dos.
+      return ok ? { ok: true } : { ok: false, code: 403, reason: 'this mailbox only accepts listed senders' };
+    }
+    case 'pow':
+      return { ok: false, code: 403, reason: `this mailbox requires proof-of-work, which an email cannot carry; write to ${agentRecord.address} with the protocol instead` };
+    case 'stamp':
+      return { ok: false, code: 402, reason: `this mailbox charges ${inbox.price ?? 1} tok for delivery, and an email carries no payment; join the house and send a signed envelope with a stamp` };
+    default:
+      return { ok: false, code: 403, reason: `unknown mailbox policy (${inbox.policy})` };
+  }
+}
+
 // Limitador de tasa por clave (dominio emisor), ventana deslizante simple.
 export class RateLimiter {
   constructor({ perMinute = 120 } = {}) { this.perMinute = perMinute; this.hits = new Map(); }

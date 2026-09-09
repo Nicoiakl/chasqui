@@ -20,7 +20,7 @@
 
 import { FileStore } from '../nucleo/almacen.js';
 import { Resolver, parseAddress } from './resolver.js';
-import { validateEnvelope, applyInboxPolicy, RateLimiter } from './politica.js';
+import { validateEnvelope, applyInboxPolicy, applyEmailPolicy, RateLimiter } from './politica.js';
 import { generateSigningKeys, signObject, verifyObject, signBytes, verifyBytes, canonical, uuid, unb64u, sha256hex } from '../nucleo/crypto.js';
 import { Libro, MEDIA, LibroError } from '../libro/libro.js';
 import { veredicto, pruebasDe, pruebasDisponibles } from '../libro/verifica.js';
@@ -794,6 +794,16 @@ export class Estafeta {
     if (dom !== this.domain) return { ok: false, code: 400, reason: `the email is for ${dom}, not ${this.domain}` };
     const rec = await this.store.getAgent(local);
     if (!rec) return { ok: false, code: 404, reason: 'no such agent' };
+    // La política del buzón manda también aquí. Antes no: la puerta del correo se saltaba la
+    // estampilla, la lista blanca y la prueba de trabajo. El adaptador del edge convierte este
+    // rechazo en un rechazo SMTP, así que el remitente recibe un rebote de su propio proveedor y
+    // la casa no manda correo a una dirección que no verificó (nada de backscatter).
+    const pol = applyEmailPolicy(rec, from);
+    if (!pol.ok) return { ok: false, code: pol.code, reason: pol.reason };
+    // Y un buzón abierto tampoco es un embudo infinito: se limita por dominio del remitente.
+    if (!this.rate.allow(`email:${String(from).slice(String(from).lastIndexOf('@') + 1).toLowerCase()}`)) {
+      return { ok: false, code: 429, reason: 'rate limit for the sending domain' };
+    }
     const env = inboundEnvelope({ from, to: `${local}@${this.domain}`, subject, text, messageId });
     // dedupe por id (message-id del correo o uuid) igual que un sobre normal
     const nuevo = await this.store.markSeenIfNew(env.id, { from: `email:${from}`, accepted: [to] });

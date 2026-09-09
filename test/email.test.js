@@ -53,6 +53,64 @@ test('D3 · un email a un agente inexistente o de un remitente inválido se rech
   } finally { await e.stop(); }
 });
 
+test('la puerta del correo respeta la política del buzón, igual que la puerta firmada', async () => {
+  // Defecto real del 9-sep-2026: `receiveEmail` iba de getAgent directo a putMail sin consultar la
+  // política. Un buzón que cobraba 500 y otro con lista blanca cerrada aceptaban los dos un correo
+  // de un desconocido, gratis. La estampilla, la lista y la prueba de trabajo defendían una puerta
+  // mientras la de al lado quedaba abierta, y el precio que la casa anuncia por x402 era evitable
+  // escribiendo un correo.
+  const { e, url, dom } = await casa();
+  try {
+    const mk = async (nombre, inbox) => {
+      const a = Agent.create(`${nombre}@${dom}`, url, { hosts: { [dom]: { url } } });
+      await a.register({ adminToken: 't', inbox });
+      return a;
+    };
+    const caro = await mk('caro', { policy: 'stamp', price: 500 });
+    const lista = await mk('lista', { policy: 'allowlist', allowlist: ['amigo@conocido.example'] });
+    const trabajo = await mk('trabajo', { policy: 'pow', pow_bits: 12 });
+    const abierto = await mk('abierto', { policy: 'open' });
+    const buzon = async (n) => (await e.store.listMail(n)).length;
+
+    // Cobra: el correo no trae pago, así que no entra, y el rechazo dice el precio.
+    const r1 = await e.receiveEmail({ from: 'x@internet.example', to: caro.address, subject: 'h', text: 'entro?' });
+    assert.equal(r1.code, 402);
+    assert.match(r1.reason, /charges 500 tok/);
+    assert.equal(await buzon('caro'), 0, 'no debe quedar nada en el buzón que cobra');
+
+    // Lista blanca: se compara contra el remitente REAL, no contra la pasarela email@<casa>, que
+    // sería la misma para todo el mundo y dejaría entrar a cualquiera.
+    assert.equal((await e.receiveEmail({ from: 'x@internet.example', to: lista.address, subject: 'h', text: 'y yo?' })).code, 403);
+    assert.equal(await buzon('lista'), 0);
+    assert.equal((await e.receiveEmail({ from: 'amigo@conocido.example', to: lista.address, subject: 'h', text: 'soy yo' })).code, 202);
+    assert.equal(await buzon('lista'), 1, 'el remitente de la lista sí entra');
+
+    // Prueba de trabajo: no existe sobre correo, así que se falla cerrado en vez de dejar pasar.
+    assert.equal((await e.receiveEmail({ from: 'x@internet.example', to: trabajo.address, subject: 'h', text: 'x' })).code, 403);
+    assert.equal(await buzon('trabajo'), 0);
+
+    // Y un buzón abierto sigue abierto: cerrar la puerta no puede romper el caso normal.
+    assert.equal((await e.receiveEmail({ from: 'quien.sea@internet.example', to: abierto.address, subject: 'h', text: 'hola' })).code, 202);
+    assert.equal(await buzon('abierto'), 1);
+  } finally { await e.stop(); }
+});
+
+test('una política de buzón que no sepamos aplicar sobre correo no deja pasar', async () => {
+  // Falla cerrado: si mañana alguien agrega una política nueva y olvida enseñarle esta puerta,
+  // el olvido tiene que cerrar la puerta, no abrirla.
+  const { e, url, dom } = await casa();
+  try {
+    const a = Agent.create(`raro@${dom}`, url, { hosts: { [dom]: { url } } });
+    await a.register({ adminToken: 't' });
+    const rec = await e.store.getAgent('raro');
+    await e.store.putAgent('raro', { ...rec, inbox: { policy: 'inventada-mañana' } });
+    const r = await e.receiveEmail({ from: 'x@internet.example', to: a.address, subject: 'h', text: 'x' });
+    assert.equal(r.code, 403);
+    assert.match(r.reason, /unknown mailbox policy/);
+    assert.equal((await e.store.listMail('raro')).length, 0);
+  } finally { await e.stop(); }
+});
+
 test('D3 · salida SIN proveedor queda pendiente (no se inventa canal)', async () => {
   const { e, url, dom } = await casa();
   try {
