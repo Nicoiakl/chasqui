@@ -26,6 +26,7 @@ import { Libro, MEDIA, LibroError } from '../libro/libro.js';
 import { veredicto, pruebasDe, pruebasDisponibles } from '../libro/verifica.js';
 import { contratoPublico, ACP } from '../libro/contratos.js';
 import { Tareas } from '../libro/tareas.js';
+import { datosInforme, informeHtml } from '../libro/informe.js';
 import { APP_HTML } from '../plataformas/app-html.js';
 import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
 import { HOME_HTML } from '../plataformas/home-html.js';
@@ -814,6 +815,23 @@ export class Estafeta {
       if (rx.method === 'GET' && (path === '/terms' || path === '/terms/') && this.terms) {
         return { status: 200, contentType: 'text/html; charset=utf-8', body: this.terms };
       }
+      // El libro de la casa, en público. Se calcula al pedirlo: así nunca está viejo, y no hay
+      // un trabajo de fondo que pueda fallar en silencio dejando publicado un número de hace un
+      // mes. Sin nombres, sin contrapartes y sin contenido: solo cuántos y cuánto.
+      if (rx.method === 'GET' && (path === '/report' || path === '/report/')) {
+        try {
+          const dias = Math.min(90, Math.max(1, Number(rx.query.get('days') || 7) || 7));
+          return { status: 200, contentType: 'text/html; charset=utf-8', body: informeHtml(this.domain, await datosInforme(this, { dias })) };
+        } catch (e) {
+          // Un informe que no se puede calcular se dice, no se inventa.
+          this.log(`informe no disponible: ${e.message}`);
+          return send(503, { reason: 'the ledger could not be read right now' });
+        }
+      }
+      if (rx.method === 'GET' && path === '/report.json') {
+        try { return send(200, await datosInforme(this, { dias: Math.min(90, Math.max(1, Number(rx.query.get('days') || 7) || 7)) })); }
+        catch { return send(503, { reason: 'the ledger could not be read right now' }); }
+      }
       // La imagen de la vista previa al compartir un enlace. Se sirve desde la casa y no desde
       // un CDN externo para no depender de nadie: si esta URL falla, el enlace se comparte pelado.
       if (rx.method === 'GET' && path === '/og.png') {
@@ -828,7 +846,7 @@ export class Estafeta {
         return { status: 200, contentType: 'text/plain; charset=utf-8', body: `User-agent: *\nAllow: /\n# Los buzones y el Libro exigen firma; no hay nada que rastrear ahí.\nDisallow: /mailbox/\nDisallow: /libro/\nDisallow: /outbox/\nSitemap: https://${this.domain}/sitemap.xml\n` };
       }
       if (rx.method === 'GET' && path === '/sitemap.xml') {
-        const paginas = ['/', '/spec', '/app', '/llms.txt'].concat(this.tareas.enabled ? ['/tareas'] : []);
+        const paginas = ['/', '/spec', '/app', '/report', '/llms.txt'].concat(this.tareas.enabled ? ['/tareas'] : []);
         const hoy = iso().slice(0, 10);
         return { status: 200, contentType: 'application/xml; charset=utf-8',
           body: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paginas.map((u) => `  <url><loc>https://${this.domain}${u}</loc><lastmod>${hoy}</lastmod></url>`).join('\n')}\n</urlset>\n` };
@@ -998,7 +1016,7 @@ export class Estafeta {
         const offset = Number.isInteger(Number(p.offset)) && Number(p.offset) >= 0 ? Number(p.offset) : 0;
         return send(200, await this.indexSearch({ q: p.q, capability: p.capability, accepts: p.accepts, house: p.house, limit, offset }));
       }
-      return send(404, { reason: 'ruta desconocida' });
+      return send(404, { reason: 'unknown route' });
     } catch (e) {
       // Falla cerrado y con código HTTP válido: e.code puede ser un string del sistema ('ENOENT').
       const status = Number.isInteger(e.status) ? e.status : (Number.isInteger(e.code) ? e.code : 500);

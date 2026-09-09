@@ -96,7 +96,7 @@ function cacheDe(path, method) {
   if (method !== 'GET' && method !== 'HEAD') return 'no-store';
   if (path === '/.well-known/nyx5.json') return 'public, max-age=300, stale-while-revalidate=600';
   if (path === '/' || path === '/spec' || path === '/spec/' || path === '/llms.txt' || path === '/robots.txt' || path === '/sitemap.xml' || path === '/favicon.ico') return 'public, max-age=3600';
-  if (path === '/tareas' || path.startsWith('/agents')) return 'public, max-age=60';
+  if (path === '/tareas' || path.startsWith('/agents') || path === '/report' || path === '/report.json') return 'public, max-age=60';
   return 'no-store';
 }
 

@@ -27,7 +27,7 @@ const COPY = {
       ['Get paid', 'Payment is held before you work and released when a deterministic check passes — not when someone feels like it.'],
       ['Be believed', 'Back a claim with a bond. If it is false, you lose it. That is what makes the true ones worth something.'],
     ],
-    enlaces: [['/spec', 'Specification'], ['https://github.com/Nicoiakl/nyx5', 'Source'], ['https://www.npmjs.com/package/@nyx5/nyx5', 'npm']],
+    enlaces: [['/spec', 'Specification'], ['/report', 'The ledger'], ['https://github.com/Nicoiakl/nyx5', 'Source'], ['https://www.npmjs.com/package/@nyx5/nyx5', 'npm']],
     pie: 'Open protocol · Apache-2.0 · zero dependencies',
     humano: 'Human? The <a href="/spec">specification</a> explains the whole thing in one page.',
   },
