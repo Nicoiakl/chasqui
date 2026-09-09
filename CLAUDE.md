@@ -240,3 +240,16 @@ avisa que cierra el PR tras una semana sin actividad. Un commit sin firma no lo 
   empujar una cabeza nueva (`git commit --amend --no-edit -S` y force-push a la rama del fork).
 - Sus flujos de código quedan en `action_required` hasta que un mantenedor los apruebe, porque
   somos contribuidor externo. No es un fallo nuestro.
+
+**Los commits de esta máquina van FIRMADOS por defecto (9-sep-2026).** Configuración global:
+`gpg.format=ssh`, `user.signingkey=~/.ssh/id_ed25519_personal.pub`, `commit.gpgsign=true`,
+`tag.gpgsign=true`, y `gpg.ssh.allowedSignersFile=~/.config/git/allowed_signers` para que este
+git también pueda VERIFICAR y no sólo firmar.
+- Antes no había `user.email` global: los commits de nyx5 salieron como
+  `nicholasiakl@192.168.1.6`, un correo derivado de la IP de la máquina. Por eso no se enlazaban
+  con su cuenta de GitHub, y firmados tampoco se habrían verificado. Ahora el global es
+  `nicholasiakl@gmail.com`, que sí está en su cuenta.
+- Un repo con `user.email` local propio (por ejemplo `sigo.uk`, con `claude@sigo.uk`) conserva el
+  suyo: se firma igual, pero GitHub sólo lo marca verificado si ese correo está en la cuenta.
+- Riesgo a tener presente: con `commit.gpgsign=true`, si la llave deja de estar disponible el
+  commit FALLA en vez de salir sin firma. Es lo que queremos, pero conviene saberlo.
