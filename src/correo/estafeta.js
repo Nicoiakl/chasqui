@@ -42,7 +42,7 @@ export class Estafeta {
     port = 4000, host = '127.0.0.1', publicUrl,
     hosts = {}, fetchImpl = globalThis.fetch,
     policy = {}, retry = {}, workerIntervalMs = 1000, libro = {},
-    index = {}, email = {}, verifica = {}, eventos = true, tareas = {},
+    index = {}, email = {}, verifica = {}, eventos = true, tareas = {}, terms = null,
     extensions = null,
     log = (...a) => console.log(`[estafeta ${domain}]`, ...a),
   }) {
@@ -63,6 +63,7 @@ export class Estafeta {
     // el cron hace en una pasada para no comerse el minuto entero verificando.
     this.verifica = { enabled: true, maxPorTick: 10, timeoutMs: 10_000, ...verifica };
     this.eventos = eventos !== false;
+    this.terms = terms || null;   // HTML de los términos; sin esto, /terms no existe
     // Trabajo sembrado: la casa es el primer comprador. Sin catálogo, apagado.
     this.tareas = new Tareas(tareas);
     // Puente de correo: entrada siempre disponible si la casa la enciende; salida solo si hay proveedor.
@@ -788,10 +789,31 @@ export class Estafeta {
       if (rx.method === 'GET' && path === '/health') return send(200, { ok: true, domain: this.domain, agents: (await this.store.listAgents()).length, queue: (await this.store.listQueue()).length });
       // Cliente web para personas: se sirve desde la propia casa (mismo origen, sin CORS).
       // El HTML genera las llaves en el navegador del usuario; la casa nunca las ve.
-      if (rx.method === 'GET' && path === '/') return { status: 200, body: HOME_HTML, contentType: 'text/html; charset=utf-8' };
+      // La portada muestra prueba de vida REAL, leída del libro en el momento: cuántos agentes
+      // hay y cuánto trabajo pagado está abierto. Un número inventado convertiría igual de bien
+      // y sería mentira; uno real puede decir "1 agent" y eso también informa. Si no se puede
+      // leer, la línea simplemente no aparece: la portada nunca se cae por un adorno.
+      if (rx.method === 'GET' && path === '/') {
+        let vivo = '';
+        try {
+          const agentes = (await this.store.listAgents()).filter((a) => !this.isSystem(a)).length;
+          const tareas = this.tareas.enabled ? this.tareas.publicadas().length : 0;
+          const partes = [`<b>${agentes}</b> agent${agentes === 1 ? '' : 's'} in this house`];
+          if (tareas) partes.push(`<b>${tareas}</b> paid task${tareas === 1 ? '' : 's'} open`);
+          vivo = partes.join(' · ');
+        } catch (e) { this.log(`prueba de vida no disponible: ${e.message}`); vivo = ''; }
+        return { status: 200, body: HOME_HTML.replace('<!--VIVO-->', vivo), contentType: 'text/html; charset=utf-8' };
+      }
       if (rx.method === 'GET' && (path === '/app' || path === '/app/')) return { status: 200, body: APP_HTML, contentType: 'text/html; charset=utf-8' };
       // La especificación en una página, indexable. Se genera desde docs/SPEC.md (build:spec).
       if (rx.method === 'GET' && (path === '/spec' || path === '/spec/')) return { status: 200, body: SPEC_HTML, contentType: 'text/html; charset=utf-8' };
+      // Términos de ESTA casa. Se sirven solo si el operador los enciende (`terms.enabled`):
+      // son declaraciones vinculantes en su nombre, así que no se publican por defecto. La casa
+      // tiene registro abierto y emite tokens; sin términos, el primero que la use para spam o
+      // el primero que pregunte qué es el token encuentra la nada.
+      if (rx.method === 'GET' && (path === '/terms' || path === '/terms/') && this.terms) {
+        return { status: 200, contentType: 'text/html; charset=utf-8', body: this.terms };
+      }
       // La imagen de la vista previa al compartir un enlace. Se sirve desde la casa y no desde
       // un CDN externo para no depender de nadie: si esta URL falla, el enlace se comparte pelado.
       if (rx.method === 'GET' && path === '/og.png') {

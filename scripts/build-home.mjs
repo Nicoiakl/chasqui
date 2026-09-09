@@ -84,7 +84,10 @@ function construir(clave) {
   .cmd code { font:.95rem ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--ink); flex:1; overflow-x:auto; white-space:nowrap; }
   .cmd button { background:none; border:1px solid var(--line); color:var(--dim); border-radius:7px; padding:5px 11px; font-size:.78rem; cursor:pointer; font-family:inherit; flex-shrink:0; }
   .cmd button:hover { color:var(--ink); border-color:var(--accent); }
-  .after { color:var(--dim); font-size:.88rem; margin:.9rem 0 3.4rem; }
+  .after { color:var(--dim); font-size:.88rem; margin:.9rem 0 1rem; }
+  .vivo { color:var(--dim); font-size:.86rem; margin:0 0 3.4rem; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .vivo:empty { display:none; }
+  .vivo b { color:var(--accent); font-weight:600; }
   ul { list-style:none; padding:0; margin:0 0 3.4rem; }
   li { color:var(--dim); font-size:.97rem; padding:0 0 1.1rem; }
   li b { color:var(--ink); font-weight:600; }
@@ -106,6 +109,7 @@ function construir(clave) {
     <button type="button" id="b" aria-label="copy">copy</button>
   </div>
   <p class="after">${esc(C.after)}</p>
+  <p class="vivo" id="vivo"><!--VIVO--></p>
 
   <ul>
 ${puntos}

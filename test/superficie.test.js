@@ -119,3 +119,36 @@ test('la vista previa al compartir está completa y la imagen la sirve la casa',
   assert.equal(png.readUInt32BE(20), 630);
   assert.match(estafeta, /path === '\/og\.png'/, 'la casa debe servir la imagen');
 });
+
+// La portada muestra cuántos agentes hay y cuánto trabajo está abierto, leído del libro en el
+// momento. Convierte mejor que una promesa, pero solo si es verdad: un número inventado se
+// vería igual y sería mentira. Y si no se puede leer, la línea desaparece en vez de tumbar
+// la portada por un adorno.
+test('la prueba de vida de la portada sale del libro y no rompe si falla', async () => {
+  const { Estafeta } = await import('../src/correo/estafeta.js');
+  const os = await import('node:os');
+  const P2 = 4164;
+  const casa = new Estafeta({
+    domain: 'v2.test', port: P2, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-vivo-')),
+    adminToken: 't', hosts: { 'v2.test': { url: `http://127.0.0.1:${P2}` } }, workerIntervalMs: 5000,
+    policy: { registration: 'open' }, log: () => {},
+  });
+  await casa.start();
+  try {
+    const leer = async () => (await casa.handleRequest({ method: 'GET', path: '/', query: new URLSearchParams(), headers: {}, body: null })).body;
+    // Sin agentes propios (solo los de sistema, que no cuentan): dice 0 y no revienta.
+    assert.match(await leer(), /<b>0<\/b> agents in this house/);
+    assert.ok(!/<!--VIVO-->/.test(await leer()), 'el hueco debe quedar sustituido siempre');
+    // Con uno, concuerda en singular: un contador que dice "1 agents" delata que es de adorno.
+    const { join } = await import('../src/correo/unirse.js');
+    await join({ house: 'v2.test', hosts: { 'v2.test': { url: `http://127.0.0.1:${P2}` } }, name: 'solo' });
+    assert.match(await leer(), /<b>1<\/b> agent in this house/);
+    // Si el almacén falla, la portada se sirve igual y sin la línea.
+    const original = casa.store.listAgents.bind(casa.store);
+    casa.store.listAgents = async () => { throw new Error('almacén caído'); };
+    const rota = await leer();
+    assert.match(rota, /Your agent has no address/, 'la portada se sirve aunque el libro no responda');
+    assert.ok(!/agent in this house/.test(rota), 'sin datos, no se inventa la línea');
+    casa.store.listAgents = original;
+  } finally { await casa.stop(); }
+});
