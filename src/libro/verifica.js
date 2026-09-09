@@ -22,8 +22,14 @@ export const PRUEBAS = ['http_status', 'sha256', 'json_path', 'exit_0'];
 //   - workerd se identifica en navigator.userAgent, y ahí no hay proceso que lanzar.
 // Ante la duda se declara SIN shell: una capacidad ausente decepciona menos que una incumplida.
 const enWorkers = typeof navigator !== 'undefined' && /Cloudflare-Workers/i.test(navigator.userAgent || '');
-export let conShell = false;
-if (!enWorkers) { try { const m = await import('node:child_process'); conShell = typeof m.spawn === 'function'; } catch { conShell = false; } }
+// SIN `await` en el nivel superior del módulo: un import dinámico ahí retrasa (o cuelga) la carga
+// del módulo entero, y el módulo lo carga el servidor al arrancar. En el edge eso se vio como
+// peticiones que conectaban por TLS en 0,2 s y luego no respondían nunca, la mitad de las veces.
+//
+// La señal es el runtime, no el módulo: en el edge no hay proceso que lanzar, y fuera del edge
+// (Node) siempre lo hay. Ante la duda se declara SIN shell: una capacidad ausente decepciona
+// menos que una incumplida.
+export const conShell = !enWorkers && typeof process !== 'undefined' && !!process?.versions?.node;
 export const pruebasDisponibles = () => (conShell ? PRUEBAS : PRUEBAS.filter((p) => p !== 'exit_0'));
 
 const recorta = (s, n = 300) => (typeof s === 'string' && s.length > n ? `${s.slice(0, n)}…` : s);

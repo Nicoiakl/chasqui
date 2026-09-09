@@ -339,10 +339,14 @@ test('cada agente de sistema se levanta solo, sin depender de que falte otro', a
 // exit_0 y luego fallara al pedirla. La detección tiene que INTENTAR cargar el módulo.
 test('la detección de shell prueba a cargar el módulo, no a mirar una variable', async () => {
   const src = fs.readFileSync(new URL('../src/libro/verifica.js', import.meta.url), 'utf8');
-  assert.match(src, /await import\('node:child_process'\)/, 'la detección debe intentar el import');
-  assert.ok(!/conShell = typeof process/.test(src), 'mirar process.versions.node no prueba que haya shell');
-  // Y tiene que descartar el edge explícitamente: allí el import funciona pero no hay proceso.
+  // Nada de `await` en el nivel superior: el módulo lo carga el servidor al arrancar, y un
+  // import dinámico ahí colgó el Worker de la beta la mitad de las veces (TLS en 0,2 s y luego
+  // ninguna respuesta). La detección es una expresión, sin E/S.
+  const nivelSuperior = src.slice(0, src.indexOf('export async function correrPrueba'));
+  assert.ok(!/^\s*(await |if \(!enWorkers\) \{ try \{ const m = await)/m.test(nivelSuperior),
+    'el módulo no puede tener await en el nivel superior: lo carga el servidor al arrancar');
   assert.match(src, /Cloudflare-Workers/, 'la detección debe reconocer el runtime del edge');
+  assert.match(src, /export const conShell = !enWorkers/, 'la detección es una expresión, no E/S');
   // Y en Node, donde sí hay, la lista completa está disponible.
   assert.deepEqual(pruebasDisponibles(), ['http_status', 'sha256', 'json_path', 'exit_0']);
 });
