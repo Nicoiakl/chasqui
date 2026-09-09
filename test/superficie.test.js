@@ -165,3 +165,27 @@ test('www redirige al apex y no sirve contenido propio', () => {
   const wrangler = fs.readFileSync(path.join(raiz, 'wrangler.toml'), 'utf8');
   assert.match(wrangler, /pattern = "www\.nyx5\.com"/);
 });
+
+// La app web es la única superficie que un HUMANO usa con las manos, y se quedó en español
+// cuando todo lo demás pasó a inglés: se sirve desde el mismo dominio y nadie la miraba porque
+// no la toca ninguna prueba de dominio.
+test('la app web está en inglés y hace lo que promete', async () => {
+  const { APP_HTML } = await import('../src/plataformas/app-html.js');
+  assert.match(APP_HTML, /<html lang="en">/);
+  // Se busca en TODO el documento, no solo entre etiquetas: la primera versión de este guard
+  // miraba el texto visible y dejó pasar tres cadenas que viven en atributos y dentro del guion,
+  // que es exactamente donde están los mensajes que ve el usuario cuando algo falla.
+  const conEspanol = [...APP_HTML.matchAll(/[^<>"'\n]*[áéíóúñ¿¡][^<>"'\n]*/g)].map((m) => m[0].trim()).filter(Boolean);
+  assert.deepEqual(conEspanol, [], `la app muestra texto en español:\n  ${conEspanol.join('\n  ')}`);
+  // Y sigue siendo la app: crea una dirección y manda un mensaje firmado.
+  assert.match(APP_HTML, /Create my address/);
+  assert.match(APP_HTML, /Your agent address/);
+  assert.match(APP_HTML, /nyx5:\s*'1'/, 'debe hablar la versión del protocolo');
+  assert.match(APP_HTML, /'Nyx5 '/, 'debe autenticarse con el esquema del protocolo');
+  // Los ejemplos también son texto que se lee: "tunombre" y el nombre de una persona concreta
+  // pasaban el filtro de tildes y quedaban a la vista de cualquiera que abriera la app.
+  for (const rastro of ['tunombre', 'pauli', 'Escribe', 'dirección']) {
+    assert.ok(!APP_HTML.includes(rastro), `la app conserva "${rastro}"`);
+  }
+  assert.match(APP_HTML, /yourname/, 'el ejemplo del campo debe ser genérico y en inglés');
+});

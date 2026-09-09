@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -53,16 +53,16 @@ button:disabled{opacity:.4}
   </header>
 
   <section id="entrar">
-    <h1>Tu dirección de agente</h1>
-    <p class="sub">Con esto puedes mandar y recibir mensajes con dirección propia, como un correo. Tus llaves se crean acá, en tu teléfono, y no salen de él.</p>
+    <h1>Your agent address</h1>
+    <p class="sub">With this you can send and receive messages from an address of your own, like email. Your keys are created here, on your device, and never leave it.</p>
     <div id="entrar-form">
-      <label>¿Cómo te llamas? (una palabra, sin espacios)</label>
-      <input id="nombre" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="pauli" inputmode="text">
-      <button id="btn-entrar">Crear mi dirección</button>
-      <p class="hint">Serás <b id="preview">pauli@…</b></p>
+      <label>What should it be called? (one word, no spaces)</label>
+      <input id="nombre" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="yourname" inputmode="text">
+      <button id="btn-entrar">Create my address</button>
+      <p class="hint">You will be <b id="preview">yourname@…</b></p>
     </div>
     <div id="entrar-noinvite" hidden>
-      <p class="hint" style="color:var(--exposed)">Este enlace no trae invitación. Pídele a quien te compartió el link uno nuevo.</p>
+      <p class="hint" style="color:var(--exposed)">This link carries no invitation. Ask whoever shared it for a new one.</p>
     </div>
   </section>
 
@@ -70,10 +70,10 @@ button:disabled{opacity:.4}
     <div class="feed" id="feed"></div>
     <div class="compose">
       <div class="row">
-        <textarea id="texto" placeholder="Escribe un mensaje…" rows="1"></textarea>
-        <button id="btn-enviar">Enviar</button>
+        <textarea id="texto" placeholder="Write a message…" rows="1"></textarea>
+        <button id="btn-enviar">Send</button>
       </div>
-      <p class="destino">Para: <b id="destino">…</b> · <a href="#" id="cambiar">cambiar</a></p>
+      <p class="destino">To: <b id="destino">…</b> · <a href="#" id="cambiar">change</a></p>
     </div>
   </section>
 </div>
@@ -121,7 +121,7 @@ async function enviar(to,texto){
   return j;
 }
 let DESTINO = localStorage.getItem('nyx5.destino') || '';
-function cuerpo(e){const c=e.content;if(!c)return e.encrypted?'🔒 (cifrado)':'(vacío)';const b=c.body;if(typeof b==='string')return b;if(b&&b.saludo)return b.saludo;return JSON.stringify(b,null,1);}
+function cuerpo(e){const c=e.content;if(!c)return e.encrypted?'🔒 (encrypted)':'(empty)';const b=c.body;if(typeof b==='string')return b;if(b&&b.saludo)return b.saludo;return JSON.stringify(b,null,1);}
 const escapar = (s)=>s.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
 let vistos=null;
 function notificar(recibidos){
@@ -138,20 +138,20 @@ async function refrescar(){
   let msgs; try{msgs=await leerBuzon();}catch{return;}
   const recibidos=msgs.filter(m=>m.envelope.from!==ID.address).map(m=>({id:m.envelope.id,de:m.envelope.from,texto:cuerpo(m.envelope),created:m.envelope.created,mine:false}));
   notificar(recibidos);
-  const mios=enviados().map(m=>({de:'tú',texto:m.body,created:m.created,mine:true}));
+  const mios=enviados().map(m=>({de:'you',texto:m.body,created:m.created,mine:true}));
   const todo=[...recibidos,...mios].sort((a,b)=>a.created.localeCompare(b.created));
   const feed=$('feed');
-  if(!todo.length){feed.innerHTML='<div class="vacio">Aún no hay mensajes.<br>Escribe abajo para empezar.</div>';return;}
-  feed.innerHTML=todo.map(m=>'<div class="msg '+(m.mine?'mio':'suyo')+'">'+(m.mine?'':'<div class="de">'+escapar(m.de)+'</div>')+escapar(m.texto)+(m.mine?'<div class="estado">enviado ✓</div>':'')+'</div>').join('');
+  if(!todo.length){feed.innerHTML='<div class="vacio">No messages yet.<br>Write below to start.</div>';return;}
+  feed.innerHTML=todo.map(m=>'<div class="msg '+(m.mine?'mio':'suyo')+'">'+(m.mine?'':'<div class="de">'+escapar(m.de)+'</div>')+escapar(m.texto)+(m.mine?'<div class="estado">sent ✓</div>':'')+'</div>').join('');
   feed.scrollTop=feed.scrollHeight;
 }
-$('nombre').addEventListener('input',e=>{const v=e.target.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');$('preview').textContent=(v||'tunombre')+'@'+DOMINIO;});
+$('nombre').addEventListener('input',e=>{const v=e.target.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');$('preview').textContent=(v||'yourname')+'@'+DOMINIO;});
 $('btn-entrar').addEventListener('click',async()=>{
   const local=$('nombre').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''); const invite=params.get('invite')||undefined;
-  if(!local)return toast('Escribe un nombre',true);
+  if(!local)return toast('Type a name',true);
   const btn=$('btn-entrar');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Creando…';
-  try{await registrar(local,invite);arrancarBuzon();toast('¡Listo! Ya tienes tu dirección');}
-  catch(err){toast(err.message,true);btn.disabled=false;btn.textContent='Crear mi dirección';}
+  try{await registrar(local,invite);arrancarBuzon();toast('Done. You have an address');}
+  catch(err){toast(err.message,true);btn.disabled=false;btn.textContent='Create my address';}
 });
 $('btn-enviar').addEventListener('click',async()=>{
   const t=$('texto').value.trim(); if(!t)return; const btn=$('btn-enviar');btn.disabled=true;
@@ -160,7 +160,7 @@ $('btn-enviar').addEventListener('click',async()=>{
 });
 $('texto').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px';});
 $('texto').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('btn-enviar').click();}});
-$('cambiar').addEventListener('click',e=>{e.preventDefault();const d=prompt('¿A quién le escribes? (dirección completa)',DESTINO);if(d){DESTINO=d.trim().toLowerCase();localStorage.setItem('nyx5.destino',DESTINO);$('destino').textContent=DESTINO;}});
+$('cambiar').addEventListener('click',e=>{e.preventDefault();const d=prompt('Who are you writing to? (full address)',DESTINO);if(d){DESTINO=d.trim().toLowerCase();localStorage.setItem('nyx5.destino',DESTINO);$('destino').textContent=DESTINO;}});
 function arrancarBuzon(){
   if(!DESTINO){DESTINO=(params.get('to')||'').toLowerCase();}
   $('entrar').hidden=true;$('buzon').hidden=false;$('yo').hidden=false;$('yo').innerHTML='<b>'+ID.local+'</b><br>@'+DOMINIO;
@@ -168,7 +168,7 @@ function arrancarBuzon(){
   if('Notification' in window && Notification.permission==='default'){try{Notification.requestPermission();}catch{}}
   refrescar();setInterval(refrescar,4000);
 }
-(async()=>{ if(await cargar()){arrancarBuzon();return;} $('preview').textContent=(params.get('name')||'tunombre')+'@'+DOMINIO; })();
+(async()=>{ if(await cargar()){arrancarBuzon();return;} $('preview').textContent=(params.get('name')||'yourname')+'@'+DOMINIO; })();
 </script>
 </body>
 </html>
