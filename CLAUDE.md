@@ -152,8 +152,14 @@ una fallada): es real, no se borra.
 
 **RESUELTO 9-sep**: el token de Cloudflare ya tiene `Workers Routes`. `wrangler deploy` ahora
 reconcilia rutas sin error. Lo que NO cambia: se verifica contra la URL, no contra la salida de
-wrangler (§1). Lo que el token sigue sin poder hacer es Registrar, y por eso DNSSEC no se puede
-encender desde aquí.
+wrangler (§1). Lo que el token sigue sin poder hacer es Registrar.
+
+**DNSSEC: no es "está apagado", es "quedó colgado"** (medido 9-sep, y es el ejemplo del día de §1).
+`dig DS nyx5.com` no devuelve nada y whois dice `unsigned`, así que desde el DNS parece apagado.
+Pero el panel de Cloudflare dice `DNSSEC is pending while we automatically add the DS record` y el
+único botón que ofrece es **Cancel Setup, en rojo**. Quien lea sólo el DNS va a decirle a Nicholas
+que le dé a un botón de encender que ahí no existe, y el único que hay DESHACE lo que está en
+curso. No tocarlo. Hay que mirar las dos superficies antes de pedirle un clic.
 
 **DISTRIBUCIÓN EN MARCHA (2026-09-08)** — §7 del spec maestro:
 - **npm @nyx5/nyx5 0.2.4** publicado y verificado: `npx @nyx5/nyx5 join` funciona desde cero contra

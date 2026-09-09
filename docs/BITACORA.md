@@ -12,7 +12,7 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 
 | | Qué | Desde |
 |---|---|---|
-| ☐ | **DNSSEC** en nyx5.com. Comprobado 9-sep: la zona YA está firmada del lado de Cloudflare (hay DNSKEY), pero falta el DS en el registro .com, así que la cadena está cortada y no valida. Registrador y DNS son ambos Cloudflare, así que es un interruptor: DNS → Settings → DNSSEC → Enable. El token no tiene permiso de Registrar | 8-sep |
+| ⏳ | **DNSSEC** en nyx5.com. NO es un clic pendiente: el panel dice "pending while we automatically add the DS record" y el único botón que ofrece es Cancel Setup, en rojo. Pero el DS no está en el registro .com y whois sigue diciendo `unsigned`, o sea que lleva colgado. Nadie debe tocar ese botón. Si sigue así, hay que cancelar y volver a encender, o abrir un ticket | 9-sep |
 | ☐ | **Leer y aprobar `docs/TERMS.md`**. Se sirven sólo si él los enciende: son declaraciones vinculantes en su nombre | 8-sep |
 | ☐ | **Smithery**: `smithery auth login && smithery mcp publish dist/nyx5-*.mcpb -n <namespace>/nyx5` | 8-sep |
 | ☐ | **AP2**: ¿se queda mapeado o se le construye la segunda llave ECDSA? Recomendación: dejarlo mapeado | 9-sep |
