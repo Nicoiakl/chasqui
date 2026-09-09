@@ -16,6 +16,7 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 | ☐ | **Leer y aprobar `docs/TERMS.md`**. Se sirven sólo si él los enciende: son declaraciones vinculantes en su nombre | 8-sep |
 | ☐ | **Smithery**: `smithery auth login && smithery mcp publish dist/nyx5-*.mcpb -n <namespace>/nyx5` | 8-sep |
 | ☐ | **AP2**: ¿se queda mapeado o se le construye la segunda llave ECDSA? Recomendación: dejarlo mapeado | 9-sep |
+| ☐ | **Escrow con `reclaim`**: hoy un contrato que llega a su plazo sin que nadie decida sólo manda un aviso, y la plata sigue retenida. El rail al que mapeamos le da al comprador una salida unilateral. Es un hueco nuestro, arreglable en el Libro, independiente de todo lo del dinero real | 9-sep |
 | ☐ | **x402**: ¿la comisión de la casa puede seguir saliendo de lo que recibe el receptor? Si x402 responde que no, el binding exige cambiar cómo se asienta la comisión. Preguntado en su issue #3435 | 9-sep |
 
 ## Abierto — de la sesión
