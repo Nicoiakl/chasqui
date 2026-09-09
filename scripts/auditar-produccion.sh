@@ -14,6 +14,15 @@ p "HEAD /" "$(curl -s -o /dev/null -w '%{http_code}' -I https://nyx5.com/)" 200
 p "www -> apex (301)" "$(curl -s -o /dev/null -w '%{http_code}' --resolve "www.nyx5.com:443:$(dig +short @1.1.1.1 www.nyx5.com A | head -1)" https://www.nyx5.com/)" 301
 p "http -> https (301)" "$(curl -s -o /dev/null -w '%{http_code}' http://nyx5.com/)" 301
 
+echo "x402"
+p "GET /x402/supported" "$(c https://nyx5.com/x402/supported)" 200
+# Un buzón de sistema no cobra: la respuesta correcta es 200 diciendo que es gratis, no un error.
+p "GET /x402/inbox/libro (gratis)" "$(c https://nyx5.com/x402/inbox/libro)" 200
+p "GET /x402/inbox/nadie" "$(c https://nyx5.com/x402/inbox/nadie)" 404
+# Lo que anunciamos tiene que ser un identificador CAIP-2 real, no una cadena parecida.
+red=$(curl -s --max-time 12 https://nyx5.com/x402/supported | grep -o '"network":"[^"]*"' | head -1 | cut -d'"' -f4)
+p "red CAIP-2 declarada" "$(echo "$red" | grep -qE '^[-a-z0-9]{3,8}:[-_A-Za-z0-9]{1,32}$' && echo ok || echo "$red")" ok
+
 echo "AGENTES DE SISTEMA"
 for a in libro postmaster verifica tareas; do p "tarjeta de $a@" "$(c https://nyx5.com/agents/$a)" 200; done
 
