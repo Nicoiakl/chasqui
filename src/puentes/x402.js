@@ -182,3 +182,24 @@ export function claveDePago(pago) {
   // Sin nonce no hay antirreplay posible: mejor decirlo que fingir que se dedujo algo.
   return null;
 }
+
+// Dónde vive el dólar digital en cada red. Los valores de `name`/`version` son el dominio EIP-712
+// del CONTRATO y NO se recuerdan: están leídos del contrato (`name()` y `version()`), porque
+// cambian entre redes y equivocarse hace que ninguna firma valide sin decir por qué.
+// Comprobado el 9-sep-2026 contra ambas cadenas.
+export const TOKEN_USD = Object.freeze({
+  'eip155:8453':  { asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', name: 'USD Coin', version: '2', decimals: 6, red: 'Base' },
+  'eip155:84532': { asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', name: 'USDC',     version: '2', decimals: 6, red: 'Base Sepolia' },
+});
+
+// Una billetera declarada en una tarjeta. Es sólo una dirección a la que cobrar: la casa no la
+// controla, no la custodia y no puede mover nada de ella. Falla cerrado ante una red que no
+// conocemos, porque anunciar un precio en una red que no sabemos liquidar es prometer de gratis.
+export function validarBilletera(w) {
+  if (w == null) return null;
+  if (typeof w !== 'object' || Array.isArray(w)) throw new Error('wallet must be an object');
+  const { network, address } = w;
+  if (!TOKEN_USD[network]) throw new Error(`this house cannot settle on ${network}; it knows: ${Object.keys(TOKEN_USD).join(', ')}`);
+  if (typeof address !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error('wallet.address must be a 0x EVM address');
+  return { network, address };
+}

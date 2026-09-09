@@ -201,6 +201,48 @@ test('entregar con estampilla liquida y el recibo lleva el asiento real del Libr
   assert.equal(await casa.libro.balance(caro.address), antes + 7);
 });
 
+test('un buzón cobra en tokens de la casa Y en dólares reales, y el que paga elige', async () => {
+  // Esto es lo que vuelve el dinero real parte del flujo en vez de un experimento aparte: el
+  // mismo buzón que cobra en tokens anuncia también un precio en dólares, si su dueño declaró a
+  // qué dirección cobrarlos. La casa no controla esa dirección ni puede mover nada de ella.
+  const dual = Agent.create(`dual@${H}`, hosts[H].url, { hosts });
+  await dual.register({
+    adminToken: 't',
+    inbox: { policy: 'stamp', price: 25, price_usd: 10000 },      // 25 tok, o US$0,01
+    wallet: { network: 'eip155:84532', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' },
+  });
+  const r = await fetch(`${hosts[H].url}/x402/inbox/dual`);
+  assert.equal(r.status, 402);
+  const pr = abrir(r.headers.get('payment-required'));
+  assert.equal(pr.accepts.length, 2, 'se ofrecen las dos monedas');
+
+  const [casa, dolar] = pr.accepts;
+  assert.equal(casa.network, x402.RED);
+  assert.equal(casa.amount, '25');
+  assert.equal(casa.payTo, dual.address);
+
+  assert.equal(dolar.network, 'eip155:84532');
+  assert.equal(dolar.amount, '10000');
+  assert.equal(dolar.payTo, '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D');
+  // El nombre del token sale de la tabla leída del contrato, no de una constante escrita a mano.
+  assert.equal(dolar.extra.name, x402.TOKEN_USD['eip155:84532'].name);
+  assert.equal(dolar.asset, x402.TOKEN_USD['eip155:84532'].asset);
+  x402.validarRequisitos(pr);
+
+  // La billetera es pública y viaja en la tarjeta, para que quien vaya a pagar la pueda leer.
+  const card = await (await fetch(`${hosts[H].url}/agents/dual`)).json();
+  assert.deepEqual(card.wallet, { network: 'eip155:84532', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' });
+});
+
+test('no se inventa una conversión a dólares, y una red que no sabemos liquidar se rechaza', () => {
+  // Convertir tokens de la casa a dólares exigiría un tipo de cambio que nadie fijó. Inventarlo
+  // sería la cifra sin respaldo que este protocolo existe para encarecer: si el dueño no puso
+  // precio en dólares, simplemente no hay opción en dólares.
+  assert.throws(() => x402.validarBilletera({ network: 'eip155:1', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' }), /cannot settle on eip155:1/);
+  assert.throws(() => x402.validarBilletera({ network: 'eip155:8453', address: 'no-es-una-direccion' }), /0x EVM address/);
+  assert.equal(x402.validarBilletera(null), null);
+});
+
 test('el 402 no se cuela en un buzón normal: sin precio no hay cabecera de pago', async () => {
   const r = await post(sobre(pagador.address, gratis.address, pagador.keys));
   assert.equal(r.status, 202);

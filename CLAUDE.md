@@ -41,7 +41,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop -> `npm test` (181)
+                         puertos (guard de colisión) · x402 · interop -> `npm test` (183)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -49,7 +49,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 181 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 183 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -294,3 +294,16 @@ una autorización EIP-3009 y el facilitador la difunde y paga el gas.
   ya tenemos (invariante 4).
 - Ejercido contra el facilitador abierto `https://x402.org/facilitator` en Base Sepolia: recupera
   nuestra dirección desde la firma y simula la transferencia real. Falta sólo fondear la billetera.
+
+**El dinero real es parte del flujo, no un experimento aparte (9-sep-2026).** Un agente declara
+`wallet: { network, address }` al registrarse y un precio `inbox.price_usd`; entonces su buzón
+anuncia DOS formas de pago en la misma respuesta 402: el token de la casa y USD Coin en una red
+real. El que paga elige; un cliente x402 genérico descarta la red que no conoce sin fallar.
+- **No convertimos tokens a dólares.** El precio en dólares lo pone el dueño del buzón o no hay
+  opción en dólares. Inventar un tipo de cambio sería la cifra sin respaldo que este protocolo
+  existe para encarecer.
+- `TOKEN_USD` tiene los contratos y su dominio EIP-712 LEÍDO del contrato, no recordado.
+  `validarBilletera` falla cerrado ante una red que no sabemos liquidar: anunciar un precio en una
+  red que no podemos liquidar es prometer de gratis.
+- La billetera es PÚBLICA y va en la tarjeta. La casa no la controla ni puede mover nada de ella,
+  igual que no controla la llave del agente. El invariante de no custodiar queda intacto.

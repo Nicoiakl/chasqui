@@ -45,10 +45,12 @@ export class Agent {
   // ---------- registro ----------
   // Tres caminos: adminToken (la casa inscribe), invite (código de la casa) o abierto si la casa lo permite.
   // Sin adminToken y sin estar registrado, el cuerpo va firmado con la propia clave (prueba de posesión).
-  async register({ adminToken, invite, capabilities, inbox, webhook, notify_email, valid_until, source } = {}) {
+  async register({ adminToken, invite, capabilities, inbox, wallet, webhook, notify_email, valid_until, source } = {}) {
     // `source` es atribución de distribución: viaja al alta, se registra en el evento `join`
     // y NO entra en la tarjeta. Nadie puede leer de dónde vino un agente mirando su tarjeta.
-    const body = { local: this.local, sig: this.keys.sig, enc: this.keys.enc, capabilities, inbox, webhook, notify_email, valid_until, source };
+    // `wallet` es la dirección a la que este agente quiere que le paguen en dinero real. Es
+    // PÚBLICA y va en la tarjeta: la casa no la controla ni puede mover nada de ella.
+    const body = { local: this.local, sig: this.keys.sig, enc: this.keys.enc, capabilities, inbox, wallet, webhook, notify_email, valid_until, source };
     if (adminToken) this.card = await this._call('POST', '/agents', body, { admin: adminToken });
     else if (this.card) this.card = await this._call('POST', '/agents', body);
     else this.card = await this._call('POST', '/agents', signObject({ ...body, invite: invite || undefined, ts: iso() }, this.keys), { noAuth: true });
