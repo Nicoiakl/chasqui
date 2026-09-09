@@ -32,6 +32,7 @@ import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
 import { HOME_HTML } from '../plataformas/home-html.js';
 import { OG_PNG_B64 } from '../plataformas/og-png.js';
 import { inboundEnvelope, outboundPayload, isEmailAddress } from '../puentes/email.js';
+import * as x402 from '../puentes/x402.js';
 
 const now = () => Date.now();
 const iso = (t = now()) => new Date(t).toISOString();
@@ -588,6 +589,10 @@ export class Estafeta {
     const recibosPendientes = [];
     const avisosPendientes = [];
     let stampUsed = false;
+    // Sobre x402 de esta entrega. Un buzón con estampilla ES un recurso de pago: si falta la
+    // estampilla se responde 402 anunciando el precio, y si se cobró se responde con el recibo de
+    // liquidación. No es un camino paralelo para mover tokens: el pago lo hizo el Libro igual.
+    let x402req = null, x402pago = null;
     for (const to of pendientes) {
       const { local } = parseAddress(to);
       const rec = await this.store.getAgent(local);
@@ -616,6 +621,7 @@ export class Estafeta {
           if (stampUsed) { rejected.push({ to, code: 402, reason: 'the envelope stamp was already spent on another recipient' }); continue; }
           const { asiento, bundle } = await this.libro.stamp(env, to, p.stamp.price);
           stampUsed = true;
+          x402pago = { to, price: p.stamp.price, asiento: asiento.id, payer: env.from };
           libroBundles.push(bundle);
           mails.push({ local, envelope: env, meta: { from_verified: true, relay_verified: relayVerified, sender_kid: env.signature.kid, stamp: asiento.id } });
         } else if (p.vouch) {
@@ -637,7 +643,10 @@ export class Estafeta {
           mails.push({ local, envelope: env, meta: { from_verified: true, relay_verified: relayVerified, sender_kid: env.signature.kid } });
         }
       } catch (e) {
-        if (e instanceof LibroError) { rejected.push({ to, code: e.code, reason: e.message }); continue; }
+        if (e instanceof LibroError) {
+          if (e.code === 402 && p.stamp && !x402req) x402req = { to, price: p.stamp.price };
+          rejected.push({ to, code: e.code, reason: e.message }); continue;
+        }
         throw e;
       }
       accepted.push(to);
@@ -658,8 +667,33 @@ export class Estafeta {
     // deadline, una fianza que vence). No desaparecen mudos: llegan a las partes en la fecha.
     for (const av of avisosPendientes) await this._systemSend('libro', av.to, { thread: av.thread || null, content: { media: MEDIA.recibo, body: av.body }, deliverAfter: av.deliver_after });
 
-    if (!union.length) return { ok: false, code: rejected[0].code, reason: rejected[0].reason, rejected, accepted: [] };
-    return { ok: true, code: 202, accepted: union, rejected, results, ...(seen ? { duplicate: true } : {}) };
+    if (!union.length) return { ok: false, code: rejected[0].code, reason: rejected[0].reason, rejected, accepted: [], ...(x402req ? { x402: { required: x402req } } : {}) };
+    return { ok: true, code: 202, accepted: union, rejected, results, ...(seen ? { duplicate: true } : {}), ...(x402pago ? { x402: { settled: x402pago } } : x402req ? { x402: { required: x402req } } : {}) };
+  }
+
+  // Traduce el resultado de `inbound` al cable de x402. Dos casos y nada más:
+  //   se cobró estampilla  -> PAYMENT-RESPONSE con el id del asiento como `transaction`
+  //   faltaba la estampilla -> PAYMENT-REQUIRED con el precio del buzón
+  // El id del asiento no es adorno: cualquiera puede pedirlo al Libro, que es lo que un explorador
+  // hace con un hash de transacción. Si no hay nada que decir, no se pone ninguna cabecera.
+  _cabecerasX402(r) {
+    try {
+      if (r.x402?.settled) {
+        const s = r.x402.settled;
+        return { headers: { 'payment-response': x402.cabeceraLiquidacion(x402.liquidacion({ transaction: s.asiento, payer: s.payer, amount: s.price })) } };
+      }
+      if (r.x402?.required) {
+        const q = r.x402.required;
+        const { local } = parseAddress(q.to);
+        return { headers: { 'payment-required': x402.cabeceraRequerido(x402.requisitos({
+          url: `https://${this.domain}/x402/inbox/${encodeURIComponent(local)}`, amount: q.price, payTo: q.to, flow: 'upfront',
+          description: `Delivery of one signed envelope into the mailbox of ${q.to}`,
+          serviceName: this.domain, tags: ['nyx5', 'mailbox'],
+          error: `delivery into ${q.to} costs ${q.price} tok; the envelope carried no valid stamp`,
+        })) } };
+      }
+    } catch (e) { this.log(`x402: no se pudo armar la cabecera: ${e.message}`); }
+    return {};
   }
 
   // Los avisos por webhook se acumulan para que el ciclo (y ctx.waitUntil en el edge) los espere:
@@ -858,6 +892,33 @@ export class Estafeta {
           body: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paginas.map((u) => `  <url><loc>https://${this.domain}${u}</loc><lastmod>${hoy}</lastmod></url>`).join('\n')}\n</urlset>\n` };
       }
       if (rx.method === 'GET' && path === '/llms.txt') return { status: 200, body: LLMS_TXT, contentType: 'text/plain; charset=utf-8' };
+      // ---------- x402: el estándar de "402 Payment Required" para agentes ----------
+      // La casa es su propio facilitador: verifica y liquida contra su propio Libro. El spec lo
+      // permite ("or host the endpoints themselves"), y así no hay un tercero en el camino del
+      // dinero. Ver docs/interop/x402.md, que dice también qué NO reclamamos.
+      if (rx.method === 'GET' && (path === '/x402/supported' || path === '/x402/supported/')) {
+        const card = await this.domainCard();
+        return send(200, x402.soportado(this.domain, (card.keys || []).map((k) => k.sig).filter(Boolean)));
+      }
+      // El recurso pagable que esta casa ya tenía: entregar en un buzón con estampilla. Un cliente
+      // x402 hace GET aquí y lee el precio antes de componer nada. Un buzón gratis contesta 200 y
+      // lo dice: "no hay nada que pagar" es una respuesta, no un error.
+      const mX402 = rx.method === 'GET' ? /^\/x402\/inbox\/([^/]+)$/.exec(path) : null;
+      if (mX402) {
+        const local = decodeURIComponent(mX402[1]).toLowerCase();
+        const rec = await this.store.getAgent(local);
+        if (!rec) return send(404, { reason: 'no such agent' });
+        const precio = rec.inbox?.policy === 'stamp' ? (rec.inbox.price ?? 1) : 0;
+        const url = `https://${this.domain}/x402/inbox/${encodeURIComponent(local)}`;
+        if (!precio) return send(200, { x402Version: x402.X402_VERSION, free: true, resource: { url }, reason: `${local}@${this.domain} does not charge for delivery` });
+        const pr = x402.requisitos({
+          url, amount: precio, payTo: `${local}@${this.domain}`, flow: 'upfront',
+          description: `Delivery of one signed envelope into the mailbox of ${local}@${this.domain}`,
+          serviceName: this.domain, tags: ['nyx5', 'mailbox'],
+          error: `delivery into this mailbox costs ${precio} tok; send the envelope to POST /inbound with a stamp field`,
+        });
+        return { status: 402, body: pr, headers: { 'payment-required': x402.cabeceraRequerido(pr) } };
+      }
       if (rx.method === 'GET' && path === '/.well-known/nyx5.json') return send(200, await this.domainCard());
       let m;
       // Reputación = una consulta al libro. Es PÚBLICA a propósito: sirve justamente para que
@@ -933,7 +994,7 @@ export class Estafeta {
         const r = await this.inbound(rx.body, rx.headers['x-nyx5-relay']);
         // pending: los avisos por webhook que nacieron aquí. El adaptador los pasa a waitUntil;
         // sin eso el runtime cancela el fetch al cerrar la respuesta y el aviso nunca sale.
-        return { ...send(r.code || 400, r), kick: true, pending: this.flushPushes() };
+        return { ...send(r.code || 400, r), ...this._cabecerasX402(r), kick: true, pending: this.flushPushes() };
       }
       if (rx.method === 'GET' && (m = /^\/mailbox\/([^/]+)$/.exec(path))) {
         const who = await this._authenticate(rx, path);

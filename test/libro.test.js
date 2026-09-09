@@ -171,7 +171,7 @@ test('estampilla: se cobra al llegar; sin saldo rebota; un agente de otra casa p
   const m = await caro.waitFor((e) => e.id === s.id);
   assert.ok(m.stamp); assert.equal(await bal(caro.address), cb + 7);
   const s2 = await foraneo.send({ to: caro.address, body: 'sin saldo' });
-  assert.match((await foraneo.open((await foraneo.waitFor((e) => e.type === 'receipt' && e.in_reply_to === s2.id, { timeoutMs: 6000 })).envelope)).content.body.reason, /saldo insuficiente/);
+  assert.match((await foraneo.open((await foraneo.waitFor((e) => e.type === 'receipt' && e.in_reply_to === s2.id, { timeoutMs: 6000 })).envelope)).content.body.reason, /insufficient balance in foraneo@beta\.test \(has 0, needs 7\)/);
   await alfa.libro.topup(foraneo.address, 10, 'x');
   const s3 = await foraneo.send({ to: caro.address, body: 'ahora sí' });
   await caro.waitFor((e) => e.id === s3.id);

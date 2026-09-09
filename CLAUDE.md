@@ -37,9 +37,11 @@ demo/                    e2e, offline, spam (correo) · contratos (libro) · pil
 src/correo/unirse.js     join (alta en un paso) y mandate (tope del humano) como funciones testeables
 src/libro/verifica.js    evaluador de referencia: http_status | sha256 | exit_0; veredicto y "indeciso"
 src/libro/tareas.js      trabajo sembrado: catálogo, cupos por agente/día, y que la cotización coincida
+src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE / PAYMENT-RESPONSE, /x402/supported
+docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) -> `npm test` (112)
+                         puertos (guard de colisión) · x402 · interop -> `npm test` (171)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -47,7 +49,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 112 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 171 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -191,3 +193,19 @@ ahora se firma cuando cambia el contenido y se persiste. `/app` y `/tareas` pasa
 - Una prueba que corre sobre node:http puede pasar en verde con el defecto vivo, porque el
   servidor local serializa lo que en el edge corre en paralelo. Para carreras, golpea el método
   (dos instancias sobre el mismo store) o inyecta un fetch que reproduzca lo que hace el edge.
+
+**Interoperabilidad AP2 + x402 (2026-09-09)** — §7, lo que pidió Nicholas antes de salir:
+- `docs/interop/ap2.md`: mapeo campo a campo contra AP2 **v0.2** (no v0.1: Intent/Cart Mandate son
+  LEGACY, sus páginas de spec fueron borradas; hoy son Checkout/Payment Mandate en SD-JWT VC).
+  Hallazgo bloqueante: la spec de AP2 **prohíbe Ed25519 por nombre** para el Checkout JWT y exige
+  ECDSA. Hablar AP2 exige una segunda llave P-256 por identidad. NO reclamamos conformidad.
+- `docs/interop/x402.md` + `src/puentes/x402.js`: el transporte HTTP v2 IMPLEMENTADO y desplegado.
+  `GET /x402/supported`, `GET /x402/inbox/<nombre>` (402 con el precio), y `POST /inbound` que
+  responde 402 con PAYMENT-REQUIRED o 202 con PAYMENT-RESPONSE. Verificado contra nyx5.com: un
+  buzón de 25 tok anuncia "25", rechaza sin estampilla, cobra con estampilla y el `transaction`
+  publicado resuelve a un asiento real (25 fuera, 20 dentro, 5 de fee).
+- Por qué la red es `nyx5:1` y no `nyx5:<casa>`: CAIP-2 no admite puntos en la reference. La casa
+  viaja en `payTo`. Precio de esa decisión: dos casas se ven como la misma red en el cable.
+- `test/interop.test.js` obliga a que cada fila de cada mapeo lleve uno de los cuatro veredictos
+  (equivalent / partial / missing here / missing there) y a que cada documento diga qué NO reclama.
+- La Agentic Payments Alliance NO es un estándar: sin spec, sin repo, nada que integrar.

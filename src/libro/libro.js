@@ -177,7 +177,7 @@ export class Libro {
     const next = { ...state.balances };
     for (const l of lines) {
       next[l.account] = (next[l.account] || 0) + l.delta;
-      if (next[l.account] < 0 && l.account !== this.casa) throw new LibroError(402, `saldo insuficiente en ${l.account} (tiene ${state.balances[l.account] || 0}, necesita ${-l.delta})`);
+      if (next[l.account] < 0 && l.account !== this.casa) throw new LibroError(402, `insufficient balance in ${l.account} (has ${state.balances[l.account] || 0}, needs ${-l.delta})`);
     }
     const asiento = signObject({ id: uuid(), n: state.seq + 1, at: iso(), house: this.domain, concept, lines, meta, refs }, this.keys);
     if (this.tx) {
@@ -301,7 +301,7 @@ export class Libro {
   // dedupe del sobre (inboundCommit) — así una reentrega jamás cobra la estampilla dos veces.
   async stamp(env, recipient, price) {
     const s = env.stamp;
-    if (!s || s.house !== this.domain || !Number.isInteger(s.amount) || s.amount < price) throw new LibroError(402, `este buzón exige estampilla de ${price} tok en la casa ${this.domain} (campo stamp: {house, amount})`);
+    if (!s || s.house !== this.domain || !Number.isInteger(s.amount) || s.amount < price) throw new LibroError(402, `this mailbox requires a stamp of ${price} tok in house ${this.domain} (stamp field: {house, amount})`);
     return this._serial(async () => {
     await this._begin('estampilla', { envelope: env.id });
     try {

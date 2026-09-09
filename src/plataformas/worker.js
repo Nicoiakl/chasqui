@@ -143,6 +143,10 @@ export default {
     // Un cuerpo binario (la imagen de compartir) llega como Buffer; el edge quiere bytes.
     const cuerpo = out.contentType ? (Buffer.isBuffer(out.body) ? new Uint8Array(out.body) : out.body) : JSON.stringify(out.body);
     const headers = {
+      // Cabeceras que pone la ruta (hoy: el sobre x402 en PAYMENT-REQUIRED / PAYMENT-RESPONSE).
+      // Van PRIMERO para que una ruta no pueda pisar por descuido una cabecera de seguridad ni el
+      // content-type: lo que va debajo gana siempre.
+      ...(out.headers || {}),
       ...SEGURIDAD,
       'content-type': out.contentType || 'application/json',
       'cache-control': cacheDe(url.pathname, request.method),

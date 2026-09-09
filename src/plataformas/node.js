@@ -27,8 +27,9 @@ export async function startNodeServer(estafeta, { port, host }) {
         ip: req.socket?.remoteAddress || null,
       };
       const out = await estafeta.handleRequest(rx);
-      if (out.contentType) { res.writeHead(out.status, { 'content-type': out.contentType }); res.end(out.body); }
-      else send(out.status, out.body);
+      const extra = out.headers || {};
+      if (out.contentType) { res.writeHead(out.status, { ...extra, 'content-type': out.contentType }); res.end(out.body); }
+      else { res.writeHead(out.status, { ...extra, 'content-type': 'application/json' }); res.end(JSON.stringify(out.body)); }
       if (out.pending) out.pending.catch(() => {});
       if (out.kick) setImmediate(() => estafeta.tick().catch((e) => estafeta.log('tick error', e.message)));
     } catch (e) {
