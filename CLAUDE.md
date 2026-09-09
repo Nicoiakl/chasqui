@@ -171,7 +171,13 @@ siempre contra la URL, no contra la salida de wrangler. Para que deje de fallar 
 - **Pie del correo saliente**: implementado y APAGADO (`NYX5_EMAIL_FOOTER=on`) hasta que Nicholas
   apruebe el texto. Informa, nunca instruye: el test prohíbe comandos y urgencia.
 
-**Cinco trampas de este proyecto** (nacieron de defectos reales, no las repitas):
+**Auditoría externa + verificación integral (8-sep, tarde)**: HEAD daba 404 en todo (rompía vistas
+previas y monitores), cero cabeceras de seguridad y de caché, sin favicon/sitemap/og:image, http://
+sin redirigir, www en NXDOMAIN, DNSSEC apagado. TODO arreglado y verificado contra el sitio. La
+tarjeta del dominio se firmaba POR INSTANCIA del Worker (no por request, como decía el informe):
+ahora se firma cuando cambia el contenido y se persiste. `/app` y `/tareas` pasaron a inglés.
+
+**Ocho trampas de este proyecto** (nacieron de defectos reales, no las repitas):
 - Las dos casas comparten `src/plataformas/worker.js`. Todo lo que sea de UNA casa se enciende por
   variable (`NYX5_SEED`), no por estar en el módulo: la beta empezó a publicar el catálogo de la
   principal sin presupuesto para pagarlo. Lo cuida `test/tareas.test.js`.
