@@ -46,7 +46,11 @@ function toHtml(src) {
     const h = /^(#{1,6})\s+(.*)$/.exec(line);
     if (h) { const n = h[1].length; const t = h[2]; out.push(`<h${n} id="${slug(t)}">${inline(t)}</h${n}>`); i++; continue; }
     if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1] || '')) { // tabla
-      const row = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      // Un `\|` dentro de una celda es un pipe literal (así se escribe una alternancia en una
+      // tabla de markdown). Se protege antes de partir y se restituye después: partir por `|`
+      // a secas rompía la celda en dos y dejaba los backticks sueltos a la vista.
+      const row = (l) => l.trim().replace(/^\||\|$/g, '').replace(/\\\|/g, '\u0000')
+        .split('|').map((c) => c.trim().replace(/\u0000/g, '|'));
       const head = row(line); i += 2;
       const body = [];
       while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) { body.push(row(lines[i])); i++; }
@@ -60,9 +64,29 @@ function toHtml(src) {
       out.push(`<ul>${buf.join('')}</ul>`); continue;
     }
     if (/^\s*\d+\.\s+/.test(line)) {                           // lista numerada
+      // Un bloque indentado entre dos ítems (un ejemplo de código, un párrafo de continuación)
+      // NO cierra la lista: antes la partía en dos <ol> y la numeración volvía a empezar en 1,
+      // que en una especificación con pasos ordenados dice algo falso.
       const buf = [];
-      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) { buf.push(`<li>${inline(lines[i].replace(/^\s*\d+\.\s+/, ''))}</li>`); i++; }
-      out.push(`<ol>${buf.join('')}</ol>`); continue;
+      const inicio = Number(/^\s*(\d+)\./.exec(line)[1]) || 1;
+      while (i < lines.length) {
+        if (/^\s*\d+\.\s+/.test(lines[i])) { buf.push(`<li>${inline(lines[i].replace(/^\s*\d+\.\s+/, ''))}</li>`); i++; continue; }
+        // Continuación: indentada, o una línea en blanco seguida de indentación o de otro ítem.
+        const sig = lines[i + 1] ?? '';
+        if (lines[i].trim() === '' && (/^\s{2,}\S/.test(sig) || /^\s*\d+\.\s+/.test(sig))) { i++; continue; }
+        if (/^\s{2,}\S/.test(lines[i]) && buf.length) {
+          const fence = /^\s*```/.test(lines[i]);
+          if (fence) { // el bloque de código de dentro del ítem se emite tal cual, sin cerrar la lista
+            const indent = /^(\s*)/.exec(lines[i])[1].length; const cb = []; i++;
+            while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) { cb.push(esc(lines[i].slice(indent))); i++; }
+            i++;
+            buf[buf.length - 1] += `<pre><code>${cb.join('\n')}</code></pre>`;
+          } else { buf[buf.length - 1] += ` ${inline(lines[i].trim())}`; i++; }
+          continue;
+        }
+        break;
+      }
+      out.push(`<ol${inicio !== 1 ? ` start="${inicio}"` : ''}>${buf.join('')}</ol>`); continue;
     }
     if (/^\s*>\s?/.test(line)) { out.push(`<blockquote>${inline(line.replace(/^\s*>\s?/, ''))}</blockquote>`); i++; continue; }
     if (line.trim() === '') { i++; continue; }
@@ -107,6 +131,14 @@ const html = `<!doctype html>
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:type" content="article">
 <meta property="og:url" content="${cfg.url}">
+<meta property="og:site_name" content="Nyx5">
+<meta property="og:image" content="https://nyx5.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(titulo)}">
+<meta name="twitter:description" content="${esc(desc)}">
+<meta name="twitter:image" content="https://nyx5.com/og.png">
 <script type="application/ld+json">${jsonld}</script>
 <style>
   :root { --ink:#1a1a1a; --dim:#666; --bg:#fff; --soft:#f6f6f4; --line:#e5e5e0; --accent:#7a4d1d; --code:#f0efe9; }

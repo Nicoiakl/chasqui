@@ -60,6 +60,14 @@ function construir(clave) {
 <meta property="og:description" content="${esc(C.lead.replace(/<[^>]+>/g, '')).slice(0, 200)}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${C.url}">
+<meta property="og:site_name" content="Nyx5">
+<meta property="og:image" content="https://nyx5.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(C.titulo)}">
+<meta name="twitter:description" content="${esc(C.lead.replace(/<[^>]+>/g, '')).slice(0, 200)}">
+<meta name="twitter:image" content="https://nyx5.com/og.png">
 <script type="application/ld+json">${jsonld}</script>
 <style>
   :root { --bg:#0c0c10; --ink:#eeecf4; --dim:#8f8ca0; --line:#232330; --accent:#9b8cff; --code:#15151d; }

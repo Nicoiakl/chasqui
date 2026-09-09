@@ -76,6 +76,41 @@ function estafetaDesde(env) {
   return instancia;
 }
 
+// Cabeceras que acompañan a TODA respuesta. Van aquí, en la única puerta de salida, y no
+// repartidas por las rutas: una cabecera de seguridad que solo cubre algunas respuestas da una
+// falsa sensación de estar puesta.
+//   - HSTS: el sitio ya es https; sin esto, la primera visita por http viaja en claro.
+//   - nosniff / DENY / no-referrer: la casa sirve JSON y una página estática; nada necesita ser
+//     interpretado como otro tipo, ni embebido en un iframe ajeno, ni filtrar de dónde vino.
+//   - CSP: la portada y la spec traen su CSS y un script inline propios y NADA externo, así que
+//     se declara exactamente eso. Si algún día se añade un recurso de fuera, esto grita.
+const SEGURIDAD = {
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'no-referrer',
+  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+};
+
+// Cuánto puede cachear cada superficie. La tarjeta del dominio y la spec son estables y se
+// piden mucho; los buzones y el Libro no se cachean NUNCA (dos agentes distintos no pueden
+// compartir una respuesta autenticada).
+function cacheDe(path, method) {
+  if (method !== 'GET' && method !== 'HEAD') return 'no-store';
+  if (path === '/.well-known/nyx5.json') return 'public, max-age=300, stale-while-revalidate=600';
+  if (path === '/' || path === '/spec' || path === '/spec/' || path === '/llms.txt' || path === '/robots.txt' || path === '/sitemap.xml' || path === '/favicon.ico') return 'public, max-age=3600';
+  if (path === '/tareas' || path.startsWith('/agents')) return 'public, max-age=60';
+  return 'no-store';
+}
+
+// Un ETag débil sobre el cuerpo: deja que el cliente revalide con 304 en vez de bajar todo otra
+// vez. Débil porque el cuerpo puede diferir en bytes sin diferir en significado (JSON reordenado).
+async function etagDe(cuerpo) {
+  const datos = new TextEncoder().encode(typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo));
+  const hash = await crypto.subtle.digest('SHA-256', datos);
+  return `W/"${[...new Uint8Array(hash)].slice(0, 12).map((b) => b.toString(16).padStart(2, '0')).join('')}"`;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const estafeta = estafetaDesde(env);
@@ -86,8 +121,19 @@ export default {
       if (len > 2 * 1024 * 1024) return Response.json({ reason: 'cuerpo demasiado grande' }, { status: 413 });
       try { body = await request.json(); } catch { return Response.json({ reason: 'invalid JSON' }, { status: 400 }); }
     }
+    // www redirige al apex con 301. Existe como registro para que el nombre no dé NXDOMAIN
+    // (quien lo teclea o lo pega en un chat llegaba a la nada), pero la casa vive en el apex:
+    // dos orígenes servidores del mismo contenido parten el caché y confunden a los rastreadores.
+    if (url.hostname.startsWith('www.')) {
+      const destino = new URL(url); destino.hostname = url.hostname.slice(4); destino.protocol = 'https:';
+      return new Response(null, { status: 301, headers: { ...SEGURIDAD, location: destino.toString(), 'cache-control': 'public, max-age=3600' } });
+    }
+    // HEAD se atiende como GET y se devuelve sin cuerpo. Sin esto, todo respondía 404 a HEAD:
+    // rompía las vistas previas de enlaces (WhatsApp, Slack, LinkedIn), los monitores de uptime
+    // y cualquier comprobador de enlaces, que es como se descubre si un sitio está vivo.
+    const esHead = request.method === 'HEAD';
     const rx = {
-      method: request.method,
+      method: esHead ? 'GET' : request.method,
       path: url.pathname,
       query: url.searchParams,
       headers: Object.fromEntries([...request.headers].map(([k, v]) => [k.toLowerCase(), v])),
@@ -97,8 +143,19 @@ export default {
     const out = await estafeta.handleRequest(rx);
     if (out.pending) ctx.waitUntil(out.pending);
     if (out.kick) ctx.waitUntil(estafeta.tick().catch((e) => console.log('tick error', e.message)));
-    if (out.contentType) return new Response(out.body, { status: out.status, headers: { 'content-type': out.contentType } });
-    return Response.json(out.body, { status: out.status });
+    // Un cuerpo binario (la imagen de compartir) llega como Buffer; el edge quiere bytes.
+    const cuerpo = out.contentType ? (Buffer.isBuffer(out.body) ? new Uint8Array(out.body) : out.body) : JSON.stringify(out.body);
+    const headers = {
+      ...SEGURIDAD,
+      'content-type': out.contentType || 'application/json',
+      'cache-control': cacheDe(url.pathname, request.method),
+    };
+    if (out.status === 200 && headers['cache-control'] !== 'no-store') {
+      headers.etag = await etagDe(cuerpo);
+      // Si el cliente ya tiene esta versión, 304 y nada de cuerpo.
+      if (request.headers.get('if-none-match') === headers.etag) return new Response(null, { status: 304, headers });
+    }
+    return new Response(esHead ? null : cuerpo, { status: out.status, headers });
   },
 
   async scheduled(_event, env, ctx) {

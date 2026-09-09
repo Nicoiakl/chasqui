@@ -29,6 +29,7 @@ import { Tareas } from '../libro/tareas.js';
 import { APP_HTML } from '../plataformas/app-html.js';
 import { SPEC_HTML, LLMS_TXT } from '../plataformas/spec-html.js';
 import { HOME_HTML } from '../plataformas/home-html.js';
+import { OG_PNG_B64 } from '../plataformas/og-png.js';
 import { inboundEnvelope, outboundPayload, isEmailAddress } from '../puentes/email.js';
 
 const now = () => Date.now();
@@ -187,17 +188,35 @@ export class Estafeta {
     return { total: out.length, offset, agents: out.slice(offset, offset + limit).map(({ delegation, ...c }) => ({ ...c, delegated_by: delegation?.by })) };
   }
   async domainCard() {
-    // La tarjeta se re-firma solo cuando expira el caché (firmar en cada GET es CPU regalada).
+    // La tarjeta se firma UNA vez y se guarda con el dominio. Antes se firmaba por instancia del
+    // servidor: en el edge, donde hay muchas instancias vivas a la vez, cada una servía un
+    // documento distinto (otro `issued`, otra firma) para el mismo contenido. Eso hacía que
+    // `issued` no significara nada, impedía cachear la tarjeta en el borde y gastaba una firma
+    // Ed25519 por arranque. Ahora solo se re-firma cuando el CONTENIDO cambia: claves, política
+    // o extensiones. Dos casas con el mismo estado sirven byte a byte lo mismo.
     if (this._domainCardCache && this._domainCardCache.until > now()) return this._domainCardCache.value;
     const rec = await this.store.getDomain();
-    const card = signObject({
+    const cuerpo = {
       nyx5: '1', domain: this.domain, estafeta: this.publicUrl,
       keys: rec.keys.map((k) => ({ sig: k.sig, created: k.created })),
       policy: { inbound: this.policy.inbound, max_bytes: this.policy.max_bytes, registration: this.policy.registration, ...(this.policy.outbound ? { outbound: this.policy.outbound } : {}) },
       extensions: this.extensions,
-      issued: iso(),
-    }, this.keys);
-    this._domainCardCache = { value: card, until: now() + 60_000 };
+    };
+    const guardada = rec.card;
+    // Se compara el contenido SIN issued ni signature: si es el mismo, la tarjeta guardada vale.
+    if (guardada) {
+      const { issued: _i, signature: _s, ...previo } = guardada;
+      if (canonical(previo) === canonical(cuerpo)) {
+        this._domainCardCache = { value: guardada, until: now() + 300_000 };
+        return guardada;
+      }
+    }
+    const card = signObject({ ...cuerpo, issued: iso() }, this.keys);
+    // Persistir puede fallar (D1 caído, permisos): la tarjeta se sirve igual, solo que sin la
+    // estabilidad. Firmar y no poder guardar es peor que no firmar.
+    try { await this.store.putDomain({ ...rec, card }); }
+    catch (e) { this.log(`no se pudo guardar la tarjeta del dominio: ${e.message}`); }
+    this._domainCardCache = { value: card, until: now() + 300_000 };
     return card;
   }
 
@@ -773,6 +792,25 @@ export class Estafeta {
       if (rx.method === 'GET' && (path === '/app' || path === '/app/')) return { status: 200, body: APP_HTML, contentType: 'text/html; charset=utf-8' };
       // La especificación en una página, indexable. Se genera desde docs/SPEC.md (build:spec).
       if (rx.method === 'GET' && (path === '/spec' || path === '/spec/')) return { status: 200, body: SPEC_HTML, contentType: 'text/html; charset=utf-8' };
+      // La imagen de la vista previa al compartir un enlace. Se sirve desde la casa y no desde
+      // un CDN externo para no depender de nadie: si esta URL falla, el enlace se comparte pelado.
+      if (rx.method === 'GET' && path === '/og.png') {
+        return { status: 200, contentType: 'image/png', body: Buffer.from(OG_PNG_B64, 'base64') };
+      }
+      // Un favicon en línea: sin esto el navegador pide /favicon.ico en cada visita y se lleva
+      // un 404. SVG porque pesa 200 bytes y escala en cualquier pantalla.
+      if (rx.method === 'GET' && (path === '/favicon.ico' || path === '/favicon.svg')) {
+        return { status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0c0c10"/><text x="32" y="43" font-family="ui-monospace,Menlo,monospace" font-size="30" font-weight="600" fill="#9b8cff" text-anchor="middle">n5</text></svg>' };
+      }
+      if (rx.method === 'GET' && path === '/robots.txt') {
+        return { status: 200, contentType: 'text/plain; charset=utf-8', body: `User-agent: *\nAllow: /\n# Los buzones y el Libro exigen firma; no hay nada que rastrear ahí.\nDisallow: /mailbox/\nDisallow: /libro/\nDisallow: /outbox/\nSitemap: https://${this.domain}/sitemap.xml\n` };
+      }
+      if (rx.method === 'GET' && path === '/sitemap.xml') {
+        const paginas = ['/', '/spec', '/app', '/llms.txt'].concat(this.tareas.enabled ? ['/tareas'] : []);
+        const hoy = iso().slice(0, 10);
+        return { status: 200, contentType: 'application/xml; charset=utf-8',
+          body: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paginas.map((u) => `  <url><loc>https://${this.domain}${u}</loc><lastmod>${hoy}</lastmod></url>`).join('\n')}\n</urlset>\n` };
+      }
       if (rx.method === 'GET' && path === '/llms.txt') return { status: 200, body: LLMS_TXT, contentType: 'text/plain; charset=utf-8' };
       if (rx.method === 'GET' && path === '/.well-known/nyx5.json') return send(200, await this.domainCard());
       let m;
@@ -894,10 +932,10 @@ export class Estafeta {
       if (rx.method === 'GET' && path === '/tareas') {
         if (!this.tareas.enabled) return send(404, { reason: 'this house does not seed work' });
         return send(200, {
-          mostrador: `tareas@${this.domain}`, arbitro: `verifica@${this.domain}`,
-          por_agente_dia: this.tareas.porAgenteDia,
-          como: `cotiza la tarea a tareas@${this.domain} como escrow, con arbiter=verifica@${this.domain} y terms exactamente iguales a los publicados`,
-          tareas: this.tareas.publicadas().map((t) => ({ ...t, terms: this.tareas.terminosDe(this.tareas.tarea(t.id)) })),
+          desk: `tareas@${this.domain}`, arbiter: `verifica@${this.domain}`,
+          per_agent_per_day: this.tareas.porAgenteDia,
+          how: `quote the task to tareas@${this.domain} as an escrow, with arbiter=verifica@${this.domain} and terms exactly equal to the published ones`,
+          tasks: this.tareas.publicadas().map((t) => ({ ...t, terms: this.tareas.terminosDe(this.tareas.tarea(t.id)) })),
         });
       }
       if (rx.method === 'GET' && path === '/eventos') {

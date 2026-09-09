@@ -28,10 +28,10 @@ const parchearFetch = () => { casa.fetch = async (u, o) => fetch(String(u).repla
 // Un agente toma una tarea: cotiza al mostrador con los términos publicados, tal cual.
 async function tomar(agente, tarea, extra = {}) {
   const pub = await (await fetch(`http://127.0.0.1:${P}/tareas`)).json();
-  const t = pub.tareas.find((x) => x.id === tarea);
+  const t = pub.tasks.find((x) => x.id === tarea);
   return agente.quote({
-    to: pub.mostrador, contract: 'escrow', price: extra.price ?? t.price, concept: t.concept,
-    arbiter: extra.arbiter === null ? undefined : (extra.arbiter || pub.arbitro),
+    to: pub.desk, contract: 'escrow', price: extra.price ?? t.price, concept: t.concept,
+    arbiter: extra.arbiter === null ? undefined : (extra.arbiter || pub.arbiter),
     terms: extra.terms || t.terms,
   });
 }
@@ -62,9 +62,9 @@ test('el catálogo es público y publica la prueba entera, no solo el precio', a
   const res = await fetch(`http://127.0.0.1:${P}/tareas`);
   assert.equal(res.status, 200);
   const j = await res.json();
-  assert.equal(j.mostrador, 'tareas@t.test');
-  assert.equal(j.arbitro, 'verifica@t.test');
-  const ping = j.tareas.find((t) => t.id === 'ping');
+  assert.equal(j.desk, 'tareas@t.test');
+  assert.equal(j.arbiter, 'verifica@t.test');
+  const ping = j.tasks.find((t) => t.id === 'ping');
   assert.equal(ping.price, 50);
   assert.equal(ping.verify[0].type, 'http_status', 'quien va a trabajar puede leer con qué se le va a comprobar');
   assert.equal(ping.terms.seed_task, 'ping');

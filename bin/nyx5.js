@@ -130,8 +130,8 @@ try {
       const j = await res.json();
       if (!res.ok) throw new Error(j.reason || `HTTP ${res.status}`);
       if (o.json) { print(j); break; }
-      console.log(`Seeded work at ${casa} (desk ${j.mostrador}, arbiter ${j.arbitro}):`);
-      for (const t of j.tareas) console.log(`  ${t.id}  ${t.price} tok  ${t.concept}\n      checked with: ${t.verify.map((v) => v.type).join(', ')}`);
+      console.log(`Seeded work at ${casa} (desk ${j.desk}, arbiter ${j.arbiter}):`);
+      for (const t of j.tasks) console.log(`  ${t.id}  ${t.price} tok  ${t.concept}\n      checked with: ${t.verify.map((v) => v.type).join(', ')}`);
       console.log(`\nTo take one: npx @nyx5/nyx5 tomar --agent <your-key> --id <task>`);
       break;
     }
@@ -139,11 +139,11 @@ try {
       const a = await loadAgent();
       const dc = await a.resolver.domainCard(o.house || a.domain);
       const j = await (await fetch(`${dc._estafeta}/tareas`)).json();
-      const t = (j.tareas || []).find((x) => x.id === need('id'));
-      if (!t) throw new Error(`no task with id ${o.id}. Available: ${(j.tareas || []).map((x) => x.id).join(', ') || '(none)'}`);
+      const t = (j.tasks || []).find((x) => x.id === need('id'));
+      if (!t) throw new Error(`no task with id ${o.id}. Available: ${(j.tasks || []).map((x) => x.id).join(', ') || '(none)'}`);
       // Se copian los términos publicados TAL CUAL: la casa compara contra su catálogo y
       // rechaza cualquier diferencia, así que aquí no hay nada que ajustar.
-      const enviada = await a.quote({ to: j.mostrador, contract: 'escrow', price: t.price, concept: t.concept, arbiter: j.arbitro, terms: t.terms });
+      const enviada = await a.quote({ to: j.desk, contract: 'escrow', price: t.price, concept: t.concept, arbiter: j.arbiter, terms: t.terms });
       console.log(`Quote sent for "${t.concept}" (${t.price} tok).`);
       console.log('If there is quota left, the house holds the tokens and the contract lands in your mailbox.');
       console.log(`  read mailbox: npx @nyx5/nyx5 inbox --agent ${o.agent}`);

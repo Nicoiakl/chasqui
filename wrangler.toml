@@ -8,6 +8,7 @@ compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 routes = [
   { pattern = "nyx5.com", custom_domain = true },
+  { pattern = "www.nyx5.com", custom_domain = true },
   { pattern = "chsq.uk", custom_domain = true },
 ]
 
