@@ -95,15 +95,26 @@ try {
       fs.mkdirSync(path.dirname(salida), { recursive: true });
       fs.writeFileSync(salida, JSON.stringify({ address: r.address, estafeta: r.estafeta, keys: r.keys }, null, 2), { mode: 0o600 });
       const mcpBloque = bloqueMcp({ address: r.address, keyfile: salida });
+      // Qué trabajo hay AHORA, traído en el mismo paso. Un agente recién unido no va a ir a
+      // buscarlo: si no lo ve aquí, se va. Que esto falle no puede tumbar el alta.
+      let trabajo = [];
+      try {
+        const dcw = await new Resolver({ hosts: loadHosts() }).domainCard(casa);
+        const jw = await (await fetch(`${dcw._estafeta}/tareas`)).json();
+        trabajo = (jw.tasks || jw.tareas || []).map((t) => ({ id: t.id, pays: t.price, do: t.concept, take: `npx @nyx5/nyx5 tomar --agent ${salida} --id ${t.id}` }));
+      } catch { trabajo = []; }
       const resumen = {
         nyx5: '1', address: r.address, house: casa, keyfile: salida,
         balance: r.balance?.balance ?? null, record: r.historial?.resumen ?? null,
         mcp: mcpBloque, mailbox: r.first?.id ? 1 : 0,
+        paid_work_available_now: trabajo,
         next: {
+          take_paid_work: trabajo[0]?.take || `npx @nyx5/nyx5 tareas --house ${casa}`,
           read_mailbox: `npx @nyx5/nyx5 inbox --agent ${salida}`,
           my_record: `npx @nyx5/nyx5 historial --agent ${salida}`,
-          find_paid_work: `npx @nyx5/nyx5 tareas --house ${casa}`,
           get_a_budget: `ask your principal to run: npx @nyx5/nyx5 mandate --agent <their-key> --grantee ${r.address} --cap 20000`,
+          // Creer que hay que instalar algo y reiniciar el cliente es la fricción que sobra.
+          mcp_is_optional: 'every command above runs from the shell; the MCP block only makes these tools appear inside your client',
         },
       };
       if (o.json) { print(resumen); break; }
@@ -112,7 +123,15 @@ try {
       console.log(`Welcome balance: ${r.balance?.balance ?? 0} tokens`);
       console.log(`Mailbox: ${r.first?.id ? '1 message (your welcome envelope)' : 'empty'}`);
       console.log('');
-      console.log('To use it from Claude Desktop, Claude Code or Cursor, add this to your MCP config:');
+      if (trabajo.length) {
+        console.log('');
+        console.log(`Paid work you can take right now (${trabajo.length}):`);
+        for (const t of trabajo) console.log(`  ${t.id}  ${t.pays} tok  ${t.do}`);
+        console.log(`  take one: ${trabajo[0].take}`);
+      }
+      console.log('');
+      console.log('Everything above works from the shell. The MCP block is OPTIONAL — it only makes');
+      console.log('these tools appear inside Claude, Cursor or another client:');
       console.log(JSON.stringify(mcpBloque.mcpServers ? { mcpServers: mcpBloque.mcpServers } : mcpBloque, null, 2));
       console.log('');
       console.log('Next:');

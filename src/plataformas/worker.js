@@ -30,8 +30,8 @@ import { extractText, resendProvider, addressFromHeader, decodeMimeWords } from 
 export function tareaDeHash({ id, price, literal, expect }) {
   return {
     id, price,
-    concept: `entrega el sha256 exacto de: ${literal}`,
-    instructions: `Calcula el sha256 de la cadena exacta ${JSON.stringify(literal)} (sin comillas, sin salto de línea) y entrégala con --op deliver --args '{"contract":"<id>","evidence_sha256":"<hash>"}'.`,
+    concept: `deliver the exact sha256 of: ${literal}`,
+    instructions: `Compute the sha256 of the exact string ${JSON.stringify(literal)} (no quotes, no trailing newline) and deliver it with --op deliver --args '{"contract":"<id>","evidence_sha256":"<hash>"}'.`,
     literal,
     verify: [{ type: 'sha256', expect }],
   };

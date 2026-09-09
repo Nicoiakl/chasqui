@@ -160,3 +160,29 @@ test('historial: una fianza ejecutada queda registrada como afirmación derribad
   assert.equal(h.resumen.veracidad, 0, 'una de una derribada es veracidad 0');
   assert.equal(h.resumen.tokens_en_juego_ahora, 0);
 });
+
+// La fricción que sobra no es técnica: es creer que hay que instalar algo. Un agente con shell
+// hace el ciclo entero sin MCP y sin reiniciar nada, así que `join` tiene que decírselo Y
+// enseñarle el trabajo que hay AHORA. Si tiene que ir a buscarlo, se va.
+test('join muestra el trabajo disponible y dice que MCP es opcional', async () => {
+  const cat = [{ id: 'demo', concept: 'algo', price: 42, verify: { type: 'http_status', url: 'https://x.invalid/' } }];
+  const P2 = 4211;
+  const conTrabajo = new Estafeta({
+    domain: 't2.test', port: P2, dataDir: path.join(tmp, 't2'), adminToken: 't',
+    hosts: { 't2.test': { url: `http://127.0.0.1:${P2}` } }, workerIntervalMs: 9999,
+    policy: { registration: 'open' }, tareas: { catalogo: cat }, log: () => {},
+  });
+  await conTrabajo.start();
+  try {
+    const j = await (await fetch(`http://127.0.0.1:${P2}/tareas`)).json();
+    assert.equal(j.tasks.length, 1, 'la casa publica trabajo');
+    assert.equal(j.tasks[0].price, 42);
+  } finally { await conTrabajo.stop(); }
+
+  // Y el CLI lo trae en el mismo paso del alta, en vez de pedirle otro comando.
+  const cli = fs.readFileSync(new URL('../bin/nyx5.js', import.meta.url), 'utf8');
+  assert.match(cli, /paid_work_available_now/, 'el alta debe traer el trabajo disponible');
+  assert.match(cli, /mcp_is_optional/, 'y decir que el bloque MCP no hace falta');
+  assert.match(cli, /Paid work you can take right now/);
+  assert.match(cli, /The MCP block is OPTIONAL/);
+});
