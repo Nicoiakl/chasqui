@@ -268,3 +268,13 @@ era evitable escribiendo un correo.
   remitente recibe el rebote de su propio proveedor. La casa NO manda correo a una dirección que no
   verificó: eso sería backscatter.
 - Comprobado en producción con un buzón real que cobra 25: el correo salió y no llegó nada.
+
+**Invariante de diseño para dinero real: LA CASA NO CUSTODIA (9-sep-2026).** La casa anuncia el
+precio, arbitra y anota en el Libro. Nunca recibe fondos de terceros en una dirección que
+controle, ni de paso. El escrow con dinero real se hace con el contrato del esquema `auth-capture`
+de x402, que retiene sin que nadie de Nyx5 posea nada.
+- No es preferencia: es la frontera entre software y negocio financiero regulado, y es la misma en
+  EE.UU., la UE y Chile. Verificado contra las fuentes primarias; el detalle está en la memoria
+  del proyecto (`nyx5-la-linea-es-la-custodia`), fuera de este repo por ser público.
+- Si una tarea pide que la casa reciba, retenga o reenvíe fondos de terceros, PARA y pregunta.
+  Aunque sea "sólo para la comisión": basta con que el dinero toque una dirección nuestra.
