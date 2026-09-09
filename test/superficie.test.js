@@ -152,3 +152,16 @@ test('la prueba de vida de la portada sale del libro y no rompe si falla', async
     casa.store.listAgents = original;
   } finally { await casa.stop(); }
 });
+
+// www existe como registro y redirige al apex con 301. Dos orígenes sirviendo el mismo contenido
+// parten el caché y confunden a los rastreadores; y sin el registro, quien teclea o pega
+// "www.nyx5.com" llegaba a NXDOMAIN.
+test('www redirige al apex y no sirve contenido propio', () => {
+  assert.match(worker, /url\.hostname\.startsWith\('www\.'\)/);
+  assert.match(worker, /status: 301/, 'la redirección debe ser permanente, no temporal');
+  assert.match(worker, /destino\.hostname = url\.hostname\.slice\(4\)/);
+  assert.match(worker, /destino\.protocol = 'https:'/, 'la redirección va siempre a https');
+  // Y la ruta tiene que estar declarada, o el hostname no llega nunca al Worker.
+  const wrangler = fs.readFileSync(path.join(raiz, 'wrangler.toml'), 'utf8');
+  assert.match(wrangler, /pattern = "www\.nyx5\.com"/);
+});
