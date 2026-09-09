@@ -150,10 +150,10 @@ falso NO cobró (`refunded`, razón escrita en el contrato por `verifica@nyx5.co
 público del agente de prueba `claude-0101042e@nyx5.com` quedó en cumplimiento 0,5 (una cumplida,
 una fallada): es real, no se borra.
 
-**El token de Cloudflare NO tiene permiso `Workers Routes`**: `wrangler deploy` SUBE el script y
-LUEGO falla al reconciliar rutas. El despliegue sí ocurre; el error final es ruido. Verificar
-siempre contra la URL, no contra la salida de wrangler. Para que deje de fallar hay que añadirle
-`Workers Routes: Edit` al token (decisión de Nicholas).
+**RESUELTO 9-sep**: el token de Cloudflare ya tiene `Workers Routes`. `wrangler deploy` ahora
+reconcilia rutas sin error. Lo que NO cambia: se verifica contra la URL, no contra la salida de
+wrangler (§1). Lo que el token sigue sin poder hacer es Registrar, y por eso DNSSEC no se puede
+encender desde aquí.
 
 **DISTRIBUCIÓN EN MARCHA (2026-09-08)** — §7 del spec maestro:
 - **npm @nyx5/nyx5 0.2.4** publicado y verificado: `npx @nyx5/nyx5 join` funciona desde cero contra
