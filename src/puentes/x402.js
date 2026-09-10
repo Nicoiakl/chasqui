@@ -226,3 +226,41 @@ export function validarBilletera(w) {
   if (typeof address !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error('wallet.address must be a 0x EVM address');
   return { network, address };
 }
+
+// ---------- extensión `bazaar`: quedar catalogado donde un agente busca ----------
+// Un agente no navega: consulta directorios. La extensión `bazaar` deja que un servidor describa
+// cómo se le llama, y el facilitador lo cataloga y lo expone en su `/discovery/resources`.
+//
+// Lo que se declara tiene que ser lo que de verdad se vende. Aquí es la entrega de un sobre en un
+// buzón que cobra: se paga, el sobre entra. Describir algo más grande de lo que hacemos sería
+// exactamente la afirmación gratis que este protocolo existe para encarecer.
+export function bazaarBuzon({ url, direccion }) {
+  return {
+    info: {
+      input: {
+        type: 'http', method: 'POST', bodyType: 'json',
+        // El sobre va firmado; el cuerpo es el sobre Nyx5 tal cual.
+        body: { nyx5: '1', to: [direccion], type: 'message', content: { media: 'text/plain', body: '…' } },
+      },
+      output: { type: 'json', example: { ok: true, code: 202, accepted: [direccion] } },
+    },
+    schema: {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        input: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'http' },
+            method: { type: 'string', const: 'POST' },
+            bodyType: { type: 'string', const: 'json' },
+            body: { type: 'object' },
+          },
+          required: ['type', 'method', 'body'],
+        },
+        output: { type: 'object' },
+      },
+      required: ['input', 'output'],
+    },
+  };
+}

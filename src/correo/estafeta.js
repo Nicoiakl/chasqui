@@ -950,6 +950,9 @@ export class Estafeta {
             }).accepts);
           }
         }
+        // Catalogable: el facilitador que vea este 402 puede publicarlo en su directorio, que es
+        // donde un agente busca. Se declara lo que se vende de verdad, no una promesa más grande.
+        pr.extensions = { bazaar: x402.bazaarBuzon({ url, direccion: `${local}@${this.domain}` }) };
         return { status: 402, body: pr, headers: { 'payment-required': x402.cabeceraRequerido(pr) } };
       }
       if (rx.method === 'GET' && path === '/.well-known/nyx5.json') return send(200, await this.domainCard());

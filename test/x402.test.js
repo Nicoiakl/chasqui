@@ -286,6 +286,22 @@ test('no se inventa una conversión a dólares, y una red que no sabemos liquida
   assert.equal(x402.validarBilletera(null), null);
 });
 
+test('el 402 se declara catalogable, y describe lo que de verdad se vende', async () => {
+  // Un agente no navega, consulta directorios. La extensión `bazaar` es cómo un facilitador nos
+  // publica en el suyo. Lo declarado tiene que ser lo que se vende: entregar un sobre en un buzón
+  // que cobra, no una promesa más grande.
+  const r = await fetch(`${hosts[H].url}/x402/inbox/caro`);
+  const pr = abrir(r.headers.get('payment-required'));
+  const b = pr.extensions?.bazaar;
+  assert.ok(b, 'el 402 declara la extensión bazaar');
+  assert.equal(b.info.input.method, 'POST');
+  assert.deepEqual(b.info.input.body.to, [caro.address], 'describe el buzón real, no un ejemplo');
+  assert.equal(b.info.output.example.code, 202);
+  // El propio spec exige que `info` valide contra `schema`: si no, el facilitador lo descarta.
+  assert.ok(b.schema.$schema && b.schema.required.includes('input'));
+  for (const k of b.schema.properties.input.required) assert.ok(k in b.info.input, `info.input no trae ${k}`);
+});
+
 test('el 402 no se cuela en un buzón normal: sin precio no hay cabecera de pago', async () => {
   const r = await post(sobre(pagador.address, gratis.address, pagador.keys));
   assert.equal(r.status, 202);
