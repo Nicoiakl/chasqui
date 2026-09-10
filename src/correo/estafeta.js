@@ -224,7 +224,7 @@ export class Estafeta {
   }
 
   // ---------- agentes ----------
-  async registerAgent({ local, sig, enc = null, capabilities = {}, inbox = { policy: 'open' }, wallet = null, webhook = null, notify_email = null, valid_until = null, delegation = null, welcome = null }) {
+  async registerAgent({ local, sig, enc = null, capabilities = {}, inbox = { policy: 'open' }, wallet = null, wallets = null, webhook = null, notify_email = null, valid_until = null, delegation = null, welcome = null }) {
     local = String(local).toLowerCase();
     const address = `${local}@${this.domain}`;
     parseAddress(address);
@@ -266,13 +266,13 @@ export class Estafeta {
     if (prev && prev.sig !== sig) previous.push({ sig: prev.sig, until: iso(now() + 7 * 24 * 3600 * 1000) }, ...(prev.previous || []));
     // La billetera es PÚBLICA y va en la tarjeta: es sólo la dirección a la que se le cobra. La
     // casa no la controla ni puede mover nada de ella, igual que no controla la llave del agente.
-    let billetera; try { billetera = x402.validarBilletera(wallet ?? prev?.wallet ?? null); }
+    let billeteras; try { billeteras = x402.validarBilleteras(wallets ?? wallet ?? prev?.wallets ?? prev?.wallet ?? null); }
     catch (e) { throw Object.assign(new Error(e.message), { status: 400 }); }
     const card = signObject({
       nyx5: '1', address, sig, enc,
       capabilities: { accepts: ['text/plain', 'application/json'], ...capabilities },
       inbox: { policy: 'open', ...inbox },
-      ...(billetera ? { wallet: billetera } : {}),
+      ...(billeteras ? { wallets: billeteras } : {}),
       valid_from: iso(), valid_until, previous: previous.slice(0, 3),
       delegation: delegation || undefined,
     }, this.keys, 'certification');
@@ -936,10 +936,14 @@ export class Estafeta {
         // precio. NO convertimos tokens a dólares: inventar un tipo de cambio sería justo la cifra
         // sin respaldo que este protocolo existe para encarecer. El precio en dólares lo pone el
         // agente o no hay opción en dólares.
-        const w = rec.wallet;
-        if (w?.address && w?.network && Number.isInteger(rec.inbox?.price_usd) && rec.inbox.price_usd > 0) {
-          const t = x402.TOKEN_USD[w.network];
-          if (t) {
+        // Una entrada por cada red que el agente declaró Y que sabemos liquidar. El estándar dice
+        // que `accepts` es una lista y que el cliente elige, así que ofrecer una sola red sería
+        // desperdiciar el mecanismo: quien sólo puede pagar en una cadena encuentra la suya.
+        const ws = rec.wallets || (rec.wallet ? [rec.wallet] : []);
+        if (ws.length && Number.isInteger(rec.inbox?.price_usd) && rec.inbox.price_usd > 0) {
+          for (const w of ws) {
+            const t = x402.TOKEN_USD[w?.network];
+            if (!t || !w?.address) continue;
             pr.accepts.push(...x402.requisitosEvm({
               url, amount: rec.inbox.price_usd, payTo: w.address, network: w.network,
               asset: t.asset, tokenName: t.name, tokenVersion: t.version,

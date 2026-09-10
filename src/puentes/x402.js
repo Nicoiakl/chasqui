@@ -188,14 +188,36 @@ export function claveDePago(pago) {
 // cambian entre redes y equivocarse hace que ninguna firma valide sin decir por qué.
 // Comprobado el 9-sep-2026 contra ambas cadenas.
 export const TOKEN_USD = Object.freeze({
-  'eip155:1':     { asset: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USD Coin', version: '2', decimals: 6, red: 'Ethereum' },
-  'eip155:8453':  { asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', name: 'USD Coin', version: '2', decimals: 6, red: 'Base' },
-  'eip155:84532': { asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', name: 'USDC',     version: '2', decimals: 6, red: 'Base Sepolia' },
+  'eip155:1':     { asset: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USD Coin', version: '2', decimals: 6, red: 'Ethereum',  facilitador: 'https://facilitator.ultravioletadao.xyz' },
+  'eip155:8453':  { asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', name: 'USD Coin', version: '2', decimals: 6, red: 'Base',      facilitador: 'https://x402.dexter.cash' },
+  'eip155:137':   { asset: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', name: 'USD Coin', version: '2', decimals: 6, red: 'Polygon',   facilitador: 'https://x402.dexter.cash' },
+  'eip155:42161': { asset: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', name: 'USD Coin', version: '2', decimals: 6, red: 'Arbitrum',  facilitador: 'https://x402.dexter.cash' },
+  'eip155:10':    { asset: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', name: 'USD Coin', version: '2', decimals: 6, red: 'Optimism',  facilitador: 'https://x402.dexter.cash' },
+  'eip155:43114': { asset: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E', name: 'USD Coin', version: '2', decimals: 6, red: 'Avalanche', facilitador: 'https://x402.dexter.cash' },
+  'eip155:84532': { asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', name: 'USDC',     version: '2', decimals: 6, red: 'Base Sepolia', facilitador: 'https://x402.org/facilitator' },
 });
 
 // Una billetera declarada en una tarjeta. Es sólo una dirección a la que cobrar: la casa no la
 // controla, no la custodia y no puede mover nada de ella. Falla cerrado ante una red que no
 // conocemos, porque anunciar un precio en una red que no sabemos liquidar es prometer de gratis.
+// Varias billeteras: una por red. El estándar dice que `accepts` es una LISTA de formas de pago
+// aceptables y que el cliente elige, así que ofrecer una sola red es desperdiciar el mecanismo.
+// Se rechazan los duplicados de red: dos precios para la misma red es una ambigüedad, no una opción.
+export function validarBilleteras(ws) {
+  if (ws == null) return null;
+  const lista = Array.isArray(ws) ? ws : [ws];
+  if (!lista.length) return null;
+  if (lista.length > 8) throw new Error('at most 8 wallets');
+  const vistas = new Set(), out = [];
+  for (const w of lista) {
+    const v = validarBilletera(w);
+    if (!v) continue;
+    if (vistas.has(v.network)) throw new Error(`two wallets for the same network (${v.network}); pick one`);
+    vistas.add(v.network); out.push(v);
+  }
+  return out.length ? out : null;
+}
+
 export function validarBilletera(w) {
   if (w == null) return null;
   if (typeof w !== 'object' || Array.isArray(w)) throw new Error('wallet must be an object');

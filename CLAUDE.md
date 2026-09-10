@@ -41,7 +41,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop -> `npm test` (183)
+                         puertos (guard de colisión) · x402 · interop -> `npm test` (185)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -49,7 +49,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 183 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 185 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -307,3 +307,16 @@ real. El que paga elige; un cliente x402 genérico descarta la red que no conoce
   red que no podemos liquidar es prometer de gratis.
 - La billetera es PÚBLICA y va en la tarjeta. La casa no la controla ni puede mover nada de ella,
   igual que no controla la llave del agente. El invariante de no custodiar queda intacto.
+
+**Seis redes reales, y el que paga elige (10-sep-2026).** Un agente declara `wallets: [{network,
+address}]` y su buzón anuncia UNA entrada por cada red que declaró y que sabemos liquidar, más el
+token de la casa. `accepts` es una lista en el estándar justamente para esto: quien sólo puede
+pagar en una cadena encuentra la suya sin que nadie quede excluido.
+- `TOKEN_USD` cubre Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche y Base Sepolia. El
+  `name`/`version` de CADA una está LEÍDO del contrato en su cadena, no copiado. Todas dieron
+  `USD Coin` versión 2 salvo la de pruebas, que da `USDC`.
+- Cada red lleva su facilitador comprobado en vivo. Anunciar una red sin facilitador que la
+  liquide sería prometer de gratis.
+- Dos billeteras para la misma red se RECHAZAN: dos precios para una red es ambigüedad, no opción.
+- La prueba de la red desconocida ya falló DOS veces al agregar redes (Ethereum, luego Polygon).
+  Está bien que duela: la lista de redes es una decisión, no un detalle.

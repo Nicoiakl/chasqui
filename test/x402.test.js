@@ -231,17 +231,57 @@ test('un buzón cobra en tokens de la casa Y en dólares reales, y el que paga e
 
   // La billetera es pública y viaja en la tarjeta, para que quien vaya a pagar la pueda leer.
   const card = await (await fetch(`${hosts[H].url}/agents/dual`)).json();
-  assert.deepEqual(card.wallet, { network: 'eip155:84532', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' });
+  assert.deepEqual(card.wallets, [{ network: 'eip155:84532', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' }]);
+});
+
+test('el agente ofrece TODAS las redes que declaró, y el que paga elige la suya', async () => {
+  // No excluir mecanismos: quien sólo puede pagar en una cadena tiene que encontrar la suya en la
+  // misma respuesta. `accepts` es una lista justamente para esto.
+  const dir = '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D';
+  const multi = Agent.create(`multi@${H}`, hosts[H].url, { hosts });
+  await multi.register({
+    adminToken: 't',
+    inbox: { policy: 'stamp', price: 25, price_usd: 10000 },
+    wallets: [
+      { network: 'eip155:8453', address: dir },     // Base, la barata
+      { network: 'eip155:1', address: dir },        // Ethereum, la cara
+      { network: 'eip155:42161', address: dir },    // Arbitrum
+    ],
+  });
+  const pr = abrir((await fetch(`${hosts[H].url}/x402/inbox/multi`)).headers.get('payment-required'));
+  assert.equal(pr.accepts.length, 4, 'el token de la casa más las tres redes');
+  const redes = pr.accepts.map((a) => a.network);
+  assert.deepEqual(redes, [x402.RED, 'eip155:8453', 'eip155:1', 'eip155:42161']);
+  // Cada una lleva el contrato y el dominio de SU red, no el de la primera.
+  for (const a of pr.accepts.slice(1)) {
+    const t = x402.TOKEN_USD[a.network];
+    assert.equal(a.asset, t.asset);
+    assert.equal(a.extra.name, t.name);
+    assert.equal(a.amount, '10000', 'un dólar es un dólar en cualquier red');
+  }
+  x402.validarRequisitos(pr);
+});
+
+test('dos billeteras para la misma red se rechazan: eso es ambigüedad, no opción', () => {
+  const dir = '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D';
+  assert.throws(() => x402.validarBilleteras([
+    { network: 'eip155:8453', address: dir },
+    { network: 'eip155:8453', address: '0x0000000000000000000000000000000000000001' },
+  ]), /same network/);
+  // Una sola sigue funcionando, y se normaliza a lista.
+  assert.deepEqual(x402.validarBilleteras({ network: 'eip155:1', address: dir }), [{ network: 'eip155:1', address: dir }]);
+  assert.equal(x402.validarBilleteras([]), null);
 });
 
 test('no se inventa una conversión a dólares, y una red que no sabemos liquidar se rechaza', () => {
   // Convertir tokens de la casa a dólares exigiría un tipo de cambio que nadie fijó. Inventarlo
   // sería la cifra sin respaldo que este protocolo existe para encarecer: si el dueño no puso
   // precio en dólares, simplemente no hay opción en dólares.
-  // Polygon existe y es una red seria; simplemente no la sabemos liquidar todavía, y por eso se
-  // rechaza. Si algún día se agrega a TOKEN_USD, esta prueba falla y obliga a elegir otro ejemplo:
-  // eso es correcto, porque la lista de redes que sabemos liquidar es una decisión, no un detalle.
-  assert.throws(() => x402.validarBilletera({ network: 'eip155:137', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' }), /cannot settle on eip155:137/);
+  // BSC existe y es una red seria; simplemente no la sabemos liquidar, y por eso se rechaza. Esta
+  // prueba YA falló dos veces al agregar redes nuevas (primero Ethereum, después Polygon), y las
+  // dos veces tenía razón: la lista de redes que sabemos liquidar es una decisión, no un detalle,
+  // y agregar una tiene que obligar a mirar aquí.
+  assert.throws(() => x402.validarBilletera({ network: 'eip155:56', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' }), /cannot settle on eip155:56/);
   assert.throws(() => x402.validarBilletera({ network: 'eip155:8453', address: 'no-es-una-direccion' }), /0x EVM address/);
   assert.equal(x402.validarBilletera(null), null);
 });
