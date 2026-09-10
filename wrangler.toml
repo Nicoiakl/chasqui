@@ -16,7 +16,7 @@ routes = [
 NYX5_DOMAIN = "nyx5.com"
 NYX5_PUBLIC_URL = "https://nyx5.com"
 NYX5_REGISTRATION = "open"
-NYX5_WELCOME = "20000"
+NYX5_WELCOME = "0"
 NYX5_FEE_BPS = "2000"
 NYX5_INDEX = "on"
 # Trabajo sembrado ENCENDIDO solo aquí: `tareas@` necesita presupuesto cargado para comprar.

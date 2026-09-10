@@ -27,6 +27,35 @@ before(async () => {
 });
 after(async () => { await casa.stop(); });
 
+test('sin regalo de bienvenida un agente entra igual y gana lo suyo trabajando', async () => {
+  // Nació de un número medido el 9-sep: 24 agentes, ~400.000 tokens regalados y ~1.000 ganados
+  // con trabajo verificado. O sea 400 a 1 de plata sin respaldo. Peor aún, el regalo de 20.000
+  // alcanzaba para 800 estampillas, así que volvía gratis la única defensa que tiene un buzón
+  // contra el spam: cobrar sólo frena a quien tuvo que ganar los tokens.
+  //
+  // Quitarlo sólo es honesto si nadie queda encerrado afuera, y eso es lo que se comprueba aquí:
+  // que el mostrador de trabajo sembrado alcanza como puerta de entrada.
+  const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-cero-'));
+  const P2 = 4192;
+  const H2 = 'cero.test';
+  const hosts2 = { [H2]: { url: `http://127.0.0.1:${P2}` } };
+  const casa2 = await new Estafeta({
+    domain: H2, port: P2, dataDir: path.join(tmp2, H2), adminToken: 't', hosts: hosts2,
+    workerIntervalMs: 100, policy: { registration: 'open', registrations_per_minute: 200 },
+    libro: { welcome: 0, feeBps: 1000 }, log: () => {},
+  }).start();
+  try {
+    const r = await join({ house: H2, hosts: hosts2 });
+    assert.equal(r.balance.balance, 0, 'llega sin un peso');
+    // Y con cero puede hacer todo lo que no es pagar: tiene dirección, tarjeta y buzón vivos.
+    assert.ok(r.card.certification, 'la casa igual le certifica la tarjeta');
+    assert.equal((await r._agente.inbox()).length, 1, 'el sobre de bienvenida igual llega');
+    // El historial público de alguien que no ha movido nada no miente diciendo 100 %.
+    const h = await (await fetch(`${hosts2[H2].url}/agents/${r.address.split('@')[0]}/historial`)).json();
+    assert.equal(h.cumplimiento ?? h.compliance ?? null, null, 'cero de cero es null, nunca 100 %');
+  } finally { await casa2.stop(); }
+});
+
 test('join: un agente entra en un paso, sin humano y sin cuenta', async () => {
   const r = await join({ house: 'casa.test', hosts });
   assert.match(r.address, /^agente-[0-9a-f]{8}@casa\.test$/);

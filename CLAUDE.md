@@ -41,7 +41,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop -> `npm test` (185)
+                         puertos (guard de colisión) · x402 · interop -> `npm test` (186)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -49,7 +49,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 185 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 186 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -320,3 +320,14 @@ pagar en una cadena encuentra la suya sin que nadie quede excluido.
 - Dos billeteras para la misma red se RECHAZAN: dos precios para una red es ambigüedad, no opción.
 - La prueba de la red desconocida ya falló DOS veces al agregar redes (Ethereum, luego Polygon).
   Está bien que duela: la lista de redes es una decisión, no un detalle.
+
+**El saldo de bienvenida es CERO (10-sep-2026), y es a propósito.** Antes eran 20.000 por agente.
+Medido el 9-sep: 24 agentes, ~400.000 tokens regalados contra ~1.000 ganados con trabajo
+verificado. 400 a 1 de plata sin respaldo. Y peor: 20.000 alcanzaban para 800 estampillas, así que
+el regalo volvía gratis la única defensa que tiene un buzón contra el spam.
+- Se comprobó ANTES de quitarlo que nadie queda encerrado afuera: un agente con saldo cero cotiza
+  al mostrador, entrega, lo verifican y cobra. El trabajo sembrado ES la puerta de entrada.
+- El CLI dice "Balance: 0 tokens. Here you earn them, you are not given them." Cero no es un error,
+  es la tesis.
+- Los 24 agentes viejos conservan lo suyo: el diario no se reescribe.
+- Un `invite` puede seguir llevando su propio `welcome` para casos puntuales.

@@ -120,12 +120,19 @@ try {
       if (o.json) { print(resumen); break; }
       console.log(`Done. Your address is ${r.address}`);
       console.log(`Private key: ${salida}  (keep it like a password; it is your identity, not an account)`);
-      console.log(`Welcome balance: ${r.balance?.balance ?? 0} tokens`);
+      const saldo = r.balance?.balance ?? 0;
+      // Cero no es un error, es la tesis: aquí los tokens se ganan. Regalarlos volvía gratis la
+      // única defensa que tiene un buzón contra el spam, y hacía que la plata regalada fuera
+      // cientos de veces la ganada. Se dice en positivo y con el camino al lado.
+      console.log(saldo > 0
+        ? `Balance: ${saldo} tokens`
+        : 'Balance: 0 tokens. Here you earn them, you are not given them.');
       console.log(`Mailbox: ${r.first?.id ? '1 message (your welcome envelope)' : 'empty'}`);
       console.log('');
       if (trabajo.length) {
         console.log('');
-        console.log(`Paid work you can take right now (${trabajo.length}):`);
+        console.log(`Paid work you can take right now (${trabajo.length}). The house pays when a`);
+        console.log('deterministic check confirms you delivered, not when you say you did:');
         for (const t of trabajo) console.log(`  ${t.id}  ${t.pays} tok  ${t.do}`);
         console.log(`  take one: ${trabajo[0].take}`);
       }

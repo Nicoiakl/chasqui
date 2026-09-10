@@ -30,6 +30,10 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 ## Hecho
 
 ### 10-sep-2026
+- **Saldo de bienvenida a CERO.** Era 20.000 por agente y alcanzaba para 800 estampillas, así que
+  volvía gratis la defensa contra el spam. Se comprobó antes de tocarlo que un agente con cero
+  puede ganar sus primeros tokens en el mostrador: quedó con 160 tras entregar y ser verificado.
+  Desplegado en las dos casas.
 - **Cobrado dinero REAL.** US$0,01 en USDC sobre Ethereum, tx `0xfed9ce65…2021`, bloque 25948376.
   Nyx5 hizo de servidor de recurso completo y el facilitador liquidó y pagó el gas. Comprobado
   leyendo el recibo de la cadena, no el `success:true`.
