@@ -29,6 +29,19 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 
 ## Hecho
 
+### 10-sep-2026
+- **Cobrado dinero REAL.** US$0,01 en USDC sobre Ethereum, tx `0xfed9ce65…2021`, bloque 25948376.
+  Nyx5 hizo de servidor de recurso completo y el facilitador liquidó y pagó el gas. Comprobado
+  leyendo el recibo de la cadena, no el `success:true`.
+- **El número que importa**: el facilitador gastó US$0,286 de gas para mover US$0,01. En Ethereum
+  un pago de un centavo sólo existe porque alguien lo subsidia; en Base cuesta una fracción de
+  centavo. El protocolo funciona en las dos, la economía no.
+- **Seis redes reales a la vez**: Ethereum, Base, Polygon, Arbitrum, Optimism y Avalanche, más el
+  token de la casa. Un agente declara varias billeteras y su buzón anuncia una opción por cada
+  una. Nadie queda excluido por la cadena en que tenga fondos.
+- Lección de diseño que costó dos intentos: una autorización EIP-3009 vence, y firmar de antemano
+  para liquidar después falla con `invalid_timing`. En el flujo real el agente firma al pagar.
+
 ### 9-sep-2026
 - **Cerrada una brecha real: la puerta del correo se saltaba toda la política del buzón.** Un buzón
   que cobraba 500 y otro con lista blanca cerrada aceptaban los dos un correo de un desconocido,
