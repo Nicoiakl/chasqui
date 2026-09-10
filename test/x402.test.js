@@ -238,7 +238,10 @@ test('no se inventa una conversión a dólares, y una red que no sabemos liquida
   // Convertir tokens de la casa a dólares exigiría un tipo de cambio que nadie fijó. Inventarlo
   // sería la cifra sin respaldo que este protocolo existe para encarecer: si el dueño no puso
   // precio en dólares, simplemente no hay opción en dólares.
-  assert.throws(() => x402.validarBilletera({ network: 'eip155:1', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' }), /cannot settle on eip155:1/);
+  // Polygon existe y es una red seria; simplemente no la sabemos liquidar todavía, y por eso se
+  // rechaza. Si algún día se agrega a TOKEN_USD, esta prueba falla y obliga a elegir otro ejemplo:
+  // eso es correcto, porque la lista de redes que sabemos liquidar es una decisión, no un detalle.
+  assert.throws(() => x402.validarBilletera({ network: 'eip155:137', address: '0x70A62bEC198672e2baD675Cd58fAA733c3566a5D' }), /cannot settle on eip155:137/);
   assert.throws(() => x402.validarBilletera({ network: 'eip155:8453', address: 'no-es-una-direccion' }), /0x EVM address/);
   assert.equal(x402.validarBilletera(null), null);
 });

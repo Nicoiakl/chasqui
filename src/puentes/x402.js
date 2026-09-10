@@ -188,6 +188,7 @@ export function claveDePago(pago) {
 // cambian entre redes y equivocarse hace que ninguna firma valide sin decir por qué.
 // Comprobado el 9-sep-2026 contra ambas cadenas.
 export const TOKEN_USD = Object.freeze({
+  'eip155:1':     { asset: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USD Coin', version: '2', decimals: 6, red: 'Ethereum' },
   'eip155:8453':  { asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', name: 'USD Coin', version: '2', decimals: 6, red: 'Base' },
   'eip155:84532': { asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', name: 'USDC',     version: '2', decimals: 6, red: 'Base Sepolia' },
 });
