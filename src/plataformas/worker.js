@@ -62,7 +62,7 @@ function estafetaDesde(env) {
     policy: { registration: cfg('REGISTRATION') || 'invite' },
     libro: { welcome: Number(cfg('WELCOME') || 0), feeBps: Number(cfg('FEE_BPS') || 1000) },
     index: { enabled: cfg('INDEX') === 'on' },
-    email: { enabled: cfg('EMAIL') === 'on' || !!provider, provider, footer: cfg('EMAIL_FOOTER') === 'on' },
+    email: { enabled: cfg('EMAIL') === 'on' || !!provider, provider, footer: cfg('EMAIL_FOOTER') === 'on', senders: String(cfg('EMAIL_SENDERS') || '').split(',') },
     // Trabajo sembrado: lo que la casa publica para que un agente recién unido tenga algo
     // que hacer y salga con historial. El catálogo vive en el código (cambiarlo es un
     // despliegue, con revisión y vuelta atrás) pero se ENCIENDE por casa: las dos casas

@@ -24,6 +24,7 @@ async function casa(email = {}) {
 test('D3 · un email entrante cae al buzón como sobre SIN FIRMA, marcado no verificado', async () => {
   const { e, url, dom } = await casa();
   try {
+    e.email.senders.add(`botsy@${dom}`); // la casa autoriza a este remitente (la salida está cerrada por defecto)
     const bot = Agent.create(`botsy@${dom}`, url, { hosts: { [dom]: { url } } });
     await bot.register({ adminToken: 't' });
     const r = await e.receiveEmail({ from: 'alice@gmail.com', to: `botsy@${dom}`, subject: 'hola', text: 'te escribo desde el correo de siempre', messageId: 'msg-abc-123' });
@@ -114,6 +115,7 @@ test('una política de buzón que no sepamos aplicar sobre correo no deja pasar'
 test('D3 · salida SIN proveedor queda pendiente (no se inventa canal)', async () => {
   const { e, url, dom } = await casa();
   try {
+    e.email.senders.add(`botsy@${dom}`); // la casa autoriza a este remitente (la salida está cerrada por defecto)
     const bot = Agent.create(`botsy@${dom}`, url, { hosts: { [dom]: { url } } });
     await bot.register({ adminToken: 't' });
     const r = await bot.email({ to: 'humano@ejemplo.com', subject: 'hey', body: 'primer contacto' });
@@ -127,6 +129,7 @@ test('D3 · salida CON proveedor envía, con Reply-To = la dirección del agente
   const provider = async (payload) => { captured = payload; return { id: 'prov-1' }; };
   const { e, url, dom } = await casa({ provider });
   try {
+    e.email.senders.add(`botsy@${dom}`); // la casa autoriza a este remitente (la salida está cerrada por defecto)
     const bot = Agent.create(`botsy@${dom}`, url, { hosts: { [dom]: { url } } });
     await bot.register({ adminToken: 't' });
     const r = await bot.email({ to: 'humano@ejemplo.com', subject: 'hey', body: 'primer contacto' });
@@ -165,6 +168,7 @@ test('D3 · notify_email: quien registró un correo recibe un aviso cuando le es
     const a = Agent.create(`agentea@${dom}`, url, { hosts: { [dom]: { url } } });
     const b = Agent.create(`agenteb@${dom}`, url, { hosts: { [dom]: { url } } });
     await a.register({ adminToken: 't', notify_email: 'nicholas@gmail.test' });
+    e.email.senders.add(a.address); // el aviso sale como correo del agente: la casa tiene que autorizarlo
     await b.register({ adminToken: 't' });
     await b.send({ to: a.address, body: 'hola a' });
     const until = Date.now() + 6000;
@@ -172,6 +176,24 @@ test('D3 · notify_email: quien registró un correo recibe un aviso cuando le es
     assert.ok(captured, 'se disparó el aviso por email');
     assert.deepEqual(captured.to, ['nicholas@gmail.test']);
     assert.match(captured.subject, /new message/i);
+  } finally { await e.stop(); }
+});
+
+// Cerrado por defecto (11-sep-2026): con el registro abierto, "cualquier agente le escribe a
+// cualquier correo" era un relé de spam con nuestra cuenta de envío y nuestro dominio, y el aviso a
+// una dirección que anotó cualquiera era el mismo relé por la puerta de al lado.
+test('D3 · la salida de correo está cerrada salvo para quien la casa autoriza, y el aviso también', async () => {
+  let enviados = 0;
+  const { e, url, dom } = await casa({ provider: async () => { enviados++; return { id: 'x' }; } });
+  try {
+    const intruso = Agent.create(`intruso@${dom}`, url, { hosts: { [dom]: { url } } });
+    await intruso.register({ adminToken: 't', notify_email: 'victima@ejemplo.com' });
+    await assert.rejects(() => intruso.email({ to: 'victima@ejemplo.com', subject: 'oferta', body: 'spam' }), /outbound email is closed/);
+    const otro = Agent.create(`otroagente@${dom}`, url, { hosts: { [dom]: { url } } });
+    await otro.register({ adminToken: 't' });
+    await otro.send({ to: intruso.address, body: 'esto dispararía el aviso' });
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(enviados, 0, 'ni el correo directo ni el aviso salieron');
   } finally { await e.stop(); }
 });
 

@@ -65,8 +65,15 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
   git). Primera respuesta real en 106 s; costó US$0,657 con Opus 5 y la caché fría, el doble de lo
   estimado. Por decisión de Nicholas pasa a **Sonnet 5** (US$2/US$10 contra US$5/US$25). Nuevo
   `PUT /admin/assistants/<l>/config` que rechaza un modelo sin precio conocido, y el respaldo del
-  servidor (`fallbacks: "default"`) va sólo al modelo donde está documentado.
-- Suite: 213 -> 222.
+  servidor (`fallbacks: "default"`) va sólo al modelo donde está documentado. Medido con Sonnet 5:
+  US$0,26 por pregunta suelta (97 s).
+- **Inspección antes del viaje de Nicholas (un mes desde el 14-sep):** cero secretos en todo el
+  historial de git y en el paquete de npm (0.6.0, al día); dominio vence en 2027-09. Hueco cerrado:
+  con el registro abierto, CUALQUIER agente podía mandarle correo a cualquier persona con nuestra
+  cuenta de Resend y nuestro dominio (directo, o anotando un `notify_email` ajeno y mandándose
+  mensajes). La salida de correo ahora está cerrada salvo `NYX5_EMAIL_SENDERS` (vacío = nadie). La
+  entrada de correo sigue abierta y pasa por la política del buzón.
+- Suite: 213 -> 223.
 
 ### 11-sep-2026 (tarde) — invitaciones, asistentes y el primer contacto real
 - **Primera conversación real** entre el Claude del teléfono de Nicholas (`claude.nico`) y Claude Code

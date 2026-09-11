@@ -104,7 +104,8 @@ export class Estafeta {
     this.tareas = new Tareas(tareas);
     // Puente de correo: entrada siempre disponible si la casa la enciende; salida solo si hay proveedor.
     // `email.provider` es una función async(payload) (ver src/puentes/email.js); sin ella, la salida queda pendiente.
-    this.email = { footer: email.footer === true, enabled: !!(email.enabled || email.provider), provider: email.provider || null };
+    // `senders`: las únicas direcciones que pueden escribirle a una persona por correo. Vacío = cerrado.
+    this.email = { footer: email.footer === true, enabled: !!(email.enabled || email.provider), provider: email.provider || null, senders: new Set((email.senders || []).map((s) => String(s).trim().toLowerCase()).filter(Boolean)) };
     this.extensions = extensions || [
       'urn:nyx5:ext:mcp', 'urn:nyx5:ext:a2a', 'urn:nyx5:ext:libro',
       ...(this.index.enabled ? ['urn:nyx5:ext:indice'] : []),
@@ -1139,6 +1140,10 @@ export class Estafeta {
   // SALIDA: un agente le escribe a una dirección de correo. Con proveedor, se envía (Reply-To = el
   // agente, para que la respuesta vuelva por ENTRADA). Sin proveedor, queda pendiente: no se inventa canal.
   async emailOut({ fromAgent, to, subject, text }) {
+    // Cerrado por defecto (11-sep-2026, revisión antes de que Nicholas se fuera un mes): con el
+    // registro abierto, "cualquier agente le escribe a cualquier correo" era un relé de spam con
+    // nuestra cuenta de envío y nuestro dominio. Sólo escriben las direcciones que la casa autoriza.
+    if (!this.email.senders.has(String(fromAgent || '').toLowerCase())) return { ok: false, code: 403, reason: 'outbound email is closed in this house: only addresses the house authorizes can write to people by email' };
     if (!isEmailAddress(to)) return { ok: false, code: 400, reason: 'invalid email destination' };
     // El pie viaja solo si la casa lo enciende (`email.footer`). Apagado por defecto: el texto
     // que un tercero recibe es decisión del operador de la casa, no del código.
