@@ -26,12 +26,17 @@ src/correo/agente.js     cliente: register (admin|invite|open), rotateKeys, dire
 src/libro/libro.js       kernel: post() y las primitivas (topup, transfer, hold, release, refund), verifyQuote, handle(), stamp()
 src/libro/contratos.js   máquinas de estado sobre el kernel: ops {accept, deliver, release, refund, bond, forfeit, mandate, charge, revoke, balance, statement, contract}; CONTRATOS {spot, escrow, metered, bond}
 src/libro/errores.js     LibroError(code, message)
-src/puentes/mcp.js       servidor MCP por stdio: nyx5_send/inbox/ack/resolve/outbox/directory/search + nyx5_quote/accept/libro/balance/contract
+src/puentes/herramientas.js las 20 herramientas MCP, UN módulo para los dos puentes (MENSAJERIA = las 12 del remoto)
+src/puentes/mcp.js       puente MCP por stdio (la llave del agente en el disco del usuario)
+src/puentes/mcp-remoto.js puente MCP por Streamable HTTP en /mcp (subagente delegado; llave en la bóveda)
+src/puentes/oauth.js     servidor OAuth 2.1 del conector: RFC 9728/8414/7591, PKCE S256, rotación de refresco
+src/nucleo/boveda.js     llaves de subagentes cifradas con NYX5_VAULT_KEY (AES-256-GCM, AAD = dueño)
+src/version.js           la versión que declara el servidor (el edge no lee package.json)
 src/nucleo/almacen-d1.js D1Store: la misma interfaz sobre Cloudflare D1; atomicidad por batch + constraints
 src/nucleo/d1-local.js   emulador de la API D1 sobre node:sqlite (tests y desarrollo local)
 src/plataformas/node.js  adaptador node:http (start() lo usa)
 src/plataformas/worker.js adaptador Cloudflare Workers (fetch + scheduled); config por env
-migrations/000{2,3,4}*.sql   esquema D1, candado del ledger y pins por fila
+migrations/000{2..6}*.sql   esquema D1, candado, pins, eventos, y 0006: nyx5_kv (OAuth + bóveda) e índice de historial
 bin/nyx5.js           CLI
 demo/                    e2e, offline, spam (correo) · contratos (libro) · piloto-d4 (economía de una flota + costo por entrega)
 src/correo/unirse.js     join (alta en un paso) y mandate (tope del humano) como funciones testeables
@@ -41,7 +46,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop · custodia -> `npm test` (192)
+                         puertos (guard de colisión) · x402 · interop · custodia · puente-remoto -> `npm test` (204)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -49,7 +54,9 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 192 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 204 pruebas, todas deben pasar antes de cualquier commit
+node demo/edge-local.mjs # el código del edge sobre NODE (CSP, parseo, HEAD). NO es workerd: ver trampas
+npx wrangler dev --port 8790 --local   # el Worker en workerd REAL (.dev.vars + d1 execute --local)
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -342,3 +349,38 @@ el regalo volvía gratis la única defensa que tiene un buzón contra el spam.
   es la tesis.
 - Los 24 agentes viejos conservan lo suyo: el diario no se reescribe.
 - Un `invite` puede seguir llevando su propio `welcome` para casos puntuales.
+
+**Conector MCP remoto DESPLEGADO Y VERIFICADO EN PRODUCCIÓN (10/11-sep-2026)** — lo que pidió Nicholas:
+"el WhatsApp de los agentes". Cualquier Claude (claude.ai web, Desktop, móvil) agrega
+`https://nyx5.com/mcp` como conector personalizado y queda hablando por Nyx5 sin instalar nada.
+- Aprobado por Nicholas con TRES límites y cada uno tiene prueba en `test/puente-remoto.test.js`:
+  sólo mensajes (`scope.messages_only`: ni Libro, ni estampillas, ni vender; lo niega la casa, no
+  sólo el puente), vence a los 30 días y se revoca (sin resurrección por la gracia de `previous`),
+  y la tarjeta declara `custody.keys = house`. La llave RAÍZ del dueño nunca pasa por la casa: la
+  delegación la firma su navegador en `/oauth/authorize`.
+- El subagente es `claude.<dueño>@<casa>`; su llave vive en `nyx5_kv` (ns `boveda`) cifrada con el
+  secret `NYX5_VAULT_KEY` (copia en `.env` para poder recuperarla; perderla obliga a re-autorizar
+  todos los conectores, no afecta identidades raíz). Por defecto sólo el dueño le escribe (allowlist).
+- Tiempo real: `GET /mailbox/<l>/wait` (espera larga, sondea D1 cada 1 s) y `nyx5_wait`. Medido:
+  0,5 s en workerd local, ~3,4 s en producción incluida la red del remitente. Historial:
+  `GET /conversations/<l>` y `nyx5_conversation`; la bandeja guarda el sobre y el remitente entra
+  al cifrado para poder leer lo que mandó. `GET /resolve/<dir>`: tarjeta verificada para la app.
+- Recorrido completo corrido EN PRODUCCIÓN con identidades `prueba-conector-*`/`prueba-amiga-*`
+  (source `prueba-conector`), subagentes revocados al final. Viven, no se borran.
+
+**La app /app estuvo ROTA en producción hasta el 10-sep-2026**: la CSP decía `default-src 'none'`
+sin `connect-src` y el navegador bloqueaba TODO fetch. Cargaba perfecta y fallaba al primer botón.
+Otra conversación le dijo a Nicholas que "ya funcionaba persona a persona": no funcionaba. Lo cuida
+`superficie.test.js` (si la app hace fetch, la CSP tiene que dejarla). Se verificó en un navegador
+contra nyx5.com, no con curl (la CSP la aplica el navegador, curl no la ve).
+
+**Dos trampas nuevas** (nacieron de defectos reales de este día):
+- `demo/edge-local.mjs` corre el código del edge sobre NODE, no sobre workerd. Sirvió para la CSP y
+  el parseo, y NO podía ver que workerd no tiene `node:crypto.diffieHellman`: el primer mensaje
+  cifrado del Claude remoto falló en producción con todo verde en local. Antes de usar en el edge
+  una primitiva nueva de `node:crypto`, correr `scripts/sonda-workerd.mjs` en `wrangler dev`, y
+  antes de desplegar algo que el edge ejecute por primera vez, correr el recorrido en workerd real.
+  El acuerdo X25519 va por `crypto.subtle` (existe en workerd, navegadores y Node 20+).
+- El invariante 8 tiene una excepción DECLARADA: lo que llega a una dirección con
+  `custody.keys = house` lo lee la casa, porque firma y descifra en su nombre. Está en la tarjeta,
+  en la pantalla de consentimiento y en la Constitución. No extenderlo a identidades raíz.

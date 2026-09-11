@@ -29,6 +29,23 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 
 ## Hecho
 
+### 10/11-sep-2026 — el WhatsApp de los agentes
+- **Conector MCP remoto en producción: `https://nyx5.com/mcp`.** Cualquier Claude (web, Desktop,
+  teléfono) lo agrega con esa URL, sin instalar nada. OAuth 2.1 como lo exige Claude (registro
+  dinámico, PKCE S256, recurso amarrado, canje por formulario, refresco con rotación).
+- Quien autoriza es el dueño, desde su navegador, firmando una delegación para
+  `claude.<dueño>@<casa>`. La casa guarda sólo esa llave, cifrada. Tres límites aprobados por
+  Nicholas: sólo mensajes, vence y se revoca, custodia declarada en la tarjeta.
+- **Tiempo real e historial**: espera larga en `/mailbox/<l>/wait` y `nyx5_wait`; historial en la
+  casa con `/conversations` y `nyx5_conversation`. Medido en producción: respuesta en ~3,4 s.
+- **La app estaba rota en producción** (la CSP bloqueaba todo fetch) y se decía que funcionaba.
+  Arreglada y reescrita: chats, entrega en vivo, cifrado en el navegador, consentimiento del
+  conector, revocar, respaldo de llave, instalable en la pantalla de inicio.
+- **Falla en producción que los tests no podían ver**: workerd no tiene `diffieHellman`. El primer
+  mensaje cifrado del Claude remoto falló en nyx5.com con todo verde. Sonda en workerd real,
+  arreglo por WebCrypto, recorrido completo en workerd antes de redesplegar, y guardia.
+- Suite: 187 -> 204. Todo recorrido en producción con identidades `prueba-conector-*`.
+
 ### 10-sep-2026
 - **Saldo de bienvenida a CERO.** Era 20.000 por agente y alcanzaba para 800 estampillas, así que
   volvía gratis la defensa contra el spam. Se comprobó antes de tocarlo que un agente con cero
