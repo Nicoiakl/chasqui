@@ -38,7 +38,7 @@ import { atenderMcp } from '../puentes/mcp-remoto.js';
 import { abrirBoveda } from '../nucleo/boveda.js';
 import { ICONOS } from '../plataformas/iconos.js';
 import { Agent } from './agente.js';
-import { atenderAsistentes } from './asistente.js';
+import { atenderAsistentes, PRECIOS } from './asistente.js';
 
 const now = () => Date.now();
 const iso = (t = now()) => new Date(t).toISOString();
@@ -499,7 +499,20 @@ export class Estafeta {
     const html = APP_HTML.replace('<!--OAUTH-->', `<script>window.NYX5_INVITE=${JSON.stringify(datos).replace(/</g, '\\u003c')}</script>`);
     return { status: inv ? 200 : 404, contentType: 'text/html; charset=utf-8', body: html };
   }
-  // ---------- asistentes: alta, conocimiento, pausa y estado ----------
+  // ---------- asistentes: alta, conocimiento, config, pausa y estado ----------
+  // Qué se puede configurar y con qué límites. Un modelo sin precio conocido se rechaza: el tope
+  // mensual se calcula con ese precio (PRECIOS en src/correo/asistente.js), y sin él mentiría.
+  _configAsistente(c = {}, base = {}) {
+    const model = c.model ?? base.model ?? 'claude-opus-5';
+    if (!PRECIOS[model]) return { error: `unknown model ${model}; this house knows the price of: ${Object.keys(PRECIOS).join(', ')}` };
+    const effort = c.effort ?? base.effort ?? 'medium';
+    if (!['low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) return { error: 'effort must be low, medium, high, xhigh or max' };
+    const max_tokens = Number(c.max_tokens ?? base.max_tokens ?? 8000);
+    if (!Number.isInteger(max_tokens) || max_tokens < 256 || max_tokens > 64000) return { error: 'max_tokens must be an integer between 256 and 64000' };
+    const budget_usd = Number(c.budget_usd ?? base.budget_usd ?? 30);
+    if (!(budget_usd > 0 && budget_usd <= 1000)) return { error: 'budget_usd must be above 0 and at most 1000' };
+    return { model, effort, max_tokens, budget_usd };
+  }
   async _adminAsistente(rx, local, accion) {
     const b = rx.body || {};
     const indice = async () => (await this.store.kvGet('asistente', '_indice')) || [];
@@ -511,13 +524,15 @@ export class Estafeta {
       if (rec.delegation.scope?.messages_only !== true) return { status: 400, body: { reason: 'an assistant must be messages-only: it answers, it does not move money' } };
       const k = b.keys || {};
       if (k.sig !== rec.sig || !k.sigPriv || !k.enc || !k.encPriv || k.enc !== rec.enc) return { status: 400, body: { reason: 'keys do not match the card of that address' } };
+      const v = this._configAsistente(b.config || {});
+      if (v.error) return { status: 400, body: { reason: v.error } };
       await this.store.kvPut('boveda', l, { sellado: this.boveda.sellar({ sig: k.sig, sigPriv: k.sigPriv, enc: k.enc, encPriv: k.encPriv }, l), root: rec.delegation.by, since: iso() });
       // La tarjeta declara que la casa guarda su llave, igual que la de un Claude conectado.
       const { certification: _c, webhook, notify_email, ...cuerpo } = rec;
       const card = signObject({ ...cuerpo, custody: { keys: 'house', via: 'assistant', since: iso() } }, this.keys, 'certification');
       await this.store.putAgent(l, { ...card, webhook, notify_email });
       const c = b.config || {};
-      const cfg = { local: l, owner: rec.delegation.by, model: c.model || 'claude-opus-5', effort: c.effort || 'medium', max_tokens: Number(c.max_tokens) || 8000, budget_usd: Number(c.budget_usd) || 30, persona: String(c.persona || ''), enabled: true, created: iso() };
+      const cfg = { local: l, owner: rec.delegation.by, ...v, persona: String(c.persona || ''), enabled: true, created: iso() };
       await this.store.kvPut('asistente', l, cfg);
       const i = await indice();
       if (!i.includes(l)) await this.store.kvPut('asistente', '_indice', [...i, l]);
@@ -531,6 +546,15 @@ export class Estafeta {
       if (!texto || Buffer.byteLength(texto) > 1_500_000) return { status: 400, body: { reason: 'knowledge must be text up to 1.5 MB' } };
       await this.store.kvPut('asistente-conocimiento', local, { texto, updated: iso() });
       return { status: 200, body: { bytes: Buffer.byteLength(texto), updated: iso() } };
+    }
+    // Cambiar modelo, esfuerzo, tope o persona sin volver a dar de alta (11-sep-2026: Nicholas pidió
+    // un modelo más barato para el agente de Sigo). Lo que no se manda, queda como estaba.
+    if (rx.method === 'PUT' && accion === 'config') {
+      const v = this._configAsistente(b, cfg);
+      if (v.error) return { status: 400, body: { reason: v.error } };
+      const nueva = { ...cfg, ...v, ...(typeof b.persona === 'string' ? { persona: b.persona } : {}), updated: iso() };
+      await this.store.kvPut('asistente', local, nueva);
+      return { status: 200, body: { model: nueva.model, effort: nueva.effort, max_tokens: nueva.max_tokens, budget_usd: nueva.budget_usd } };
     }
     if (rx.method === 'POST' && (accion === 'pause' || accion === 'resume')) {
       await this.store.kvPut('asistente', local, { ...cfg, enabled: accion === 'resume' });
@@ -1152,7 +1176,7 @@ export class Estafeta {
       if (this.remoto.enabled && rx.method === 'POST' && path === '/contact-invites') return this.crearInvitacion(rx);
       if (this.remoto.enabled && rx.method === 'GET' && (m = /^\/i\/([A-Za-z0-9_-]{16,64})$/.exec(path))) return this._paginaInvitacion(m[1]);
       // ----- Asistentes (sólo la casa los configura; el dueño los pide) -----
-      if ((m = /^\/admin\/assistants(?:\/([^/]+))?(?:\/(knowledge|pause|resume))?$/.exec(path))) {
+      if ((m = /^\/admin\/assistants(?:\/([^/]+))?(?:\/(knowledge|config|pause|resume))?$/.exec(path))) {
         if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house configures assistants' });
         return this._adminAsistente(rx, m[1] ? decodeURIComponent(m[1]).toLowerCase() : null, m[2] || null);
       }

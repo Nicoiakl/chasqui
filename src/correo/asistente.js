@@ -22,7 +22,16 @@ import { parseAddress } from './resolver.js';
 export const API_MENSAJES = 'https://api.anthropic.com/v1/messages';
 // Dólares por millón de tokens. La escritura en caché de 5 minutos cuesta 1,25x la entrada y la
 // lectura 0,1x. Si la API responde con otro modelo (respaldo ante un rechazo), se cobra igual.
-export const PRECIOS = { 'claude-opus-5': { entrada: 5, salida: 25, escrituraCache: 6.25, lecturaCache: 0.5 } };
+// Un modelo que no está aquí NO se puede configurar (la alta y el cambio de config lo rechazan):
+// sin su precio el tope mensual se calcularía con el de otro.
+export const PRECIOS = {
+  'claude-opus-5': { entrada: 5, salida: 25, escrituraCache: 6.25, lecturaCache: 0.5 },
+  'claude-sonnet-5': { entrada: 2, salida: 10, escrituraCache: 2.5, lecturaCache: 0.2 },
+};
+// Modelos cuyo respaldo del servidor (`fallbacks: "default"`, beta server-side-fallback-2026-07-01)
+// está documentado. A otro modelo no se le manda: si la API no lo aceptara, CADA pregunta fallaría.
+// Sin respaldo, un rechazo llega como stop_reason "refusal" y se contesta como rechazo.
+export const CON_RESPALDO = new Set(['claude-opus-5']);
 const SISTEMA = new Set(['postmaster', 'libro', 'verifica', 'tareas']);
 const mesDe = (t = Date.now()) => new Date(t).toISOString().slice(0, 7);
 
@@ -110,13 +119,14 @@ async function responder(est, local, cfg, m) {
     output_config: { effort: cfg.effort || 'medium' },
     system: [{ type: 'text', text: cfg.persona || '' }, ...(conocimiento ? [{ type: 'text', text: conocimiento, cache_control: { type: 'ephemeral' } }] : [])],
     messages: mensajes,
-    // Si un clasificador de seguridad rechaza la pregunta, la API la corre en otro modelo en vez de
-    // devolver un rechazo; un rechazo final llega igual como stop_reason "refusal".
-    fallbacks: 'default',
   };
+  // Si un clasificador de seguridad rechaza la pregunta, la API la corre en otro modelo en vez de
+  // devolver un rechazo; un rechazo final llega igual como stop_reason "refusal".
+  const respaldo = CON_RESPALDO.has(cuerpo.model);
+  if (respaldo) cuerpo.fallbacks = 'default';
   const r = await est.asistente.fetch(API_MENSAJES, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': est.asistente.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'server-side-fallback-2026-07-01' },
+    headers: { 'content-type': 'application/json', 'x-api-key': est.asistente.apiKey, 'anthropic-version': '2023-06-01', ...(respaldo ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}) },
     body: JSON.stringify(cuerpo),
   });
   const j = await r.json().catch(() => ({}));

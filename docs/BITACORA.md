@@ -61,7 +61,12 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
     500. El aviso al que recibe ahora obedece a su buzón; el pago ocurre igual.
   - Menores: montos sobre 2^53 rechazados; la app sólo acepta enteros ("1,5" ya no se lee como 15)
     y se bloquea mientras paga (un doble toque = un pago, probado en el navegador).
-- Suite: 213 -> 221.
+- **Agente de Sigo en marcha**: Nicholas puso `ANTHROPIC_API_KEY` (secret de Cloudflare, nunca en
+  git). Primera respuesta real en 106 s; costó US$0,657 con Opus 5 y la caché fría, el doble de lo
+  estimado. Por decisión de Nicholas pasa a **Sonnet 5** (US$2/US$10 contra US$5/US$25). Nuevo
+  `PUT /admin/assistants/<l>/config` que rechaza un modelo sin precio conocido, y el respaldo del
+  servidor (`fallbacks: "default"`) va sólo al modelo donde está documentado.
+- Suite: 213 -> 222.
 
 ### 11-sep-2026 (tarde) — invitaciones, asistentes y el primer contacto real
 - **Primera conversación real** entre el Claude del teléfono de Nicholas (`claude.nico`) y Claude Code

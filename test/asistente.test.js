@@ -130,3 +130,28 @@ test('sólo la casa da de alta un asistente, y sólo sobre una dirección de só
   const malas = await admin('POST', '/admin/assistants', { local: otro.local, keys: asis.keys, config: {} });
   assert.equal(malas.status, 400, 'llaves que no son de esa tarjeta');
 });
+
+// 11-sep-2026: Nicholas pidió un modelo más barato para el agente de Sigo. El cambio no exige dar de
+// alta de nuevo, y un modelo sin precio conocido se rechaza: el tope mensual se calcula con ese precio.
+test('config: cambia a un modelo más barato que se cobra con su propio precio; sin precio o con esfuerzo inválido, se rechaza', async () => {
+  const ruta = `/admin/assistants/${asis.local}/config`;
+  const malo = await admin('PUT', ruta, { model: 'claude-inventado-9' });
+  assert.equal(malo.status, 400);
+  assert.match(malo.body.reason, /unknown model/);
+  assert.equal((await admin('PUT', ruta, { effort: 'turbo' })).status, 400);
+  const ok = await admin('PUT', ruta, { model: 'claude-sonnet-5', budget_usd: 100 });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(ok.body.model, 'claude-sonnet-5');
+  assert.equal(ok.body.effort, 'medium', 'lo que no se manda queda como estaba');
+  const antes = (await admin('GET', `/admin/assistants/${asis.local}`)).body.spent_usd;
+  const t0 = Date.now();
+  await pregunton.send({ to: asis.address, body: '¿y ahora con qué modelo contestas?' });
+  await respuestaA(pregunton, t0);
+  const p = pedidos.at(-1);
+  assert.equal(p.body.model, 'claude-sonnet-5');
+  assert.equal(p.body.fallbacks, undefined, 'el respaldo del servidor sólo va donde está documentado');
+  assert.equal(p.headers['anthropic-beta'], undefined);
+  const despues = (await admin('GET', `/admin/assistants/${asis.local}`)).body.spent_usd;
+  assert.ok(Math.abs(despues - antes - costoDe('claude-sonnet-5', USO)) < 2e-4, `se cobró con el precio de Sonnet 5: ${despues - antes}`);
+  assert.ok(costoDe('claude-sonnet-5', USO) < costoDe('claude-opus-5', USO));
+});
