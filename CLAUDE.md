@@ -41,7 +41,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop -> `npm test` (186)
+                         puertos (guard de colisión) · x402 · interop · custodia -> `npm test` (192)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -49,7 +49,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 186 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 192 pruebas, todas deben pasar antes de cualquier commit
 npm run demo             # correo: tarea cifrada, respuesta, acuse
 npm run demo:offline     # correo: destino apagado, cola, reintento
 npm run demo:spam        # correo: firmas falsas, allowlist, pow, duplicados
@@ -61,6 +61,17 @@ node bin/nyx5.js      # ayuda de la CLI
 ```
 
 Node 20+. **Cero dependencias**: no agregues paquetes npm sin una razón que no pueda resolverse con `node:` builtins.
+
+## La Constitución manda sobre el rumbo
+
+Las decisiones de PROPÓSITO, alcance y modelo de negocio viven en `CONSTITUCION-NYX5.md`, un
+documento local **fuera de este repositorio** (es público; ahí hay decisiones de negocio). Está en
+el directorio padre del clon de Nicholas y respaldado en su Drive; la memoria del proyecto lo
+indexa como `nyx5-constitucion`.
+
+Este archivo dice CÓMO se construye. La Constitución dice QUÉ se construye y qué no. Antes de
+proponer un cambio de rumbo — cobrar, abrir el registro, custodiar algo, agregar una red — se lee.
+Sus invariantes no se cambian sin decisión explícita de Nicholas, anotada con fecha y razón.
 
 ## Invariantes (no se rompen; si una tarea los toca, para y pregunta)
 

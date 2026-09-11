@@ -107,3 +107,23 @@ test('ningún mensaje que sale al usuario quedó en español', () => {
   }
   assert.deepEqual(sospechosos, [], `mensajes en español que ve el usuario:\n  ${sospechosos.join('\n  ')}`);
 });
+
+// Cero dependencias es una promesa del README, del CLAUDE.md y de la Constitución, y hasta hoy
+// no la vigilaba nada: `dependencies: {}` era verdad por costumbre. Un `npm install` distraído
+// la volvía mentira en silencio, y ninguna prueba se enteraba.
+test('el paquete no tiene ni una dependencia de npm', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(raiz, 'package.json'), 'utf8'));
+  const runtime = Object.keys(pkg.dependencies || {});
+  assert.deepEqual(runtime, [], `cero dependencias es una promesa pública; aparecieron: ${runtime.join(', ')}`);
+  assert.deepEqual(Object.keys(pkg.peerDependencies || {}), [], 'una peerDependency también obliga a instalar');
+  assert.deepEqual(Object.keys(pkg.optionalDependencies || {}), [], 'una optionalDependency igual entra al árbol');
+  // El árbol instalado tiene que decir lo mismo que el manifiesto: un paquete metido a mano
+  // sin guardar en package.json funciona en esta máquina y falla en la de cualquier otro.
+  const mods = path.join(raiz, 'node_modules');
+  if (fs.existsSync(mods)) {
+    const dev = new Set(Object.keys(pkg.devDependencies || {}));
+    const sueltos = fs.readdirSync(mods)
+      .filter((d) => !d.startsWith('.') && !d.startsWith('@') && !dev.has(d));
+    assert.deepEqual(sueltos, [], `node_modules trae paquetes que package.json no declara: ${sueltos.join(', ')}`);
+  }
+});
