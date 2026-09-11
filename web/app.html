@@ -57,6 +57,7 @@ button:disabled{opacity:.4}
 .row{display:flex;gap:.55rem;align-items:flex-end}
 .row textarea{min-height:2.7rem;max-height:120px;border-radius:22px;padding:.7rem 1rem}
 .row button{width:auto;margin-top:0;padding:.7rem 1.15rem;border-radius:22px;flex-shrink:0}
+#btn-tokens{width:auto;margin:0 0 .6rem;padding:.45rem .95rem;border-radius:18px;font-size:.9rem;font-weight:500}
 .back{background:none;color:var(--faience);width:auto;margin:0;padding:0 .4rem 0 0;font-size:1.4rem;line-height:1;font-weight:400}
 nav.tabs{display:flex;border-top:1px solid var(--line);background:var(--bg);padding-bottom:env(safe-area-inset-bottom)}
 nav.tabs button{flex:1;background:none;color:var(--dim);margin:0;border-radius:0;padding:.85rem;font-weight:500}
@@ -154,6 +155,7 @@ textarea.backup{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;min-he
   <section id="chat" class="col" hidden>
     <div class="feed" id="feed"></div>
     <div class="compose">
+      <button id="btn-tokens" class="btn2" hidden>Send tokens</button>
       <div class="row">
         <textarea id="texto" placeholder="Write a message..." rows="1"></textarea>
         <button id="btn-enviar">Send</button>
@@ -165,6 +167,9 @@ textarea.backup{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;min-he
     <label>Your address</label>
     <p class="mono" id="aj-dir"></p>
     <button class="btn2 btn-min" id="btn-copiar-dir">Copy</button>
+    <label>Tokens</label>
+    <p class="mono" id="aj-saldo"></p>
+    <p class="hint" style="margin-top:0">Nyx5 credits, not money. To send some to someone, open your chat with them and tap Send tokens. Sending to a person is free.</p>
     <div class="aviso" id="aj-instalar"></div>
     <label>Claude on your phone or computer</label>
     <p class="hint" style="margin-top:0">In Claude, open Settings, then Connectors, and add a custom connector with this URL. Claude will send you back here to allow it.</p>
@@ -336,11 +341,36 @@ async function enviar(to, texto) {
   } else sobre.content = contenido;
   return api('POST', '/outbound', await firmaObjeto(sobre));
 }
-function textoDe(c) { if (!c) return '(empty)'; const b = c.body; if (typeof b === 'string') return b; if (b && typeof b.saludo === 'string') return b.saludo; return JSON.stringify(b, null, 1); }
+// Tokens: a signed operation to libro@ of this house. Between people there is no fee.
+async function pagar(to, monto) {
+  const sobre = { nyx5: '1', id: crypto.randomUUID(), from: ID.address, to: ['libro@' + DOMINIO], created: iso(), expires: null, thread: null, in_reply_to: null, type: 'task', content: { media: 'application/nyx5.libro+json', body: { op: 'pay', to, amount: monto } } };
+  return api('POST', '/outbound', await firmaObjeto(sobre));
+}
+async function saldo() { return (await api('GET', '/libro/cuenta/' + encodeURIComponent(ID.address))).balance; }
+// Only a person of this house can receive: a Claude that only carries messages could never spend it.
+async function recibeTokens(dir) {
+  if (!dir || dir === ID.address || ['libro', 'postmaster'].includes(localDe(dir)) || dir.split('@')[1] !== DOMINIO) return false;
+  try { const c = await tarjeta(dir); return !(c.delegation && c.delegation.scope && c.delegation.scope.messages_only); } catch { return false; }
+}
+function textoDe(c, de) {
+  if (!c) return '(empty)';
+  const b = c.body;
+  if (typeof b === 'string') return b;
+  if (b && typeof b.saludo === 'string') return b.saludo;
+  // Receipts read as sentences ONLY when the house's own libro@ signed them (the house verified the
+  // signature before storing). Anyone can write a message shaped like a receipt: it stays raw JSON.
+  if (de === 'libro@' + DOMINIO && b && b.pay && Number.isInteger(b.pay.amount)) {
+    const n = b.pay.amount.toLocaleString() + ' tokens';
+    return b.pay.to === ID.address ? b.pay.from + ' sent you ' + n + '.' : 'You sent ' + n + ' to ' + b.pay.to + '.';
+  }
+  if (de === ID.address && b && b.op === 'pay' && Number.isInteger(b.amount)) return 'Payment order: ' + b.amount.toLocaleString() + ' tokens to ' + b.to + '.';
+  if (de === 'postmaster@' + DOMINIO && b && typeof b.reason === 'string') return 'Not done: ' + b.reason;
+  return JSON.stringify(b, null, 1);
+}
 async function abrir(m) {
   const e = m.envelope || {};
-  if (e.encrypted) { try { return { texto: textoDe(await descifrar(e)), cifrado: true }; } catch { return { texto: 'Encrypted, and this device has no key to open it.', cifrado: true, ilegible: true }; } }
-  return { texto: textoDe(e.content), cifrado: false };
+  if (e.encrypted) { try { return { texto: textoDe(await descifrar(e), e.from), cifrado: true }; } catch { return { texto: 'Encrypted, and this device has no key to open it.', cifrado: true, ilegible: true }; } }
+  return { texto: textoDe(e.content, e.from), cifrado: false };
 }
 function hora(t) {
   const d = new Date(t); if (isNaN(d)) return '';
@@ -374,6 +404,8 @@ async function abrirChat(dir) {
   CON = dir;
   pantalla('chat');
   $('titulo').textContent = dir; $('titulo').classList.add('dir');
+  $('btn-tokens').hidden = true;
+  recibeTokens(dir).then((si) => { if (CON === dir) $('btn-tokens').hidden = !si; });
   $('feed').innerHTML = '<div class="vacio"><span class="spin"></span></div>';
   await refrescarChat();
 }
@@ -445,6 +477,8 @@ async function verAjustes() {
   $('aj-mcp').textContent = CASA + '/mcp';
   pintarInstalar($('aj-instalar'), true);
   $('txt-respaldo').hidden = true;
+  $('aj-saldo').textContent = '...';
+  saldo().then((b) => { $('aj-saldo').textContent = Number(b || 0).toLocaleString() + ' tokens'; }, () => { $('aj-saldo').textContent = 'Not available right now'; });
   const cont = $('aj-conectados');
   cont.innerHTML = '';
   let dels = [];
@@ -556,6 +590,17 @@ $('btn-enviar').onclick = async () => {
 };
 $('texto').addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; });
 $('texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('btn-enviar').click(); } });
+$('btn-tokens').onclick = async () => {
+  const dir = CON; if (!dir) return;
+  let tengo = null; try { tengo = await saldo(); } catch {}
+  const r = prompt('How many tokens do you want to send to ' + dir + '?' + (tengo != null ? ' You have ' + tengo.toLocaleString() + '.' : ''));
+  if (r === null) return;
+  const n = Number(String(r).replace(/[.,\s]/g, ''));
+  if (!Number.isInteger(n) || n <= 0) return toast('Write a whole number of tokens', true);
+  if (tengo != null && n > tengo) return toast('You have ' + tengo.toLocaleString() + ' tokens', true);
+  if (!confirm('Send ' + n.toLocaleString() + ' tokens to ' + dir + '? It cannot be undone.')) return;
+  try { await pagar(dir, n); toast('Sent. The receipt arrives from libro@' + DOMINIO); } catch (e) { toast(e.message, true); }
+};
 $('btn-nuevo').onclick = async () => {
   const d = (prompt('Who do you want to write to? (full address)') || '').trim().toLowerCase();
   if (!d) return;

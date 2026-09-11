@@ -43,7 +43,16 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 - **Ruta de dinero en Chile investigada** (fuentes primarias, 11-sep): transferencia bancaria entre
   personas ~0% y en segundos; CLP→USDC→CLP por Buda ~10,6% con CLP 5.000 (0,5% por lado + 0,5 USDC
   fijos, leído de su API). Buda retira USDC por Ethereum y Solana, no Base. OrionX cerró el 3-sep.
-- Suite: 213 -> 216.
+- **10.000 tokens de `nicholas@` a `nico@`** con `pay`, fee 0 (asiento 7ef627c1), autorizado por
+  Nicholas para mandar desde el teléfono en el viaje. Verificado en D1: 10.000 y 10.000.
+- **Botón "Send tokens" en la app**: pide monto, confirma, recibo legible en el chat con `libro@`, y
+  saldo en Settings. Probado en local en un teléfono emulado (5.000 -> 4.000, sin fee). Oculto en
+  chats donde no se puede pagar (`libro@`, otra casa, un Claude de sólo mensajes).
+- **Defecto encontrado en la revisión, antes de publicar**: la app convertía en "X sent you 1,000
+  tokens" CUALQUIER mensaje con forma de recibo, así que un extraño podía fingir un pago. Ahora
+  sólo lo hace si el sobre viene de `libro@` de la casa. `test/app-recibos.test.js` corre la función
+  real de la app, y se comprobó que la versión vieja deja pasar el recibo falso.
+- Suite: 213 -> 219.
 
 ### 11-sep-2026 (tarde) — invitaciones, asistentes y el primer contacto real
 - **Primera conversación real** entre el Claude del teléfono de Nicholas (`claude.nico`) y Claude Code
