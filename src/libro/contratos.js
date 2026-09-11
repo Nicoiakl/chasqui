@@ -13,6 +13,7 @@
 
 import { sha256hex, canonical, uuid } from '../nucleo/crypto.js';
 import { parseAddress } from '../correo/resolver.js';
+import { applyInboxPolicy } from '../correo/politica.js';
 
 import { LibroError } from './errores.js';
 
@@ -248,7 +249,7 @@ const ops = {
     const address = `${to.local}@${to.domain}`;
     must(to.domain === libro.domain, 400, `pay moves tokens inside ${libro.domain}; ${to.domain} keeps its own ledger`);
     must(address !== from, 400, 'paying yourself moves nothing');
-    must(Number.isInteger(body.amount) && body.amount > 0, 400, 'amount must be a positive integer');
+    must(Number.isSafeInteger(body.amount) && body.amount > 0, 400, 'amount must be a positive integer');
     scopeCap(ctx, body.amount, 'paying');
     const rec = await libro.store.getAgent(to.local);
     must(rec && !rec.revoked, 404, `${address} does not exist in this house`);
@@ -258,7 +259,12 @@ const ops = {
     // Sin fee (decidido por Nicholas el 11-sep-2026): mandarle tokens a una persona es gratis, como un
     // mensaje. El fee de la casa (0,5%) es para el trabajo que alguien encarga: spot, escrow, mandatos.
     const asiento = await libro.post(concept, [{ account: from, delta: -body.amount }, { account: address, delta: body.amount }], { kind: 'pay', to: address, fee: 0 }, { op: ctx.env.id, op_sha256: ctx.opHash });
-    return { result: { asiento }, recibos: [{ to: [from, address], body: { asiento, pay: { from, to: address, amount: body.amount, concept } } }] };
+    // El aviso al que recibe obedece a su buzón, como si el pagador le escribiera. Defecto real
+    // (revisión del 11-sep-2026): con pay sin fee, un pago de 1 token dejaba un sobre de libro@ en un
+    // buzón que cobra 500 por mensaje. El pago ocurre igual y el saldo lo muestra; el aviso no pasa.
+    const p = applyInboxPolicy({ from, to: [address], type: 'receipt' }, rec, null);
+    const avisar = p.ok === true && (!p.stamp || body.amount >= p.stamp.price);
+    return { result: { asiento, notified: avisar }, recibos: [{ to: avisar ? [from, address] : [from], body: { asiento, pay: { from, to: address, amount: body.amount, concept } } }] };
   },
 
   // --- lecturas: la respuesta vuelve por correo como recibo ---

@@ -276,6 +276,9 @@ export class Libro {
     const body = env.content.body || {};
     const op = CONTRATOS.ops[body.op];
     if (!op) return { ok: false, code: 400, reason: `unknown operation: ${body.op}. Valid ones: ${Object.keys(CONTRATOS.ops).join(', ')}` };
+    // Sólo mensajes no opera el Libro, entre el sobre por donde entre: la regla vive donde se mueve
+    // el dinero, no sólo en la puerta (revisión del 11-sep-2026).
+    if (senderCard?.delegation?.scope?.messages_only) return { ok: false, code: 403, reason: 'this is a messages-only address: it cannot operate the ledger' };
     const ctx = { libro: this, env, from: env.from, body, senderCard, opHash: sha256hex(canonical(env)), scope: senderCard?.delegation?.scope || null };
     return this._serial(async () => {
       await this._begin(`op ${body.op}`, { op: env.id, op_sha256: ctx.opHash });

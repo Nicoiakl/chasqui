@@ -6,8 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
-import { Libro, LibroError } from '../src/libro/libro.js';
-import { sha256hex } from '../src/nucleo/crypto.js';
+import { randomUUID } from 'node:crypto';
+import { Libro, LibroError, MEDIA } from '../src/libro/libro.js';
+import { sha256hex, signObject } from '../src/nucleo/crypto.js';
 
 const P1 = 4111, P2 = 4112, H = 'alfa.test';
 const hosts = { 'alfa.test': { url: `http://127.0.0.1:${P1}` }, 'beta.test': { url: `http://127.0.0.1:${P2}` } };
@@ -284,4 +285,46 @@ test('pay: firma el que paga, el que recibe no hace nada, los dos reciben el rec
   assert.match(await rechazo(nicolas, { to: vendedor.address, amount: 1.5 }), /positive integer/);
   assert.match(await rechazo(nicolas, { amount: 1 }), /needs "to"/);
   assert.equal(await bal(nicolas.address), antesN - 100, 'ningún rechazo movió saldo');
+});
+
+// Defecto real (revisión del 11-sep-2026): los límites de un delegado sólo se aplicaban en /outbound.
+// Un subagente de sólo mensajes pagaba entregando su sobre firmado directo a /inbound, que es público
+// porque por ahí entra la federación. Ahora lo niegan las dos puertas y el propio Libro.
+test('un subagente de sólo mensajes no mueve tokens aunque entregue su sobre directo a /inbound', async () => {
+  const bot = await nicolas.delegate('bot', { scope: { messages_only: true } });
+  const tipos = await nicolas.delegate('tipos', { scope: { types: ['message'] } });
+  await alfa.libro.topup(bot.address, 500, 'carga de prueba');
+  const antes = [await bal(bot.address), await bal(vendedor.address)];
+  const sobre = (quien, to, type, content) => signObject({ nyx5: '1', id: randomUUID(), from: quien.address, to: [to], created: new Date().toISOString(), expires: null, thread: null, in_reply_to: null, type, content }, quien.keys);
+  const pago = { media: MEDIA.op, body: { op: 'pay', to: vendedor.address, amount: 100 } };
+  for (const type of ['task', 'message']) {
+    const r = await alfa.inbound(sobre(bot, `libro@${H}`, type, pago));
+    assert.equal(r.ok, false, `entró como ${type}: ${JSON.stringify(r)}`);
+    assert.match(r.reason, /messages-only/);
+  }
+  // Si algún día otra puerta se olvida, el Libro lo niega en su propia entrada.
+  const k = await alfa.libro.handle(sobre(bot, `libro@${H}`, 'task', pago), await alfa.store.getAgent(bot.local));
+  assert.equal(k.code, 403, JSON.stringify(k));
+  // Los otros límites de un delegado también valen en /inbound, no sólo en /outbound.
+  const t = await alfa.inbound(sobre(tipos, vendedor.address, 'task', { media: 'text/plain', body: 'hola' }));
+  assert.match(String(t.reason), /solo puede enviar type message/);
+  assert.deepEqual([await bal(bot.address), await bal(vendedor.address)], antes, 'nadie movió nada');
+});
+
+// Defecto real (revisión del 11-sep-2026): con pay sin fee, un pago de 1 token dejaba un sobre de
+// libro@ en un buzón que cobra 500 por mensaje. El aviso ahora obedece al buzón del que recibe.
+test('pay: el aviso al que recibe obedece a su buzón; un pago chico no es la puerta trasera de uno que cobra', async () => {
+  const caro = Agent.create(`buzon-caro@${H}`, hosts[H].url, { hosts });
+  await caro.register({ adminToken: 'a', inbox: { policy: 'stamp', price: 500 } });
+  await alfa.libro.topup(nicolas.address, 1000, 'carga');
+  const antesCaro = await bal(caro.address);
+  const chico = await nicolas.pay(H, { to: caro.address, amount: 1 });
+  assert.equal((await nicolas.awaitReceipt(chico.id)).receipt.pay.amount, 1, 'el que paga sí recibe su recibo');
+  const grande = await nicolas.pay(H, { to: caro.address, amount: 500 });
+  await nicolas.awaitReceipt(grande.id);
+  const avisos = (await caro.inbox({ limit: 200 })).map((m) => m.envelope || m).filter((e) => e.from === `libro@${H}`);
+  assert.deepEqual(avisos.map((e) => e.in_reply_to), [grande.id], 'sólo llega el aviso del pago que alcanza la estampilla');
+  assert.equal(await bal(caro.address), antesCaro + 501, 'los dos pagos ocurrieron');
+  // Un monto fuera de los enteros exactos se rechaza antes de mirar el saldo.
+  assert.match((await bounce(nicolas, (await nicolas.pay(H, { to: caro.address, amount: 1e300 })).id)).reason, /positive integer/);
 });

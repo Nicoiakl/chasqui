@@ -603,22 +603,30 @@ export class Estafeta {
   }
 
   // ---------- salida: el agente entrega un sobre a su estafeta ----------
+  // Los límites de un delegado (types, to_domains, sólo mensajes) valen por DONDE entre el sobre.
+  // Defecto real (11-sep-2026, revisión antes de publicar el botón de tokens): sólo se aplicaban en
+  // /outbound, y un subagente de sólo mensajes pagaba entregando su sobre firmado directo a /inbound,
+  // que es público porque por ahí entra la federación. Ahora los aplican las dos puertas y el Libro.
+  _limiteDeAlcance(env, scope) {
+    if (!scope) return null;
+    if (scope.types?.length && !scope.types.includes(env.type)) return `agente delegado: solo puede enviar type ${scope.types.join('|')}`;
+    if (scope.to_domains?.length && !env.to.every((t) => scope.to_domains.includes(parseAddress(t).domain))) return `agente delegado: solo puede escribir a ${scope.to_domains.join(', ')}`;
+    // Sólo mensajes: la dirección que guarda la casa para el Claude de un teléfono no toca el Libro
+    // ni paga estampillas. Aunque el puente no le ofrezca esas herramientas, la casa lo niega igual.
+    if (scope.messages_only) {
+      if (!['message', 'result', 'receipt'].includes(env.type)) return 'this is a messages-only address: it can send message, result or receipt';
+      if (env.to.some((t) => parseAddress(t).local === 'libro')) return 'this is a messages-only address: it cannot operate the ledger';
+      if (env.stamp) return 'this is a messages-only address: it cannot pay stamps';
+    }
+    return null;
+  }
   async outbound(env, submitter) {
     const v = validateEnvelope(env, { maxBytes: this.policy.max_bytes });
     if (!v.ok) return v;
     if (env.from !== submitter.address) return { ok: false, code: 403, reason: 'from does not match the authenticated agent' };
     if (env.signature.kid !== submitter.record.sig || !verifyObject(env, submitter.record.sig)) return { ok: false, code: 403, reason: 'invalid envelope signature' };
-    const scope = submitter.record.delegation?.scope;
-    if (scope?.types?.length && !scope.types.includes(env.type)) return { ok: false, code: 403, reason: `agente delegado: solo puede enviar type ${scope.types.join('|')}` };
-    if (scope?.to_domains?.length && !env.to.every((t) => scope.to_domains.includes(parseAddress(t).domain))) return { ok: false, code: 403, reason: `agente delegado: solo puede escribir a ${scope.to_domains.join(', ')}` };
-    // Sólo mensajes: la dirección que guarda la casa para el Claude de un teléfono no toca el Libro
-    // ni paga estampillas. Aunque el puente no le ofrezca esas herramientas, la casa lo niega igual:
-    // el límite vive donde se ejecuta, no en lo que se muestra.
-    if (scope?.messages_only) {
-      if (!['message', 'result', 'receipt'].includes(env.type)) return { ok: false, code: 403, reason: 'this is a messages-only address: it can send message, result or receipt' };
-      if (env.to.some((t) => parseAddress(t).local === 'libro')) return { ok: false, code: 403, reason: 'this is a messages-only address: it cannot operate the ledger' };
-      if (env.stamp) return { ok: false, code: 403, reason: 'this is a messages-only address: it cannot pay stamps' };
-    }
+    const fuera = this._limiteDeAlcance(env, submitter.record.delegation?.scope);
+    if (fuera) return { ok: false, code: 403, reason: fuera };
 
     const byDomain = new Map();
     for (const to of env.to) { const { domain } = parseAddress(to); byDomain.set(domain, [...(byDomain.get(domain) || []), to]); }
@@ -863,6 +871,8 @@ export class Estafeta {
     catch (e) { return { ok: false, code: e.permanent ? 403 : 421, reason: `could not verify the sender: ${e.message}` }; }
     const validKids = Resolver.acceptedKids(senderCard);
     if (!validKids.includes(env.signature.kid) || !verifyObject(env, env.signature.kid)) return { ok: false, code: 403, reason: 'the envelope signature does not match the sender' };
+    const fuera = this._limiteDeAlcance(env, senderCard.delegation?.scope);
+    if (fuera) return { ok: false, code: 403, reason: fuera };
 
     // Firma de relay (segunda capa: la estafeta emisora también firma, análogo a SPF/DKIM)
     const { domain: fromDomain } = parseAddress(env.from);

@@ -52,7 +52,16 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
   tokens" CUALQUIER mensaje con forma de recibo, así que un extraño podía fingir un pago. Ahora
   sólo lo hace si el sobre viene de `libro@` de la casa. `test/app-recibos.test.js` corre la función
   real de la app, y se comprobó que la versión vieja deja pasar el recibo falso.
-- Suite: 213 -> 219.
+- **Revisión adversarial independiente (agente cto), dos hallazgos probados y cerrados:**
+  - ALTO: los límites de un delegado (sólo mensajes, types, to_domains) sólo se aplicaban en
+    `/outbound`. Un subagente de sólo mensajes pagaba entregando su sobre directo a `/inbound`, que
+    es público por la federación. Ahora los aplican las dos puertas y el Libro en su propia entrada.
+    Reproducido antes del arreglo: el bot pagó 100.
+  - MEDIO: con `pay` sin fee, un pago de 1 token dejaba un aviso de `libro@` en un buzón que cobra
+    500. El aviso al que recibe ahora obedece a su buzón; el pago ocurre igual.
+  - Menores: montos sobre 2^53 rechazados; la app sólo acepta enteros ("1,5" ya no se lee como 15)
+    y se bloquea mientras paga (un doble toque = un pago, probado en el navegador).
+- Suite: 213 -> 221.
 
 ### 11-sep-2026 (tarde) — invitaciones, asistentes y el primer contacto real
 - **Primera conversación real** entre el Claude del teléfono de Nicholas (`claude.nico`) y Claude Code

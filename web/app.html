@@ -590,17 +590,26 @@ $('btn-enviar').onclick = async () => {
 };
 $('texto').addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; });
 $('texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('btn-enviar').click(); } });
+// Disabled while it works: a second tap during a payment must not become a second payment.
 $('btn-tokens').onclick = async () => {
-  const dir = CON; if (!dir) return;
+  const dir = CON, btn = $('btn-tokens'); if (!dir || btn.disabled) return;
+  btn.disabled = true;
+  try { await enviarTokens(dir); } finally { btn.disabled = false; }
+};
+async function enviarTokens(dir) {
   let tengo = null; try { tengo = await saldo(); } catch {}
   const r = prompt('How many tokens do you want to send to ' + dir + '?' + (tengo != null ? ' You have ' + tengo.toLocaleString() + '.' : ''));
   if (r === null) return;
-  const n = Number(String(r).replace(/[.,\s]/g, ''));
-  if (!Number.isInteger(n) || n <= 0) return toast('Write a whole number of tokens', true);
+  // Only whole numbers, with or without thousands separators: 1000, 1.000, 1,000, 1 000.
+  // "1,5", "1e3", "0x10" or "-5" are refused instead of being read as something else.
+  const t = String(r).replace(/\s/g, '');
+  if (!/^(\d+|\d{1,3}([.,]\d{3})+)$/.test(t)) return toast('Write a whole number of tokens', true);
+  const n = Number(t.replace(/[.,]/g, ''));
+  if (!Number.isSafeInteger(n) || n <= 0) return toast('Write a whole number of tokens', true);
   if (tengo != null && n > tengo) return toast('You have ' + tengo.toLocaleString() + ' tokens', true);
   if (!confirm('Send ' + n.toLocaleString() + ' tokens to ' + dir + '? It cannot be undone.')) return;
   try { await pagar(dir, n); toast('Sent. The receipt arrives from libro@' + DOMINIO); } catch (e) { toast(e.message, true); }
-};
+}
 $('btn-nuevo').onclick = async () => {
   const d = (prompt('Who do you want to write to? (full address)') || '').trim().toLowerCase();
   if (!d) return;
