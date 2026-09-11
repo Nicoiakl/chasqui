@@ -8,7 +8,7 @@
 import {
   generateKeyPairSync, createPrivateKey, createPublicKey,
   sign as nodeSign, verify as nodeVerify,
-  randomBytes, randomUUID, createHash, diffieHellman, hkdfSync,
+  randomBytes, randomUUID, createHash, hkdfSync,
   createCipheriv, createDecipheriv,
 } from 'node:crypto';
 
@@ -40,8 +40,18 @@ export function generateKeys() {
 
 const sigPrivateKey = (d, x) => createPrivateKey({ key: { kty: 'OKP', crv: 'Ed25519', d, x }, format: 'jwk' });
 const sigPublicKey = (x) => createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x }, format: 'jwk' });
-const encPrivateKey = (d, x) => createPrivateKey({ key: { kty: 'OKP', crv: 'X25519', d, x }, format: 'jwk' });
-const encPublicKey = (x) => createPublicKey({ key: { kty: 'OKP', crv: 'X25519', x }, format: 'jwk' });
+// El acuerdo de claves X25519 va por WebCrypto, NO por node:crypto. Medido el 10-sep-2026 en el
+// runtime real de Cloudflare (workerd, scripts/sonda-workerd.mjs): `diffieHellman` no existe allá,
+// ni con objetos de llave ni desde JWK, mientras que `crypto.subtle` X25519 sí, e importa las
+// mismas JWK que genera Node. En Node y en los tests todo andaba: el defecto sólo se veía cuando
+// el edge mismo cifraba, que es justo lo que hace el conector remoto. El secreto es el mismo
+// (X25519 es estándar), así que el formato de los sobres no cambia y lo cifrado antes se abre igual.
+async function x25519(d, x, publico) {
+  const s = globalThis.crypto.subtle;
+  const priv = await s.importKey('jwk', { kty: 'OKP', crv: 'X25519', x, d }, { name: 'X25519' }, false, ['deriveBits']);
+  const pub = await s.importKey('jwk', { kty: 'OKP', crv: 'X25519', x: publico }, { name: 'X25519' }, true, []);
+  return Buffer.from(await s.deriveBits({ name: 'X25519', public: pub }, priv, 256));
+}
 
 // ---------- Firma de objetos ----------
 // Firma todo el objeto menos el campo indicado (por defecto "signature").
@@ -77,7 +87,7 @@ export function verifyBytes(data, signature, pub) {
 // El AAD amarra el cifrado al sobre (id/from/to) para impedir reenvíos con otro remitente.
 const INFO = Buffer.from('nyx5/1 cek-wrap');
 
-export function encryptContent(content, recipients, aad) {
+export async function encryptContent(content, recipients, aad) {
   const cek = randomBytes(32);
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', cek, iv);
@@ -85,11 +95,11 @@ export function encryptContent(content, recipients, aad) {
   const ct = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(content))), cipher.final()]);
   const tag = cipher.getAuthTag();
 
-  const eph = generateKeyPairSync('x25519');
-  const epk = eph.publicKey.export({ format: 'jwk' }).x;
+  const eph = generateKeyPairSync('x25519').privateKey.export({ format: 'jwk' });
+  const epk = eph.x;
   const keys = {};
   for (const r of recipients) {
-    const shared = diffieHellman({ privateKey: eph.privateKey, publicKey: encPublicKey(r.enc) });
+    const shared = await x25519(eph.d, eph.x, r.enc);
     const kek = Buffer.from(hkdfSync('sha256', shared, Buffer.from(epk), INFO, 32));
     const wiv = randomBytes(12);
     const c = createCipheriv('aes-256-gcm', kek, wiv);
@@ -99,13 +109,10 @@ export function encryptContent(content, recipients, aad) {
   return { alg: 'X25519+HKDF-SHA256+A256GCM', epk, iv: b64u(iv), ct: b64u(ct), tag: b64u(tag), keys };
 }
 
-export function decryptContent(encrypted, address, keys, aad) {
+export async function decryptContent(encrypted, address, keys, aad) {
   const slot = encrypted?.keys?.[address];
   if (!slot) throw new Error(`no wrapped key for ${address}`);
-  const shared = diffieHellman({
-    privateKey: encPrivateKey(keys.encPriv, keys.enc),
-    publicKey: encPublicKey(encrypted.epk),
-  });
+  const shared = await x25519(keys.encPriv, keys.enc, encrypted.epk);
   const kek = Buffer.from(hkdfSync('sha256', shared, Buffer.from(encrypted.epk), INFO, 32));
   const d = createDecipheriv('aes-256-gcm', kek, unb64u(slot.iv));
   d.setAuthTag(unb64u(slot.tag));

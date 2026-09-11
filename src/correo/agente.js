@@ -100,7 +100,7 @@ export class Agent {
       // uno mismo, y el historial de una conversación queda con la mitad de los mensajes en blanco.
       const lectores = cards.map((c) => ({ address: c.address, enc: c.enc }));
       if (this.keys.enc && !recipients.includes(this.address)) lectores.push({ address: this.address, enc: this.keys.enc });
-      env = { ...base, encrypted: encryptContent(content, lectores, aad(base)) };
+      env = { ...base, encrypted: await encryptContent(content, lectores, aad(base)) };
     } else {
       if (encrypt === 'required') throw new Error('a recipient does not publish an encryption key');
       env = { ...base, content };
@@ -252,7 +252,7 @@ export class Agent {
     if (!verified) throw new Error(`invalid signature on envelope ${envelope.id} from ${envelope.from}`);
     if (envelope.expires && Date.parse(envelope.expires) < Date.now()) throw new Error(`sobre vencido: ${envelope.id}`);
     if (!envelope.encrypted && !envelope.to.includes(this.address) && envelope.from !== this.address) throw new Error(`envelope ${envelope.id} is not addressed to ${this.address}`);
-    const content = envelope.encrypted ? decryptContent(envelope.encrypted, this.address, this.keys, aad(envelope)) : envelope.content;
+    const content = envelope.encrypted ? await decryptContent(envelope.encrypted, this.address, this.keys, aad(envelope)) : envelope.content;
     return { id: envelope.id, from: envelope.from, to: envelope.to, type: envelope.type, thread: envelope.thread, in_reply_to: envelope.in_reply_to, created: envelope.created, encrypted: !!envelope.encrypted, sender: card, content };
   }
 

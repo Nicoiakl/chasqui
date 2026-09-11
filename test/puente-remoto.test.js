@@ -272,3 +272,27 @@ test('nadie se declara custodiado desde afuera, y sin llave de bóveda no hay co
   const r = await sinLlave.handleRequest({ method: 'POST', path: '/mcp', query: new URLSearchParams(), headers: {}, body: {}, ip: null });
   assert.equal(r.status, 404);
 });
+
+// Nació de un defecto medido EN PRODUCCIÓN el 10-sep-2026: el conector cifraba con diffieHellman
+// de node:crypto, que en el runtime real de Cloudflare (workerd) NO existe. Los tests pasaban en
+// verde porque corren en Node. El primer mensaje cifrado del Claude remoto falló en nyx5.com. Lo
+// que corre en el edge no puede usar primitivas que el edge no tiene; ver scripts/sonda-workerd.mjs.
+test('el código que corre en el edge no usa primitivas de node:crypto que workerd no tiene', () => {
+  const raiz = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
+  const AUSENTES_EN_WORKERD = ['diffieHellman', 'createDiffieHellman', 'createECDH'];
+  const malos = [];
+  const recorrer = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) recorrer(p);
+      else if (e.name.endsWith('.js') && !p.endsWith(path.join('plataformas', 'node.js'))) {
+        // Se busca USO, no menciones: el comentario que explica por qué no se usa diffieHellman no es
+        // un uso, y un guardia que acusa a su propia explicación enseña a desactivarlo.
+        const codigo = fs.readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+        for (const f of AUSENTES_EN_WORKERD) if (new RegExp(`\\b${f}\\b`).test(codigo)) malos.push(`${path.relative(raiz, p)}: ${f}`);
+      }
+    }
+  };
+  recorrer(path.join(raiz, 'src'));
+  assert.deepEqual(malos, [], `primitivas que workerd no tiene, en código que corre en el edge:\n  ${malos.join('\n  ')}`);
+});

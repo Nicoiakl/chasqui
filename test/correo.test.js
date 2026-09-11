@@ -27,12 +27,13 @@ before(async () => {
 });
 after(async () => { await alfa.stop(); await beta.stop(); });
 
-test('primitivas: canónico, cifrado, pow', () => {
+test('primitivas: canónico, cifrado, pow', async () => {
   assert.equal(canonical({ b: 1, a: [2, { d: null, c: 'x' }] }), '{"a":[2,{"c":"x","d":null}],"b":1}');
   const k = generateKeys();
-  const enc = encryptContent({ media: 'text/plain', body: 'secreto' }, [{ address: 'x@y', enc: k.enc }], 'aad');
-  assert.deepEqual(decryptContent(enc, 'x@y', k, 'aad'), { media: 'text/plain', body: 'secreto' });
-  assert.throws(() => decryptContent(enc, 'x@y', k, 'otro-aad'));
+  // Cifrar y descifrar son asíncronos: el acuerdo de claves va por WebCrypto (workerd no tiene diffieHellman).
+  const enc = await encryptContent({ media: 'text/plain', body: 'secreto' }, [{ address: 'x@y', enc: k.enc }], 'aad');
+  assert.deepEqual(await decryptContent(enc, 'x@y', k, 'aad'), { media: 'text/plain', body: 'secreto' });
+  await assert.rejects(() => decryptContent(enc, 'x@y', k, 'otro-aad'));
   const pow = mintPow('id-1', 8);
   assert.ok(checkPow('id-1', pow, 8)); assert.ok(!checkPow('id-2', pow, 8));
   assert.deepEqual(parseTxtRecord('v=nyx51; url=https://mail.sigo.uk; sig=abc'), { v: 'nyx51', url: 'https://mail.sigo.uk', sig: 'abc' });
