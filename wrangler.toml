@@ -35,7 +35,8 @@ NYX5_EMAIL_FOOTER = "on"
 # Quién puede escribirle a una PERSONA por correo (lista separada por comas). Vacío = nadie. Cerrado
 # el 11-sep-2026 antes del viaje de Nicholas: con el registro abierto era un relé de spam con nuestra
 # cuenta de Resend y nuestro dominio. La ENTRADA de correo sigue abierta (pasa por la política del buzón).
-NYX5_EMAIL_SENDERS = ""
+# 11-sep-2026: sólo nicholas@nyx5.com, a pedido suyo, para escribirle a Basti por correo.
+NYX5_EMAIL_SENDERS = "nicholas@nyx5.com"
 # Conector MCP remoto en https://nyx5.com/mcp (OAuth + subagentes claude.<dueño>@nyx5.com). Sólo en
 # esta casa. Necesita además el secret NYX5_VAULT_KEY (32 bytes en base64): sin él, /mcp no existe.
 NYX5_MCP_REMOTE = "on"
