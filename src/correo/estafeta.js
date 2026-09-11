@@ -199,6 +199,11 @@ export class Estafeta {
     catch (e) { this.log(`evento ${name} no registrado: ${e.message}`); }
   }
   isSystem(local) { return ['postmaster', 'libro', 'verifica', 'tareas'].includes(local); }
+  // ¿Podría alguien registrarse HOY con este nombre? Mismas reglas que registerAgent, sin registrar nada.
+  async nombreDisponible(local) {
+    if (!local || Estafeta.RESERVED.has(local) || local.length < (this.policy.min_name_length || 0)) return false;
+    return !(await this.store.getAgent(local));
+  }
   static RESERVED = new Set(['postmaster', 'libro', 'verifica', 'tareas', 'casa', 'admin', 'root', 'abuse', 'security', 'hostmaster', 'noreply', 'no-reply', 'support', 'estafeta', 'nyx5', 'indice']);
 
   // ---------- servicio de registro ----------

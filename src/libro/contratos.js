@@ -239,6 +239,26 @@ const ops = {
     return { result: { revoked: affected.map((x) => x.id) }, recibos: [{ to: [...new Set(affected.flatMap((x) => [x.grantor, x.grantee]))], thread: m.chain[0], body: { revoked: affected.map((x) => x.id), by: from } }] };
   },
 
+  // --- pagar directo: sin cotización ni contrato. Lo firma el que paga; el que recibe no hace nada.
+  // Es el "te mando plata" entre dos personas. Sólo dentro de la casa: aquí no hay cómo comprobar
+  // que una dirección de otra casa existe, y un pago a nadie deja tokens varados para siempre.
+  async pay(ctx) {
+    const { libro, from, body } = ctx;
+    let to; try { to = parseAddress(body.to); } catch { fail(400, 'pay needs "to": the address that receives'); }
+    const address = `${to.local}@${to.domain}`;
+    must(to.domain === libro.domain, 400, `pay moves tokens inside ${libro.domain}; ${to.domain} keeps its own ledger`);
+    must(address !== from, 400, 'paying yourself moves nothing');
+    must(Number.isInteger(body.amount) && body.amount > 0, 400, 'amount must be a positive integer');
+    scopeCap(ctx, body.amount, 'paying');
+    const rec = await libro.store.getAgent(to.local);
+    must(rec && !rec.revoked, 404, `${address} does not exist in this house`);
+    // Un subagente de sólo mensajes nunca podrá gastar: lo que le llegue quedaría varado. Se le paga al dueño.
+    must(!rec.delegation?.scope?.messages_only, 400, `${address} only carries messages and could never spend this; pay its owner, ${rec.delegation?.by}`);
+    const concept = typeof body.concept === 'string' && body.concept.trim() ? body.concept.trim().slice(0, 200) : `pago de ${from}`;
+    const asiento = await libro.transfer(from, address, body.amount, concept, { kind: 'pay', to: address }, { op: ctx.env.id, op_sha256: ctx.opHash });
+    return { result: { asiento }, recibos: [{ to: [from, address], body: { asiento, pay: { from, to: address, amount: body.amount, concept } } }] };
+  },
+
   // --- lecturas: la respuesta vuelve por correo como recibo ---
   async balance(ctx) {
     const acc = await ctx.libro.account(ctx.from);

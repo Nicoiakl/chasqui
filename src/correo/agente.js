@@ -175,6 +175,7 @@ export class Agent {
   mandate(house, { grantee, cap, scope, expires, parent }) { return this.libroOp(house, { op: 'mandate', grantee, cap, scope, expires, parent }); }
   charge(house, { mandate, amount, concept }) { return this.libroOp(house, { op: 'charge', mandate, amount, concept }); }
   revoke(house, mandate) { return this.libroOp(house, { op: 'revoke', mandate }); }
+  pay(house, { to, amount, concept }) { return this.libroOp(house, { op: 'pay', to, amount, concept }); }
 
   // Lecturas directas (sin pasar por correo) en la casa indicada; por defecto, la propia estafeta.
   async balance(house) { return this._callAt(house, 'GET', `/libro/cuenta/${encodeURIComponent(this.address)}`); }

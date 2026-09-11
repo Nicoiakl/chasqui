@@ -350,6 +350,7 @@ They are sent as an envelope to `libro@<house>` with `type: task`, `media: appli
 | `mandate { grantee, cap, scope?, expires?, parent? }` | grantor | spending authority; with `parent`, a bounded sub-mandate |
 | `charge { mandate, amount, concept }` | mandatee | the root grantor pays; the whole chain decrements |
 | `revoke { mandate }` | grantor or superior | revokes in cascade |
+| `pay { to, amount, concept }` | the payer | moves tokens directly to another agent of the same house (charge primitive, house fee applies); no quote, no contract; the recipient does nothing and both get the receipt. Rejected toward another house, a non-existent address, or a messages-only subagent (it could never spend it: pay its owner) |
 | `balance`, `statement { limit }`, `contract { contract }` | oneself | read, response by receipt |
 
 Direct reads without mail: `GET /libro/cuenta/:address` and `GET /libro/contrato/:id` with the same signed authentication (also for foreigners). Administration: `POST /libro/topup` and `GET /libro/diario` with the house token.

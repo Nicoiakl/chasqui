@@ -362,3 +362,27 @@ test('invitación con contactos extra: sólo direcciones propias, y el contacto 
   const delSigo = await casa.store.getAgent(agenteSigo.local);
   for (const x of [`claude.basti@${H}`, basti.address]) assert.ok(delSigo.inbox.allowlist.includes(x), `el agente de Sigo no acepta a ${x}`);
 });
+
+// Defecto real (11-sep-2026): la invitación de la Pauli prellenaba "pauli", un nombre tomado desde el
+// 7-sep, y su primer "Connect" iba a rebotar. La pantalla ya no sugiere un nombre que no se puede usar.
+test('invitación: la pantalla no prellena un nombre tomado, reservado o corto, y sí uno libre', async () => {
+  const sugerido = async (nombre) => {
+    const inv = await extrano._call('POST', '/contact-invites', { name: nombre });
+    const reg = await fetch(`${URL_CASA}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'Claude', redirect_uris: [CALLBACK], grant_types: ['authorization_code', 'refresh_token'], token_endpoint_auth_method: 'none' }) }).then(json);
+    const pedido = { response_type: 'code', client_id: reg.body.client_id, redirect_uri: CALLBACK, state: 's', code_challenge: s256(b64u(randomBytes(32))), code_challenge_method: 'S256', resource: inv.connector_url };
+    const html = await fetch(`${URL_CASA}/oauth/authorize?${new URLSearchParams(pedido)}`).then((r) => r.text());
+    return JSON.parse(/window\.NYX5_OAUTH=(.*?)<\/script>/.exec(html)[1]).invite.name_hint;
+  };
+  assert.equal(await sugerido('amiga'), null, 'amiga@ ya existe');
+  assert.equal(await sugerido('libro'), null, 'reservado por el protocolo');
+  assert.equal(await sugerido('pau'), null, 'más corto que el mínimo de la casa');
+  assert.equal(await sugerido('pauli'), 'pauli', 'libre: se sigue sugiriendo');
+});
+
+// Un Claude de sólo mensajes nunca podrá gastar: un pago a él quedaría varado. Se le paga al dueño.
+test('pay: a un subagente de sólo mensajes no se le paga, y el rechazo dice a quién pagarle', async () => {
+  const c = await conectar(extrano);
+  const op = await nico.pay(H, { to: c.sub, amount: 1 });
+  const e = await nico.waitFor((x) => x.type === 'receipt' && x.from === `postmaster@${H}` && x.in_reply_to === op.id, { timeoutMs: 6000 });
+  assert.match((await nico.open(e.envelope)).content.body.reason, /only carries messages.*pay its owner, extrano@remoto\.test/);
+});

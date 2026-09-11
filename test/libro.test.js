@@ -260,3 +260,26 @@ test('D5 · el fee de la casa más la comisión no pueden superar el 100% del pr
   assert.throws(() => Libro.buildQuote({ seller: vendedor.address, buyer: nicolas.address, house: H, contract: 'spot',
     price: 100, concept: 'x', referrer: { address: verifica.address, share: 0 } }, vendedor.keys), /basis points/);
 });
+
+// Pagar directo (11-sep-2026): el "te mando plata" entre dos personas, sin cotización ni contrato.
+// Va al final a propósito: mueve saldo de nicolas y las pruebas de arriba cuentan con el suyo.
+test('pay: firma el que paga, el que recibe no hace nada, los dos reciben el recibo; ningún rechazo mueve nada', async () => {
+  const [antesN, antesV] = [await bal(nicolas.address), await bal(vendedor.address)];
+  const op = await nicolas.pay(H, { to: vendedor.address, amount: 100, concept: 'almuerzo' });
+  const r = await nicolas.awaitReceipt(op.id);
+  assert.equal(r.from, `libro@${H}`);
+  assert.equal(r.receipt.pay.amount, 100);
+  assert.equal(r.receipt.asiento.meta.kind, 'pay');
+  assert.equal(await bal(nicolas.address), antesN - 100);
+  assert.equal(await bal(vendedor.address), antesV + 90, 'el fee de la casa (10% en esta suite) sale del monto');
+  const rv = await vendedor.waitFor((e) => e.type === 'receipt' && e.in_reply_to === op.id);
+  assert.equal((await vendedor.open(rv.envelope)).content.body.pay.from, nicolas.address);
+  const rechazo = async (quien, args) => (await bounce(quien, (await quien.pay(H, args)).id)).reason;
+  assert.match(await rechazo(vendedor, { to: nicolas.address, amount: 10_000_000 }), /insufficient balance/);
+  assert.match(await rechazo(nicolas, { to: `nadie@${H}`, amount: 1 }), /does not exist/);
+  assert.match(await rechazo(nicolas, { to: foraneo.address, amount: 1 }), /own ledger/);
+  assert.match(await rechazo(nicolas, { to: nicolas.address, amount: 1 }), /yourself/);
+  assert.match(await rechazo(nicolas, { to: vendedor.address, amount: 1.5 }), /positive integer/);
+  assert.match(await rechazo(nicolas, { amount: 1 }), /needs "to"/);
+  assert.equal(await bal(nicolas.address), antesN - 100, 'ningún rechazo movió saldo');
+});

@@ -159,6 +159,13 @@ function volver(redirect_uri, params) {
   return { status: 302, headers: { location: u.toString() }, contentType: 'text/plain; charset=utf-8', body: '' };
 }
 
+// El nombre que sugiere una invitación se mira AL MOSTRAR, no al crearla: puede tomarse entre medio.
+// Defecto real (11-sep-2026): la invitación de la Pauli prellenaba "pauli", que existía desde el 7-sep,
+// y su primer toque en "Connect" iba a rebotar con "that name is taken".
+async function sugerible(est, hint) {
+  return hint && (await est.nombreDisponible(hint)) ? hint : null;
+}
+
 // GET /oauth/authorize: la pantalla de consentimiento es la misma app, en modo "autorizar". La
 // solicitud llega VALIDADA a la página: el navegador nunca decide a qué URI se redirige.
 export async function paginaAutorizar(est, query, appHtml) {
@@ -172,7 +179,7 @@ export async function paginaAutorizar(est, query, appHtml) {
     client_name: p.cliente.client_name || null, redirect_host: destino.host,
     // El spec pide mostrar con claridad a dónde vuelve el permiso, y advertir si es sólo loopback.
     loopback: LOOPBACK.has(destino.hostname), house: est.domain, days: est.remoto.dias,
-    invite: p.invitacion ? { inviter: p.invitacion.inviter, inviter_claude: p.invitacion.inviter_claude || null, contacts: p.invitacion.contacts || [], name_hint: p.invitacion.name_hint || null } : null,
+    invite: p.invitacion ? { inviter: p.invitacion.inviter, inviter_claude: p.invitacion.inviter_claude || null, contacts: p.invitacion.contacts || [], name_hint: await sugerible(est, p.invitacion.name_hint) } : null,
   };
   const inyectado = `<script>window.NYX5_OAUTH=${JSON.stringify(datos).replace(/</g, '\\u003c')}</script>`;
   return { status: 200, contentType: 'text/html; charset=utf-8', body: appHtml.replace('<!--OAUTH-->', inyectado) };
