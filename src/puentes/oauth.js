@@ -172,7 +172,7 @@ export async function paginaAutorizar(est, query, appHtml) {
     client_name: p.cliente.client_name || null, redirect_host: destino.host,
     // El spec pide mostrar con claridad a dónde vuelve el permiso, y advertir si es sólo loopback.
     loopback: LOOPBACK.has(destino.hostname), house: est.domain, days: est.remoto.dias,
-    invite: p.invitacion ? { inviter: p.invitacion.inviter, inviter_claude: p.invitacion.inviter_claude || null, name_hint: p.invitacion.name_hint || null } : null,
+    invite: p.invitacion ? { inviter: p.invitacion.inviter, inviter_claude: p.invitacion.inviter_claude || null, contacts: p.invitacion.contacts || [], name_hint: p.invitacion.name_hint || null } : null,
   };
   const inyectado = `<script>window.NYX5_OAUTH=${JSON.stringify(datos).replace(/</g, '\\u003c')}</script>`;
   return { status: 200, contentType: 'text/html; charset=utf-8', body: appHtml.replace('<!--OAUTH-->', inyectado) };
@@ -253,7 +253,7 @@ export async function aprobar(est, rx) {
   // entran a la lista. Quién invitó lo dice la casa, no el navegador.
   let inv = v.pedido.invitacion ? await est.store.kvTake('invitacion', v.pedido.invitacion.code) : null;
   if (inv && inv.inviter === who.address) { await est.store.kvPut('invitacion', inv.code, inv, Date.parse(inv.expires)); inv = null; }
-  if (inv && allowlist) allowlist = [...new Set([...allowlist, inv.inviter, ...(inv.inviter_claude ? [inv.inviter_claude] : [])])];
+  if (inv && allowlist) allowlist = [...new Set([...allowlist, inv.inviter, ...(inv.inviter_claude ? [inv.inviter_claude] : []), ...(inv.contacts || [])])];
   const card = await est.registerAgent({
     local: sub, sig: keys.sig, enc: keys.enc, delegation: d, valid_until: d.valid_until,
     capabilities: { accepts: ['text/plain', 'application/json'] },
@@ -266,7 +266,7 @@ export async function aprobar(est, rx) {
     // El contacto queda en los dos sentidos: el Claude de quien invitó acepta al nuevo. Sin esto, la
     // primera respuesta del Claude invitado rebotaba contra la lista del que invitó.
     await est.store.kvPut('invitacion', inv.code, { ...inv, used_by: who.address, used_at: iso(), claude: address }, Date.now() + 30 * DIA);
-    if (inv.inviter_claude) await est.agregarContactos(parseAddress(inv.inviter_claude).local, [address, who.address]);
+    for (const c of [inv.inviter_claude, ...(inv.contacts || [])].filter(Boolean)) await est.agregarContactos(parseAddress(c).local, [address, who.address]);
     await est._evento('invitation_accepted', who.address, { by: inv.inviter });
   }
   const code = aleatorio();

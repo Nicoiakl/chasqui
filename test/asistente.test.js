@@ -1,0 +1,132 @@
+// node --test test/
+// Los asistentes: una dirección que contesta sola con la API de Anthropic, dentro de un tope. Nació
+// para que Basti le pregunte al agente de Sigo mientras Nicholas viaja un mes. La API se simula: estas
+// pruebas no gastan un peso, y comprueban lo que se le manda a la API y lo que se hace con su respuesta.
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { Estafeta } from '../src/correo/estafeta.js';
+import { Agent } from '../src/correo/agente.js';
+import { costoDe } from '../src/correo/asistente.js';
+
+// Puerto propio de esta suite (npm test corre los archivos en paralelo). Lo cuida test/puertos.test.js.
+const P = 4251;
+const H = 'asistente.test';
+const URL_CASA = `http://127.0.0.1:${P}`;
+const hosts = { [H]: { url: URL_CASA } };
+let tmp, casa, duena, pregunton, extrano, asis;
+const pedidos = [];
+let proxima = null; // lo que responde la API simulada la próxima vez
+const USO = { input_tokens: 100, cache_creation_input_tokens: 5000, cache_read_input_tokens: 0, output_tokens: 200 };
+const apiFalsa = async (url, init) => {
+  pedidos.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+  const r = proxima || { status: 200, json: { content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: `respuesta ${pedidos.length}` }], stop_reason: 'end_turn', usage: USO } };
+  proxima = null;
+  return new Response(JSON.stringify(r.json), { status: r.status, headers: { 'content-type': 'application/json' } });
+};
+const admin = (metodo, ruta, body) => fetch(`${URL_CASA}${ruta}`, { method: metodo, headers: { authorization: 'Bearer t', 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, body: await r.json() }));
+const respuestaA = (quien, desde) => quien.waitFor((e) => e.from === asis.address && Date.parse(e.created) > desde, { timeoutMs: 8000 });
+
+before(async () => {
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-asistente-'));
+  casa = await new Estafeta({
+    domain: H, port: P, dataDir: path.join(tmp, H), adminToken: 't', hosts, workerIntervalMs: 100,
+    libro: { welcome: 0, feeBps: 0 }, log: () => {},
+    remoto: { enabled: true, vaultKey: randomBytes(32).toString('base64') },
+    asistente: { apiKey: 'clave-de-prueba', fetchImpl: apiFalsa },
+  }).start();
+  duena = Agent.create(`duena@${H}`, URL_CASA, { hosts });
+  pregunton = Agent.create(`pregunton@${H}`, URL_CASA, { hosts });
+  extrano = Agent.create(`extrano@${H}`, URL_CASA, { hosts });
+  for (const a of [duena, pregunton, extrano]) await a.register({ adminToken: 't' });
+  asis = await duena.delegate('sigo', { scope: { messages_only: true }, inbox: { policy: 'allowlist', allowlist: [duena.address, pregunton.address] } });
+  const alta = await admin('POST', '/admin/assistants', { local: asis.local, keys: asis.keys, config: { budget_usd: 1, persona: 'Eres el asistente de prueba.' } });
+  assert.equal(alta.status, 201, JSON.stringify(alta.body));
+  assert.equal(alta.body.custody.keys, 'house');
+  assert.equal((await admin('PUT', `/admin/assistants/${asis.local}/knowledge`, { texto: 'Base: el motor vive en src/.' })).status, 200);
+});
+after(async () => { await casa?.stop(); fs.rmSync(tmp, { recursive: true, force: true }); });
+
+test('contesta solo, con lo que devuelve la API, y le manda a la API lo correcto', async () => {
+  const t0 = Date.now();
+  await pregunton.send({ to: asis.address, body: '¿dónde vive el motor?' });
+  const r = await respuestaA(pregunton, t0);
+  const abierto = await pregunton.open(r.envelope);
+  assert.match(abierto.content.body, /^respuesta \d+$/, 'contesta con el texto de la API, sin el bloque de razonamiento');
+  assert.equal(abierto.encrypted, true);
+  const p = pedidos.at(-1);
+  assert.equal(p.url, 'https://api.anthropic.com/v1/messages');
+  assert.equal(p.headers['x-api-key'], 'clave-de-prueba');
+  assert.equal(p.headers['anthropic-version'], '2023-06-01');
+  assert.equal(p.headers['anthropic-beta'], 'server-side-fallback-2026-07-01');
+  assert.equal(p.body.model, 'claude-opus-5');
+  assert.equal(p.body.fallbacks, 'default');
+  assert.deepEqual(p.body.thinking, { type: 'adaptive' });
+  assert.deepEqual(p.body.system[1].cache_control, { type: 'ephemeral' }, 'la base de conocimiento va en caché');
+  assert.equal(p.body.system[0].text, 'Eres el asistente de prueba.');
+  assert.match(p.body.messages.at(-1).content, /dónde vive el motor/);
+  assert.match(p.body.messages.at(-1).content, /pregunton@asistente\.test/, 'sabe quién le escribe');
+  assert.equal((await casa.store.listMail(asis.local)).length, 0, 'lo contestado queda confirmado');
+  const estado = await admin('GET', `/admin/assistants/${asis.local}`);
+  assert.ok(Math.abs(estado.body.spent_usd - costoDe('claude-opus-5', USO)) < 1e-4, `gasto registrado: ${estado.body.spent_usd}`);
+});
+
+test('la segunda pregunta lleva la conversación anterior, en turnos alternados', async () => {
+  const t0 = Date.now();
+  await pregunton.send({ to: asis.address, body: '¿y los tests?' });
+  await respuestaA(pregunton, t0);
+  const roles = pedidos.at(-1).body.messages.map((m) => m.role);
+  assert.equal(roles[0], 'user');
+  assert.equal(roles.at(-1), 'user');
+  assert.ok(roles.includes('assistant'), `sin historial: ${roles}`);
+  for (let i = 1; i < roles.length; i++) assert.notEqual(roles[i], roles[i - 1], 'los turnos no se alternan');
+});
+
+test('un rechazo de la API se contesta como rechazo, y un error no confirma el mensaje', async () => {
+  proxima = { status: 200, json: { content: [], stop_reason: 'refusal', usage: { input_tokens: 0, output_tokens: 0 } } };
+  let t0 = Date.now();
+  await pregunton.send({ to: asis.address, body: 'algo que se rechaza' });
+  const r = await respuestaA(pregunton, t0);
+  assert.equal((await pregunton.open(r.envelope)).content.body, 'No puedo responder eso.');
+  proxima = { status: 500, json: { error: { message: 'caída' } } };
+  const n = pedidos.length;
+  await pregunton.send({ to: asis.address, body: 'esto falla' });
+  await new Promise((ok) => setTimeout(ok, 1500));
+  assert.ok(pedidos.length > n, 'llamó a la API');
+  assert.equal((await casa.store.listMail(asis.local)).length, 1, 'un error de la API no confirma el mensaje: se reintenta');
+});
+
+test('al llegar al tope deja de llamar a la API, avisa a quien pregunta y, una vez, a su dueña', async () => {
+  const mes = new Date().toISOString().slice(0, 7);
+  await casa.store.kvPut('asistente-gasto', `${asis.local}:${mes}`, { usd: 1, llamadas: 99, avisado: false });
+  const n = pedidos.length;
+  const t0 = Date.now();
+  await pregunton.send({ to: asis.address, body: '¿sigues ahí?' });
+  const r = await respuestaA(pregunton, t0);
+  assert.match((await pregunton.open(r.envelope)).content.body, /tope de gasto/);
+  assert.equal(pedidos.length, n, 'pasado el tope no se llama a la API');
+  const aviso = await duena.waitFor((e) => e.from === asis.address, { timeoutMs: 5000 });
+  assert.match((await duena.open(aviso.envelope)).content.body, /llegó al tope/);
+});
+
+test('no le contesta a quien no está en su lista, ni a los agentes de sistema', async () => {
+  const n = pedidos.length;
+  await extrano.send({ to: asis.address, body: 'gasta tu presupuesto en mí' });
+  await extrano.waitFor((e) => e.from === `postmaster@${H}`, { timeoutMs: 5000 });
+  assert.equal(pedidos.length, n, 'un extraño no llega a costar nada');
+});
+
+test('sólo la casa da de alta un asistente, y sólo sobre una dirección de sólo mensajes', async () => {
+  const sinAuth = await fetch(`${URL_CASA}/admin/assistants`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(sinAuth.status, 401);
+  const ancho = await duena.delegate('ancho', { scope: {} });
+  const r = await admin('POST', '/admin/assistants', { local: ancho.local, keys: ancho.keys, config: {} });
+  assert.equal(r.status, 400);
+  assert.match(r.body.reason, /messages-only/);
+  const otro = await duena.delegate('otro', { scope: { messages_only: true } });
+  const malas = await admin('POST', '/admin/assistants', { local: otro.local, keys: asis.keys, config: {} });
+  assert.equal(malas.status, 400, 'llaves que no son de esa tarjeta');
+});

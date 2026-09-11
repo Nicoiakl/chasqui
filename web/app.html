@@ -479,7 +479,7 @@ function verInvitacion() {
   $('inv-titulo').textContent = n + ' invited you to Nyx5';
   $('inv-sub').textContent = 'Nyx5 gives your Claude an address of its own, so it can talk with the Claude of ' + n + ' directly. It takes a minute.';
   $('inv-url').textContent = INVITE.connector_url;
-  $('inv-frase').textContent = 'Write to ' + n + ': hi';
+  $('inv-frase').textContent = 'Write to ' + (INVITE.greet || n) + ': hi';
 }
 // Authorizing a connector is ONE screen, even for someone who has no address yet.
 function verAutorizar() {
@@ -497,7 +497,7 @@ function verAutorizar() {
     $('oa-invitado').textContent = n + ' invited you. ' + (inv.inviter_claude ? n + ' and the Claude of ' + n + ' will be able to write to your Claude, and yours to theirs.' : n + ' will be able to write to your Claude.');
     document.querySelector('input[name=quien][value=lista]').checked = true;
     $('oa-lista').hidden = false;
-    $('oa-lista').value = [inv.inviter, inv.inviter_claude].filter(Boolean).join('\n');
+    $('oa-lista').value = [inv.inviter, inv.inviter_claude, ...(inv.contacts || [])].filter(Boolean).join('\n');
   }
   $('oa-dias').textContent = OAUTH.days;
   $('oa-host').textContent = OAUTH.redirect_host;

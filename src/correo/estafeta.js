@@ -38,6 +38,7 @@ import { atenderMcp } from '../puentes/mcp-remoto.js';
 import { abrirBoveda } from '../nucleo/boveda.js';
 import { ICONOS } from '../plataformas/iconos.js';
 import { Agent } from './agente.js';
+import { atenderAsistentes } from './asistente.js';
 
 const now = () => Date.now();
 const iso = (t = now()) => new Date(t).toISOString();
@@ -62,7 +63,7 @@ export class Estafeta {
     port = 4000, host = '127.0.0.1', publicUrl,
     hosts = {}, fetchImpl = globalThis.fetch,
     policy = {}, retry = {}, workerIntervalMs = 1000, libro = {},
-    index = {}, email = {}, verifica = {}, eventos = true, tareas = {}, terms = null, remoto = {},
+    index = {}, email = {}, verifica = {}, eventos = true, tareas = {}, terms = null, remoto = {}, asistente = {},
     extensions = null,
     log = (...a) => console.log(`[estafeta ${domain}]`, ...a),
   }) {
@@ -122,6 +123,9 @@ export class Estafeta {
     this.boveda = abrirBoveda(vaultKey || null);
     this.remoto = { dias: 30, accesoS: 3600, refrescoMs: 30 * 24 * 3600 * 1000, ...remotoSinLlave, enabled: !!(remoto.enabled && this.boveda) };
     this.remotoRate = new RateLimiter({ perMinute: 240 });
+    // Asistentes (src/correo/asistente.js): existen sólo si la casa tiene una clave de la API de
+    // Anthropic. La clave no se guarda aparte: sólo el asistente la usa, al llamar.
+    this.asistente = asistente.apiKey ? { apiKey: asistente.apiKey, fetch: (...a) => (asistente.fetchImpl || this.fetch)(...a) } : null;
     this._ready = null;
     this._domainCardCache = null; // { value, until }
     this._pushes = [];            // avisos por webhook en vuelo (los espera flushPushes)
@@ -465,20 +469,77 @@ export class Estafeta {
     const suClaude = await this.store.getAgent(`claude.${parseAddress(inviter).local}`);
     const viva = suClaude && !suClaude.revoked && suClaude.delegation?.by === inviter && (!suClaude.valid_until || Date.parse(suClaude.valid_until) > now());
     const hint = typeof b.name === 'string' ? b.name.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 30) : '';
+    // Contactos extra: sólo direcciones PROPIAS de quien invita (sus delegados vigentes). Así Nicholas
+    // invita a Basti y lo deja conectado con su agente de Sigo, no sólo consigo mismo.
+    const contactos = [];
+    for (const c of (Array.isArray(b.contacts) ? b.contacts : []).slice(0, 10)) {
+      const dir = String(c || '').toLowerCase();
+      let pc; try { pc = parseAddress(dir); } catch { return { status: 400, body: { reason: `not an address: ${dir}` } }; }
+      const rc = pc.domain === this.domain ? await this.store.getAgent(pc.local) : null;
+      if (!rc || rc.revoked || rc.delegation?.by !== inviter) return { status: 400, body: { reason: `contacts must be your own delegated addresses: ${dir}` } };
+      contactos.push(dir);
+    }
     const code = uuid().replace(/-/g, '');
-    const inv = { code, inviter, inviter_claude: viva ? suClaude.address : null, name_hint: hint || null, created: iso(), expires: iso(now() + 7 * 86_400_000) };
+    const greet = typeof b.greet === 'string' && [inviter, ...contactos].includes(b.greet.toLowerCase()) ? b.greet.toLowerCase() : null;
+    const inv = { code, inviter, inviter_claude: viva ? suClaude.address : null, contacts: contactos, greet, name_hint: hint || null, created: iso(), expires: iso(now() + 7 * 86_400_000) };
     await this.store.kvPut('invitacion', code, inv, now() + 7 * 86_400_000);
     await this._evento('invitation_created', inviter, { with_claude: !!inv.inviter_claude });
-    return { status: 201, body: { link: `${this.publicUrl}/i/${code}`, connector_url: `${this.publicUrl}/mcp/i/${code}`, inviter, inviter_claude: inv.inviter_claude, expires: inv.expires } };
+    return { status: 201, body: { link: `${this.publicUrl}/i/${code}`, connector_url: `${this.publicUrl}/mcp/i/${code}`, inviter, inviter_claude: inv.inviter_claude, contacts: contactos, expires: inv.expires } };
   }
   async _paginaInvitacion(code) {
     const inv = await this.store.kvGet('invitacion', code);
     const datos = inv && !inv.used_by
-      ? { code, inviter: inv.inviter, inviter_claude: inv.inviter_claude, name_hint: inv.name_hint, connector_url: `${this.publicUrl}/mcp/i/${code}` }
+      ? { code, inviter: inv.inviter, inviter_claude: inv.inviter_claude, contacts: inv.contacts || [], greet: inv.greet || null, name_hint: inv.name_hint, connector_url: `${this.publicUrl}/mcp/i/${code}` }
       : { error: inv ? 'used' : 'unknown' };
     const html = APP_HTML.replace('<!--OAUTH-->', `<script>window.NYX5_INVITE=${JSON.stringify(datos).replace(/</g, '\\u003c')}</script>`);
     return { status: inv ? 200 : 404, contentType: 'text/html; charset=utf-8', body: html };
   }
+  // ---------- asistentes: alta, conocimiento, pausa y estado ----------
+  async _adminAsistente(rx, local, accion) {
+    const b = rx.body || {};
+    const indice = async () => (await this.store.kvGet('asistente', '_indice')) || [];
+    if (rx.method === 'POST' && !local && !accion) {
+      if (!this.boveda) return { status: 503, body: { reason: 'this house has no vault key' } };
+      const l = String(b.local || '').toLowerCase();
+      const rec = Estafeta.validLocal(l) ? await this.store.getAgent(l) : null;
+      if (!rec?.delegation || rec.revoked) return { status: 404, body: { reason: 'an assistant must be an existing delegated address' } };
+      if (rec.delegation.scope?.messages_only !== true) return { status: 400, body: { reason: 'an assistant must be messages-only: it answers, it does not move money' } };
+      const k = b.keys || {};
+      if (k.sig !== rec.sig || !k.sigPriv || !k.enc || !k.encPriv || k.enc !== rec.enc) return { status: 400, body: { reason: 'keys do not match the card of that address' } };
+      await this.store.kvPut('boveda', l, { sellado: this.boveda.sellar({ sig: k.sig, sigPriv: k.sigPriv, enc: k.enc, encPriv: k.encPriv }, l), root: rec.delegation.by, since: iso() });
+      // La tarjeta declara que la casa guarda su llave, igual que la de un Claude conectado.
+      const { certification: _c, webhook, notify_email, ...cuerpo } = rec;
+      const card = signObject({ ...cuerpo, custody: { keys: 'house', via: 'assistant', since: iso() } }, this.keys, 'certification');
+      await this.store.putAgent(l, { ...card, webhook, notify_email });
+      const c = b.config || {};
+      const cfg = { local: l, owner: rec.delegation.by, model: c.model || 'claude-opus-5', effort: c.effort || 'medium', max_tokens: Number(c.max_tokens) || 8000, budget_usd: Number(c.budget_usd) || 30, persona: String(c.persona || ''), enabled: true, created: iso() };
+      await this.store.kvPut('asistente', l, cfg);
+      const i = await indice();
+      if (!i.includes(l)) await this.store.kvPut('asistente', '_indice', [...i, l]);
+      await this._evento('assistant_created', card.address, { budget_usd: cfg.budget_usd });
+      return { status: 201, body: { address: card.address, custody: card.custody, config: { ...cfg, persona: `${cfg.persona.length} chars` } } };
+    }
+    const cfg = local ? await this.store.kvGet('asistente', local) : null;
+    if (!cfg) return { status: 404, body: { reason: 'no such assistant' } };
+    if (rx.method === 'PUT' && accion === 'knowledge') {
+      const texto = typeof b.texto === 'string' ? b.texto : '';
+      if (!texto || Buffer.byteLength(texto) > 1_500_000) return { status: 400, body: { reason: 'knowledge must be text up to 1.5 MB' } };
+      await this.store.kvPut('asistente-conocimiento', local, { texto, updated: iso() });
+      return { status: 200, body: { bytes: Buffer.byteLength(texto), updated: iso() } };
+    }
+    if (rx.method === 'POST' && (accion === 'pause' || accion === 'resume')) {
+      await this.store.kvPut('asistente', local, { ...cfg, enabled: accion === 'resume' });
+      return { status: 200, body: { enabled: accion === 'resume' } };
+    }
+    if (rx.method === 'GET' && !accion) {
+      const mes = new Date().toISOString().slice(0, 7);
+      const gasto = (await this.store.kvGet('asistente-gasto', `${local}:${mes}`)) || { usd: 0, llamadas: 0 };
+      const con = await this.store.kvGet('asistente-conocimiento', local);
+      return { status: 200, body: { address: `${local}@${this.domain}`, enabled: cfg.enabled, model: cfg.model, effort: cfg.effort, budget_usd: cfg.budget_usd, month: mes, spent_usd: Math.round(gasto.usd * 10000) / 10000, calls: gasto.llamadas, knowledge_bytes: con ? Buffer.byteLength(con.texto) : 0, knowledge_updated: con?.updated || null, api_key: !!this.asistente, pending: (await this.store.listMail(local)).length } };
+    }
+    return { status: 405, body: { reason: 'method not allowed here' } };
+  }
+
   // Suma direcciones a la lista de quién puede escribirle a una dirección (la re-certifica la casa).
   // Sólo agrega, y sólo si esa dirección ya filtra por lista: una abierta sigue abierta.
   async agregarContactos(local, direcciones) {
@@ -577,7 +638,9 @@ export class Estafeta {
   // ---------- trabajador de entrega (store-and-forward) ----------
   // El reclamo es exclusivo (claimDueJobs): dos ticks concurrentes (cron solapado, multi-isolate)
   // no toman el mismo trabajo. Un trabajo reclamado y no resuelto vuelve a ser reclamable al minuto.
-  async tick() {
+  // `programado`: el reloj de la casa (cron en el edge, intervalo en Node). Un tick disparado por una
+  // petición (kick) NO atiende asistentes: después de responder, el edge sólo da 30 segundos.
+  async tick({ programado = true } = {}) {
     await this.init();
     const due = await this.store.claimDueJobs(now(), 20);
     for (const job of due) await this._deliver(job);
@@ -587,6 +650,7 @@ export class Estafeta {
     try { await this.store.kvPurge?.(now()); } catch (e) { this.log(`kv: no se pudo purgar lo vencido: ${e.message}`); }
     if (this.index.enabled) await this._indexCrawlIfDue();
     if (this.verifica.enabled) await this._verificarPendientes();
+    if (programado) { try { await atenderAsistentes(this); } catch (e) { this.log(`asistentes: ${e.message}`); } }
     await this.flushPushes();
   }
   async _deliver(job) {
@@ -1072,6 +1136,11 @@ export class Estafeta {
       // ----- Invitaciones de contacto: un link que se manda por WhatsApp -----
       if (this.remoto.enabled && rx.method === 'POST' && path === '/contact-invites') return this.crearInvitacion(rx);
       if (this.remoto.enabled && rx.method === 'GET' && (m = /^\/i\/([A-Za-z0-9_-]{16,64})$/.exec(path))) return this._paginaInvitacion(m[1]);
+      // ----- Asistentes (sólo la casa los configura; el dueño los pide) -----
+      if ((m = /^\/admin\/assistants(?:\/([^/]+))?(?:\/(knowledge|pause|resume))?$/.exec(path))) {
+        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house configures assistants' });
+        return this._adminAsistente(rx, m[1] ? decodeURIComponent(m[1]).toLowerCase() : null, m[2] || null);
+      }
       // ----- La app en la pantalla de inicio -----
       if (rx.method === 'GET' && path === '/manifest.webmanifest') return { status: 200, contentType: 'application/manifest+json', body: JSON.stringify(MANIFIESTO) };
       if (rx.method === 'GET' && (m = /^\/(?:icon-(180|192|512)|apple-touch-icon)\.png$/.exec(path))) return { status: 200, contentType: 'image/png', body: Buffer.from(ICONOS[m[1] || 180], 'base64') };

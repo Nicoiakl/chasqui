@@ -71,6 +71,8 @@ function estafetaDesde(env) {
     // Conector MCP remoto (OAuth + subagentes delegados). Se enciende por casa y exige la llave de
     // la bóveda (secret NYX5_VAULT_KEY): sin ella no hay dónde guardar una llave, y /mcp no existe.
     remoto: { enabled: cfg('MCP_REMOTE') === 'on', vaultKey: env.NYX5_VAULT_KEY },
+    // Asistentes que contestan solos (src/correo/asistente.js). Sin clave de la API, no existen.
+    asistente: { apiKey: env.ANTHROPIC_API_KEY },
     log: (...a) => console.log(...a),
   });
   return instancia;
@@ -153,7 +155,9 @@ export default {
     };
     const out = await estafeta.handleRequest(rx);
     if (out.pending) ctx.waitUntil(out.pending);
-    if (out.kick) ctx.waitUntil(estafeta.tick().catch((e) => console.log('tick error', e.message)));
+    // Un tick disparado por una petición no atiende asistentes (programado: false): tras responder,
+    // el edge sólo da 30 segundos y una respuesta de Claude puede tardar más. Los atiende el cron.
+    if (out.kick) ctx.waitUntil(estafeta.tick({ programado: false }).catch((e) => console.log('tick error', e.message)));
     // Un cuerpo binario (la imagen de compartir) llega como Buffer; el edge quiere bytes.
     // 204 y 304 no llevan cuerpo: un Response con cuerpo (aunque sea '') y uno de esos estados revienta.
     const cuerpo = out.status === 204 || out.status === 304 ? null : out.contentType ? (Buffer.isBuffer(out.body) ? new Uint8Array(out.body) : out.body) : JSON.stringify(out.body);

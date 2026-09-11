@@ -345,3 +345,20 @@ test('invitación: sólo invita una dirección propia, y la casa puede invitar e
   assert.equal(r.body.inviter, nico.address);
   assert.equal((await fetch(`${URL_CASA}/i/noexiste0000000000000000`).then((x) => x.status)), 404);
 });
+
+test('invitación con contactos extra: sólo direcciones propias, y el contacto queda mutuo', async () => {
+  await conectar(nico);
+  const agenteSigo = await nico.delegate('sigo', { scope: { messages_only: true }, inbox: { policy: 'allowlist', allowlist: [nico.address] } });
+  const ajena = await fetch(`${URL_CASA}/contact-invites`, { method: 'POST', headers: { authorization: 'Bearer t', 'content-type': 'application/json' }, body: JSON.stringify({ inviter: nico.address, contacts: [amiga.address] }) }).then(json);
+  assert.equal(ajena.status, 400, 'no se puede meter como contacto a alguien que no es tuyo');
+  const inv = await nico._call('POST', '/contact-invites', { name: 'basti', contacts: [agenteSigo.address], greet: agenteSigo.address });
+  assert.deepEqual(inv.contacts, [agenteSigo.address]);
+  assert.match(await fetch(inv.link).then((r) => r.text()), new RegExp(`"greet":"${agenteSigo.address.replace('.', '\\.')}"`));
+  const basti = Agent.create(`basti@${H}`, URL_CASA, { hosts });
+  await basti.register({ adminToken: 't' });
+  await conectar(basti, { recurso: inv.connector_url, allowlist: [] });
+  const suya = await casa.store.getAgent('claude.basti');
+  assert.ok(suya.inbox.allowlist.includes(agenteSigo.address), 'el Claude de Basti puede recibir del agente de Sigo');
+  const delSigo = await casa.store.getAgent(agenteSigo.local);
+  for (const x of [`claude.basti@${H}`, basti.address]) assert.ok(delSigo.inbox.allowlist.includes(x), `el agente de Sigo no acepta a ${x}`);
+});
