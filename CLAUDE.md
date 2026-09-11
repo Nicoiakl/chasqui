@@ -46,7 +46,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop · custodia · puente-remoto -> `npm test` (204)
+                         puertos (guard de colisión) · x402 · interop · custodia · puente-remoto -> `npm test` (206)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -54,7 +54,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 204 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 206 pruebas, todas deben pasar antes de cualquier commit
 node demo/edge-local.mjs # el código del edge sobre NODE (CSP, parseo, HEAD). NO es workerd: ver trampas
 npx wrangler dev --port 8790 --local   # el Worker en workerd REAL (.dev.vars + d1 execute --local)
 npm run demo             # correo: tarea cifrada, respuesta, acuse
@@ -384,3 +384,12 @@ contra nyx5.com, no con curl (la CSP la aplica el navegador, curl no la ve).
 - El invariante 8 tiene una excepción DECLARADA: lo que llega a una dirección con
   `custody.keys = house` lo lee la casa, porque firma y descifra en su nombre. Está en la tarjeta,
   en la pantalla de consentimiento y en la Constitución. No extenderlo a identidades raíz.
+
+**Invitaciones de contacto (11-sep-2026)** — para que la Pauli llegue con la menor fricción:
+`POST /contact-invites` (llave raíz de quien invita, o `Bearer <admin>` con `inviter`) da `/i/<código>`
+(la página que se manda por WhatsApp) y `/mcp/i/<código>` (la URL del conector). La invitación viaja
+EN la URL: Claude la devuelve como `resource` al autorizar, así la pantalla sabe quién invitó sin
+depender del almacenamiento del navegador. Pantalla de conectar única (crea la dirección si no hay),
+contacto MUTUO (el Claude de quien invita acepta al nuevo; sin eso la primera respuesta rebotaba),
+y el Claude conectado recibe sus contactos en `initialize`. Un solo uso, 7 días; la URL del conector
+sigue sirviendo después. Recorrido `scratchpad/e2e-invitacion.mjs` pasado en workerd y en producción.
