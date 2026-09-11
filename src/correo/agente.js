@@ -30,12 +30,12 @@ export class Agent {
     const token = b64u(canonical(claims));
     return `Nyx5 ${token}.${signBytes(canonical(claims), keys)}`;
   }
-  async _call(method, path, body, { admin, noAuth, authKeys } = {}) {
+  async _call(method, path, body, { admin, noAuth, authKeys, timeoutMs = 10_000 } = {}) {
     const headers = { 'content-type': 'application/json' };
     if (admin) headers.authorization = `Bearer ${admin}`; else if (!noAuth) headers.authorization = this._auth(method, path.split('?')[0], authKeys);
     const res = await this.fetch(`${this.estafeta}${path}`, {
       method, headers,
-      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10_000),
+      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(json.reason || `HTTP ${res.status}`), { status: res.status, body: json });
@@ -95,7 +95,12 @@ export class Agent {
 
     let env;
     if (encrypt && cards.every((c) => c.enc)) {
-      env = { ...base, encrypted: encryptContent(content, cards.map((c) => ({ address: c.address, enc: c.enc })), aad(base)) };
+      // El remitente también recibe una copia de la llave del contenido. No es un destinatario más:
+      // `to` no cambia y la AAD tampoco. Sin esto, lo que uno mismo mandó cifrado es ilegible para
+      // uno mismo, y el historial de una conversación queda con la mitad de los mensajes en blanco.
+      const lectores = cards.map((c) => ({ address: c.address, enc: c.enc }));
+      if (this.keys.enc && !recipients.includes(this.address)) lectores.push({ address: this.address, enc: this.keys.enc });
+      env = { ...base, encrypted: encryptContent(content, lectores, aad(base)) };
     } else {
       if (encrypt === 'required') throw new Error('a recipient does not publish an encryption key');
       env = { ...base, content };
@@ -110,7 +115,9 @@ export class Agent {
 
     const signed = signObject(env, this.keys);
     const r = await this._call('POST', '/outbound', signed);
-    return { id, envelope: signed, jobs: r.jobs };
+    // `encrypted` dice lo que de verdad pasó: un destinatario sin llave de cifrado recibe en claro,
+    // y quien manda tiene que poder saberlo en vez de creer que se cifró.
+    return { id, envelope: signed, jobs: r.jobs, encrypted: !!env.encrypted };
   }
   // Un mensaje a tu yo futuro: llega a tu propio buzón en la fecha indicada, cifrado (solo tú lo abres).
   // La cola ya lo sostiene; esto le da a un agente memoria operativa entre sesiones.
@@ -213,6 +220,25 @@ export class Agent {
   async ack(ids) { return (await this._call('POST', `/mailbox/${this.local}/ack`, { ids: Array.isArray(ids) ? ids : [ids] })).acked; }
   async outbox() { return (await this._call('GET', `/outbox/${this.local}`)).sent; }
 
+  // ---------- conversación y tiempo real ----------
+  // El historial vive en la casa, no en la sesión: desde otro dispositivo se retoma igual.
+  async conversation(withAddress, { limit = 30 } = {}) {
+    const q = new URLSearchParams({ with: String(withAddress), limit: String(limit) });
+    return (await this._call('GET', `/conversations/${this.local}?${q}`)).messages;
+  }
+  async conversations() { return (await this._call('GET', `/conversations/${this.local}`)).conversations; }
+  // Espera el próximo sobre pendiente que cumpla el filtro. No sondea desde aquí: la casa responde
+  // apenas llega. Devuelve null si se acabó el tiempo sin nada.
+  async wait({ from, thread, since, seconds = 25 } = {}) {
+    const q = new URLSearchParams(Object.entries({ from, thread, since, timeout: String(seconds) }).filter(([, v]) => v != null && v !== ''));
+    return (await this._call('GET', `/mailbox/${this.local}/wait?${q}`, undefined, { timeoutMs: (Number(seconds) + 15) * 1000 })).message;
+  }
+  // Quién soy y qué puedo hacer: la tarjeta certificada, resumida.
+  async whoami() {
+    const c = await this.resolver.agentCard(this.address);
+    return { address: c.address, delegated_by: c.delegation?.by || null, valid_until: c.valid_until || null, scope: c.delegation?.scope || null, custody: c.custody || null, inbox: c.inbox || null, encryption: !!c.enc };
+  }
+
   // Verifica la cadena de confianza del remitente y descifra si corresponde.
   async open(envelope) {
     // Correo entrante por el puente (urn:nyx5:ext:email): sin firma, en claro, marcado como NO
@@ -225,7 +251,7 @@ export class Agent {
     const verified = Resolver.acceptedKids(card).includes(envelope.signature?.kid) && verifyObject(envelope, envelope.signature.kid);
     if (!verified) throw new Error(`invalid signature on envelope ${envelope.id} from ${envelope.from}`);
     if (envelope.expires && Date.parse(envelope.expires) < Date.now()) throw new Error(`sobre vencido: ${envelope.id}`);
-    if (!envelope.encrypted && !envelope.to.includes(this.address)) throw new Error(`envelope ${envelope.id} is not addressed to ${this.address}`);
+    if (!envelope.encrypted && !envelope.to.includes(this.address) && envelope.from !== this.address) throw new Error(`envelope ${envelope.id} is not addressed to ${this.address}`);
     const content = envelope.encrypted ? decryptContent(envelope.encrypted, this.address, this.keys, aad(envelope)) : envelope.content;
     return { id: envelope.id, from: envelope.from, to: envelope.to, type: envelope.type, thread: envelope.thread, in_reply_to: envelope.in_reply_to, created: envelope.created, encrypted: !!envelope.encrypted, sender: card, content };
   }

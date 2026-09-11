@@ -229,3 +229,22 @@ test('el endpoint de trabajo sigue sirviendo los nombres viejos junto a los nuev
     assert.deepEqual(j._deprecated, ['mostrador', 'arbitro', 'tareas']);
   } finally { await casa.stop(); }
 });
+
+// Nació de un defecto medido en producción el 10-sep-2026: la CSP decía `default-src 'none'` sin
+// `connect-src`, así que el navegador bloqueaba TODO fetch de /app. La página cargaba perfecta y
+// el primer botón fallaba en silencio: nadie podía crear una dirección ni mandar un mensaje, y
+// ninguna prueba lo vio porque ninguna leía la CSP junto con lo que la app hace.
+test('si la app pide cosas a la casa, la CSP la deja conectarse a la casa', async () => {
+  const { APP_HTML } = await import('../src/plataformas/app-html.js');
+  const csp = /'content-security-policy':\s*"([^"]+)"/.exec(worker)?.[1];
+  assert.ok(csp, 'no encuentro la CSP en el adaptador del edge');
+  const directiva = (nombre) => csp.split(';').map((d) => d.trim()).find((d) => d.startsWith(`${nombre} `));
+  if (/\bfetch\(/.test(APP_HTML)) {
+    const conectar = directiva('connect-src') || directiva('default-src');
+    assert.ok(conectar && /'self'/.test(conectar), `la app hace fetch y la CSP no lo permite: ${conectar || '(sin connect-src ni default-src)'}`);
+  }
+  if (/rel="manifest"/.test(APP_HTML)) {
+    const m = directiva('manifest-src') || directiva('default-src');
+    assert.ok(m && /'self'/.test(m), `la app declara un manifiesto y la CSP no lo deja cargar: ${m}`);
+  }
+});

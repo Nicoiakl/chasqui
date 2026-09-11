@@ -87,6 +87,15 @@ export class FileStore {
     fs.renameSync(p, archived);
     return true;
   }
+  // Historial: lo pendiente y lo ya confirmado (archivado), en orden de llegada, los últimos N.
+  listMailHistory(local, { limit = 200 } = {}) {
+    const leer = (d) => (fs.existsSync(d) ? fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => readJson(path.join(d, f))) : []);
+    const vivos = leer(path.join(this.dir, 'mailbox', local));
+    const archivados = leer(path.join(this.dir, 'archive', local)).map((m) => ({ ...m, acked: m.acked || true }));
+    return [...vivos, ...archivados].sort((a, b) => String(a.received).localeCompare(String(b.received))).slice(-limit);
+  }
+  // Lo pendiente que llegó después de un momento dado (la espera en tiempo real pregunta esto).
+  listMailSince(local, sinceIso) { return this.listMail(local).filter((m) => !sinceIso || String(m.received) > sinceIso); }
 
   // --- cola de salida (store-and-forward) ---
   enqueue(job) { writeJson(path.join(this.dir, 'queue', `${job.id}.json`), job); }
@@ -110,6 +119,40 @@ export class FileStore {
     const dir = path.join(this.dir, 'outbox', local);
     if (!fs.existsSync(dir)) return [];
     return fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => readJson(path.join(dir, f)));
+  }
+
+  // --- kv con vencimiento: clientes OAuth, códigos de un uso, tokens (hash) y la bóveda ---
+  _kvPath(ns, key) { return path.join(this.dir, 'kv', ns, `${encodeURIComponent(key)}.json`); }
+  kvGet(ns, key, nowMs = Date.now()) {
+    const r = readJson(this._kvPath(ns, key));
+    if (!r || (r.expires != null && r.expires <= nowMs)) return null;
+    return r.doc;
+  }
+  kvPut(ns, key, doc, expires = null) { writeJson(this._kvPath(ns, key), { doc, expires, created: new Date().toISOString() }); }
+  kvPutIfAbsent(ns, key, doc, expires = null, nowMs = Date.now()) {
+    if (this.kvGet(ns, key, nowMs) !== null) return false;
+    this.kvPut(ns, key, doc, expires);
+    return true;
+  }
+  // Tomar y borrar en un paso: un código de autorización se usa UNA vez.
+  kvTake(ns, key, nowMs = Date.now()) {
+    const p = this._kvPath(ns, key);
+    const r = readJson(p);
+    if (!r) return null;
+    fs.unlinkSync(p);
+    return (r.expires != null && r.expires <= nowMs) ? null : r.doc;
+  }
+  kvDelete(ns, key) { const p = this._kvPath(ns, key); if (fs.existsSync(p)) fs.unlinkSync(p); }
+  kvPurge(nowMs = Date.now()) {
+    const raiz = path.join(this.dir, 'kv');
+    if (!fs.existsSync(raiz)) return;
+    for (const ns of fs.readdirSync(raiz)) {
+      for (const f of fs.readdirSync(path.join(raiz, ns))) {
+        const p = path.join(raiz, ns, f);
+        const r = readJson(p);
+        if (r?.expires != null && r.expires <= nowMs) fs.unlinkSync(p);
+      }
+    }
   }
 
   // --- anti-replay de tokens de auth ---

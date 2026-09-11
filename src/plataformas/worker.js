@@ -68,6 +68,9 @@ function estafetaDesde(env) {
     // despliegue, con revisión y vuelta atrás) pero se ENCIENDE por casa: las dos casas
     // comparten este archivo, y una casa sin presupuesto que publica tareas solo frustra.
     tareas: cfg('SEED') === 'on' ? NYX5_TAREAS : {},
+    // Conector MCP remoto (OAuth + subagentes delegados). Se enciende por casa y exige la llave de
+    // la bóveda (secret NYX5_VAULT_KEY): sin ella no hay dónde guardar una llave, y /mcp no existe.
+    remoto: { enabled: cfg('MCP_REMOTE') === 'on', vaultKey: env.NYX5_VAULT_KEY },
     log: (...a) => console.log(...a),
   });
   return instancia;
@@ -81,12 +84,16 @@ function estafetaDesde(env) {
 //     interpretado como otro tipo, ni embebido en un iframe ajeno, ni filtrar de dónde vino.
 //   - CSP: la portada y la spec traen su CSS y un script inline propios y NADA externo, así que
 //     se declara exactamente eso. Si algún día se añade un recurso de fuera, esto grita.
+//     `connect-src 'self'` es OBLIGATORIO: sin él, `default-src 'none'` bloquea todo fetch y la app
+//     de /app no podía crear una dirección ni mandar un mensaje. Estuvo así en producción hasta el
+//     10-sep-2026 y nadie lo vio: la página cargaba bien y fallaba en silencio al primer botón.
+//     `manifest-src` e `img-src 'self'` son para instalarla en la pantalla de inicio.
 const SEGURIDAD = {
   'strict-transport-security': 'max-age=31536000; includeSubDomains',
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY',
   'referrer-policy': 'no-referrer',
-  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'content-security-policy': "default-src 'none'; connect-src 'self'; manifest-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
 };
 
 // Cuánto puede cachear cada superficie. La tarjeta del dominio y la spec son estables y se
@@ -97,6 +104,8 @@ function cacheDe(path, method) {
   if (path === '/.well-known/nyx5.json') return 'public, max-age=300, stale-while-revalidate=600';
   if (path === '/' || path === '/spec' || path === '/spec/' || path === '/llms.txt' || path === '/robots.txt' || path === '/sitemap.xml' || path === '/favicon.ico') return 'public, max-age=3600';
   if (path === '/tareas' || path.startsWith('/agents') || path === '/report' || path === '/report.json') return 'public, max-age=60';
+  if (path === '/manifest.webmanifest' || /^\/(icon-\d+|apple-touch-icon)\.png$/.test(path)) return 'public, max-age=86400';
+  if (path.startsWith('/.well-known/oauth-')) return 'public, max-age=300';
   return 'no-store';
 }
 
@@ -116,7 +125,12 @@ export default {
     if (request.method === 'POST' || request.method === 'PUT') {
       const len = Number(request.headers.get('content-length') || 0);
       if (len > 2 * 1024 * 1024) return Response.json({ reason: 'cuerpo demasiado grande' }, { status: 413 });
-      try { body = await request.json(); } catch { return Response.json({ reason: 'invalid JSON' }, { status: 400 }); }
+      // /oauth/token recibe form-urlencoded (RFC 6749 §4.1.3): Claude manda el canje y el refresco
+      // así. Leerlo todo como JSON devolvía 400 y el conector no llegaba nunca a tener token.
+      const texto = await request.text();
+      if ((request.headers.get('content-type') || '').includes('application/x-www-form-urlencoded')) body = Object.fromEntries(new URLSearchParams(texto));
+      else if (!texto.trim()) body = {};
+      else { try { body = JSON.parse(texto); } catch { return Response.json({ reason: 'invalid JSON' }, { status: 400 }); } }
     }
     // www redirige al apex con 301. Existe como registro para que el nombre no dé NXDOMAIN
     // (quien lo teclea o lo pega en un chat llegaba a la nada), pero la casa vive en el apex:
@@ -141,7 +155,8 @@ export default {
     if (out.pending) ctx.waitUntil(out.pending);
     if (out.kick) ctx.waitUntil(estafeta.tick().catch((e) => console.log('tick error', e.message)));
     // Un cuerpo binario (la imagen de compartir) llega como Buffer; el edge quiere bytes.
-    const cuerpo = out.contentType ? (Buffer.isBuffer(out.body) ? new Uint8Array(out.body) : out.body) : JSON.stringify(out.body);
+    // 204 y 304 no llevan cuerpo: un Response con cuerpo (aunque sea '') y uno de esos estados revienta.
+    const cuerpo = out.status === 204 || out.status === 304 ? null : out.contentType ? (Buffer.isBuffer(out.body) ? new Uint8Array(out.body) : out.body) : JSON.stringify(out.body);
     const headers = {
       // Cabeceras que pone la ruta (hoy: el sobre x402 en PAYMENT-REQUIRED / PAYMENT-RESPONSE).
       // Van PRIMERO para que una ruta no pueda pisar por descuido una cabecera de seguridad ni el

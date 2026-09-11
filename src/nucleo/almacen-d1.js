@@ -71,6 +71,16 @@ export class D1Store {
     const r = await this.db.prepare('UPDATE nyx5_mailbox SET acked = ? WHERE local = ? AND id = ? AND acked IS NULL').bind(iso(), local, id).run();
     return r.meta.changes === 1;
   }
+  // Historial: lo pendiente y lo confirmado, los últimos N en orden de llegada (índice 0006).
+  async listMailHistory(local, { limit = 200 } = {}) {
+    const r = await this.db.prepare('SELECT doc, acked FROM nyx5_mailbox WHERE local = ? ORDER BY received DESC, id DESC LIMIT ?').bind(local, limit).all();
+    return r.results.map((row) => ({ ...JSON.parse(row.doc), acked: row.acked || null })).reverse();
+  }
+  // Lo pendiente llegado después de un momento: la espera en tiempo real pregunta esto cada segundo,
+  // así que filtra en SQL en vez de traer el buzón entero.
+  async listMailSince(local, sinceIso) {
+    return (await this.db.prepare('SELECT doc FROM nyx5_mailbox WHERE local = ? AND acked IS NULL AND received > ? ORDER BY received, id').bind(local, sinceIso || '').all()).results.map((r) => JSON.parse(r.doc));
+  }
 
   // --- cola de salida ---
   _jobRow(job) { return [job.id, j(job), job.next_attempt, job.status, job.claimed_until || 0]; }
@@ -107,6 +117,29 @@ export class D1Store {
     return r.meta.changes === 1;
   }
   async pruneNonces(beforeMs) { await this.db.prepare('DELETE FROM nyx5_nonces WHERE ts < ?').bind(beforeMs).run(); }
+
+  // --- kv con vencimiento (0006): clientes OAuth, códigos de un uso, tokens (hash) y la bóveda ---
+  async kvGet(ns, key, nowMs = Date.now()) {
+    return p(await this.db.prepare('SELECT doc FROM nyx5_kv WHERE ns = ? AND key = ? AND (expires IS NULL OR expires > ?)').bind(ns, key, nowMs).first());
+  }
+  async kvPut(ns, key, doc, expires = null) {
+    await this.db.prepare('INSERT INTO nyx5_kv (ns, key, doc, expires, created) VALUES (?, ?, ?, ?, ?) ON CONFLICT(ns, key) DO UPDATE SET doc = excluded.doc, expires = excluded.expires')
+      .bind(ns, key, j(doc), expires, iso()).run();
+  }
+  async kvPutIfAbsent(ns, key, doc, expires = null, nowMs = Date.now()) {
+    await this.db.prepare('DELETE FROM nyx5_kv WHERE ns = ? AND key = ? AND expires IS NOT NULL AND expires <= ?').bind(ns, key, nowMs).run();
+    const r = await this.db.prepare('INSERT OR IGNORE INTO nyx5_kv (ns, key, doc, expires, created) VALUES (?, ?, ?, ?, ?)').bind(ns, key, j(doc), expires, iso()).run();
+    return r.meta.changes === 1;
+  }
+  // Tomar y borrar en UNA sentencia: dos canjes simultáneos del mismo código no pueden ganar los dos.
+  async kvTake(ns, key, nowMs = Date.now()) {
+    const r = await this.db.prepare('DELETE FROM nyx5_kv WHERE ns = ? AND key = ? RETURNING doc, expires').bind(ns, key).all();
+    const row = r.results[0];
+    if (!row || (row.expires != null && row.expires <= nowMs)) return null;
+    return JSON.parse(row.doc);
+  }
+  async kvDelete(ns, key) { await this.db.prepare('DELETE FROM nyx5_kv WHERE ns = ? AND key = ?').bind(ns, key).run(); }
+  async kvPurge(nowMs = Date.now()) { await this.db.prepare('DELETE FROM nyx5_kv WHERE expires IS NOT NULL AND expires <= ?').bind(nowMs).run(); }
 
   // --- pins (una fila por dominio: el primero gana y ningún isolate pisa lo que otro aprendió) ---
   async getPins() {

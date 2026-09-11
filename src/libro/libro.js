@@ -260,6 +260,9 @@ export class Libro {
     let card;
     try { card = await this.resolver.agentCardForKid(q.seller, q.signature.kid); } catch (e) { throw new LibroError(e.permanent ? 403 : 421, `no se pudo verificar al vendedor: ${e.message}`); }
     if (!Resolver.acceptedKids(card).includes(q.signature.kid) || !verifyObject(q, q.signature.kid)) throw new LibroError(403, 'firma de la cotización inválida');
+    // Una dirección de sólo mensajes (la del Claude de un teléfono, cuya llave guarda la casa) no
+    // vende: aceptarle una cotización le movería saldo, que es justo lo que su dueño no autorizó.
+    if (card.delegation?.scope?.messages_only) throw new LibroError(403, 'the seller is a messages-only address: it cannot sell');
     if (await this.store.libroFindContractByQuote(q.id)) throw new LibroError(409, 'cotización ya aceptada');
     return card;
   }

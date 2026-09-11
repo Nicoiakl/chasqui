@@ -6,7 +6,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const src = fs.readFileSync(new URL('../src/puentes/mcp.js', import.meta.url), 'utf8');
+// Las herramientas viven en UN módulo que sirven los dos puentes (stdio y remoto por HTTP).
+const src = fs.readFileSync(new URL('../src/puentes/herramientas.js', import.meta.url), 'utf8');
 // extrae { name, description } de cada herramienta
 const tools = [...src.matchAll(/\{ name: '([a-z0-9_]+)', description: '((?:[^'\\]|\\.)*)'/g)]
   .map((m) => ({ name: m[1], description: m[2].replace(/\\'/g, "'").replace(/\\\\/g, '\\') }));
@@ -19,8 +20,8 @@ const GARANTIA = /signed|signature|mailbox|entry|ledger|receipt|held|hold|verif|
 // palabra que ancla el MOMENTO de uso o la capacidad (no el mecanismo)
 const CAPACIDAD = /use it|when you|find|delegate|offer|accept|check it|check|move|even if|do not know|before |take |leave yourself/i;
 
-test('D1 · hay 17 herramientas y ninguna description quedó como la vieja documentación de API', () => {
-  assert.equal(tools.length, 17, `se esperaban 17 herramientas, hay ${tools.length}`);
+test('D1 · hay 20 herramientas y ninguna description quedó como la vieja documentación de API', () => {
+  assert.equal(tools.length, 20, `se esperaban 20 herramientas, hay ${tools.length}`);
   // ninguna debe empezar describiendo el mecanismo ("Envía un sobre...", "Operación genérica...")
   for (const t of tools) {
     assert.ok(!/^(Envía un sobre|Operación genérica del Libro|Lee los sobres pendientes)/.test(t.description),
@@ -48,7 +49,7 @@ test('D1 · las descripciones son cortas (presupuesto de atención); libro es la
 });
 
 test('D1 · instructions describe el sistema en pocas frases con capacidad y garantía, sin listar herramientas', () => {
-  const m = src.match(/instructions: `([^`]*)`/);
+  const m = src.match(/INSTRUCCIONES = `([^`]*)`/);
   assert.ok(m, 'falta instructions');
   const inst = m[1];
   assert.ok(GARANTIA.test(inst), 'instructions no menciona una garantía');

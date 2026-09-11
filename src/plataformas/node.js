@@ -3,11 +3,17 @@
 
 import http from 'node:http';
 
+// JSON, o form-urlencoded si así lo declara el cliente: /oauth/token lo exige (RFC 6749 §4.1.3).
 export function readJson(req, limit = 2 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
     req.on('data', (c) => { size += c.length; if (size > limit) { reject(Object.assign(new Error('cuerpo demasiado grande'), { status: 413 })); req.destroy(); } else chunks.push(c); });
-    req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}); } catch { reject(Object.assign(new Error('invalid JSON'), { status: 400 })); } });
+    req.on('end', () => {
+      const texto = Buffer.concat(chunks).toString();
+      if (String(req.headers['content-type'] || '').includes('application/x-www-form-urlencoded')) return resolve(Object.fromEntries(new URLSearchParams(texto)));
+      if (!texto.trim()) return resolve({});
+      try { resolve(JSON.parse(texto)); } catch { reject(Object.assign(new Error('invalid JSON'), { status: 400 })); }
+    });
     req.on('error', reject);
   });
 }

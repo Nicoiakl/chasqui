@@ -33,10 +33,28 @@ import { HOME_HTML } from '../plataformas/home-html.js';
 import { OG_PNG_B64 } from '../plataformas/og-png.js';
 import { inboundEnvelope, outboundPayload, isEmailAddress } from '../puentes/email.js';
 import * as x402 from '../puentes/x402.js';
+import * as oauth from '../puentes/oauth.js';
+import { atenderMcp } from '../puentes/mcp-remoto.js';
+import { abrirBoveda } from '../nucleo/boveda.js';
+import { ICONOS } from '../plataformas/iconos.js';
+import { Agent } from './agente.js';
 
 const now = () => Date.now();
 const iso = (t = now()) => new Date(t).toISOString();
 const RETRYABLE = new Set([408, 421, 425, 429, 500, 502, 503, 504]);
+// CORS sólo donde lo necesita un cliente MCP que corre en un navegador (el MCP Inspector, por
+// ejemplo): descubrimiento, registro, token y /mcp. El resto de la casa sigue siendo mismo-origen.
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-headers': 'authorization, content-type, mcp-protocol-version, mcp-session-id, last-event-id',
+  'access-control-expose-headers': 'www-authenticate, mcp-session-id',
+  'access-control-max-age': '600',
+};
+const rutaCors = (p) => p.startsWith('/.well-known/oauth-') || p === '/oauth/register' || p === '/oauth/token' || p === '/mcp';
+// La app se instala en la pantalla de inicio: en iPhone es lo que evita que Safari borre la llave
+// del usuario a los siete días sin abrirla.
+const MANIFIESTO = { name: 'Nyx5', short_name: 'Nyx5', start_url: '/app', scope: '/', display: 'standalone', background_color: '#FFFFFF', theme_color: '#12A594', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }] };
 
 export class Estafeta {
   constructor({
@@ -44,7 +62,7 @@ export class Estafeta {
     port = 4000, host = '127.0.0.1', publicUrl,
     hosts = {}, fetchImpl = globalThis.fetch,
     policy = {}, retry = {}, workerIntervalMs = 1000, libro = {},
-    index = {}, email = {}, verifica = {}, eventos = true, tareas = {}, terms = null,
+    index = {}, email = {}, verifica = {}, eventos = true, tareas = {}, terms = null, remoto = {},
     extensions = null,
     log = (...a) => console.log(`[estafeta ${domain}]`, ...a),
   }) {
@@ -55,6 +73,21 @@ export class Estafeta {
     this.authHost = new URL(this.publicUrl).host;
     this.adminToken = adminToken;
     this.fetch = (...a) => fetchImpl(...a); // envuelto: workerd exige fetch con this=globalThis
+    // fetch que resuelve la propia casa EN PROCESO. Un Worker no puede pedirse su propia URL
+    // pública (522): el agente de un subagente delegado (el conector remoto) habla por aquí con su
+    // estafeta, pasando por las mismas rutas, la misma firma y la misma política que cualquiera.
+    this.fetchPropio = async (url, init = {}) => {
+      const u = new URL(String(url));
+      if (u.host !== this.authHost) return this.fetch(url, init);
+      const headers = {};
+      new Headers(init.headers || {}).forEach((v, k) => { headers[k] = v; });
+      let body = null;
+      if (init.body != null) { try { body = JSON.parse(init.body); } catch { body = null; } }
+      const out = await this.handleRequest({ method: String(init.method || 'GET').toUpperCase(), path: u.pathname, query: u.searchParams, headers, body, ip: 'local' });
+      if (out.pending) out.pending.catch(() => {});
+      const texto = out.contentType ? String(out.body ?? '') : JSON.stringify(out.body);
+      return new Response(out.status === 204 || out.status === 304 ? null : texto, { status: out.status, headers: { 'content-type': out.contentType || 'application/json' } });
+    };
     this.log = log;
     // registration: 'admin' (solo la casa inscribe) | 'invite' (código emitido por la casa) | 'open' (cualquiera, con prueba de posesión de clave)
     this.policy = { inbound: 'verified', max_bytes: 1_048_576, rate_per_minute: 120, registration: 'admin', registrations_per_minute: 10, min_name_length: 4, ...policy };
@@ -82,6 +115,13 @@ export class Estafeta {
     this.store = store || new FileStore(dataDir);
     this.rate = new RateLimiter({ perMinute: this.policy.rate_per_minute });
     this.regRate = new RateLimiter({ perMinute: this.policy.registrations_per_minute });
+    // Conector MCP remoto (src/puentes/oauth.js + mcp-remoto.js). Existe sólo si la casa lo enciende
+    // Y tiene llave de bóveda: sin un lugar cifrado donde guardar la llave de un subagente, no hay
+    // conector. La llave de la bóveda no se guarda en `this.remoto`: sólo la bóveda la conoce.
+    const { vaultKey, ...remotoSinLlave } = remoto;
+    this.boveda = abrirBoveda(vaultKey || null);
+    this.remoto = { dias: 30, accesoS: 3600, refrescoMs: 30 * 24 * 3600 * 1000, ...remotoSinLlave, enabled: !!(remoto.enabled && this.boveda) };
+    this.remotoRate = new RateLimiter({ perMinute: 240 });
     this._ready = null;
     this._domainCardCache = null; // { value, until }
     this._pushes = [];            // avisos por webhook en vuelo (los espera flushPushes)
@@ -224,7 +264,7 @@ export class Estafeta {
   }
 
   // ---------- agentes ----------
-  async registerAgent({ local, sig, enc = null, capabilities = {}, inbox = { policy: 'open' }, wallet = null, wallets = null, webhook = null, notify_email = null, valid_until = null, delegation = null, welcome = null }) {
+  async registerAgent({ local, sig, enc = null, capabilities = {}, inbox = { policy: 'open' }, wallet = null, wallets = null, webhook = null, notify_email = null, valid_until = null, delegation = null, welcome = null, custody = null }) {
     local = String(local).toLowerCase();
     const address = `${local}@${this.domain}`;
     parseAddress(address);
@@ -257,13 +297,18 @@ export class Estafeta {
             else if (!hs[campo].every((x) => ps[campo].includes(x))) throw Object.assign(new Error(`a subagent cannot widen ${campo} beyond its parent`), { status: 403 });
           }
         }
+        // Sólo-mensajes no se hereda reescribiendo la delegación (quedaría con una firma que ya no
+        // cubre lo que dice): se exige. Un hijo de un subagente de sólo mensajes, también lo es.
+        if (ps.messages_only && hs.messages_only !== true) throw Object.assign(new Error('a subagent of a messages-only address must itself be messages-only'), { status: 403 });
         delegation = { ...delegation, scope: hs };
       }
       valid_until = valid_until || delegation.valid_until || null;
     }
     const prev = await this.store.getAgent(local);
     const previous = [];
-    if (prev && prev.sig !== sig) previous.push({ sig: prev.sig, until: iso(now() + 7 * 24 * 3600 * 1000) }, ...(prev.previous || []));
+    // Una llave revocada no vuelve por la ventana de gracia: si su dueño la revocó fue porque no
+    // debía seguir firmando, y los siete días de `previous` la resucitarían.
+    if (prev && prev.sig !== sig && !prev.revoked) previous.push({ sig: prev.sig, until: iso(now() + 7 * 24 * 3600 * 1000) }, ...(prev.previous || []));
     // La billetera es PÚBLICA y va en la tarjeta: es sólo la dirección a la que se le cobra. La
     // casa no la controla ni puede mover nada de ella, igual que no controla la llave del agente.
     let billeteras; try { billeteras = x402.validarBilleteras(wallets ?? wallet ?? prev?.wallets ?? prev?.wallet ?? null); }
@@ -275,6 +320,10 @@ export class Estafeta {
       ...(billeteras ? { wallets: billeteras } : {}),
       valid_from: iso(), valid_until, previous: previous.slice(0, 3),
       delegation: delegation || undefined,
+      // Quién guarda las llaves de esta dirección. Sólo lo pone la casa (el conector remoto) y se
+      // publica: quien le escribe a una dirección cuya llave guarda la casa tiene derecho a saber
+      // que la casa puede leer lo que le llega. Se conserva mientras la llave no cambie.
+      custody: custody || (prev && prev.sig === sig ? prev.custody : undefined) || undefined,
     }, this.keys, 'certification');
     // Alta atómica cuando el nombre es nuevo: dos altas concurrentes del mismo nombre no pueden
     // pisarse la clave (el perdedor cree tener el nombre y su correo iría al otro), ni cobrar el
@@ -305,6 +354,106 @@ export class Estafeta {
     return card;
   }
 
+  // ---------- conector remoto: la bóveda y el agente en proceso ----------
+  async llavesDeBoveda(local) {
+    if (!this.boveda || !this.store.kvGet) return null;
+    const v = await this.store.kvGet('boveda', local);
+    if (!v) return null;
+    try { return this.boveda.abrir(v.sellado, local); }
+    catch (e) { this.log(`bóveda: no abre la llave de ${local}: ${e.message}`); return null; }
+  }
+  // El agente de un subagente delegado, armado en este proceso con la llave de la bóveda. Firma y
+  // pasa por /outbound como cualquiera: no hay atajo que se salte la política ni el alcance.
+  async agenteDeBoveda(local) {
+    await this.init();
+    const keys = await this.llavesDeBoveda(local);
+    if (!keys) return null;
+    return new Agent({ address: `${local}@${this.domain}`, keys, estafeta: this.publicUrl, resolver: this.resolver, fetchImpl: this.fetchPropio });
+  }
+
+  // ---------- tiempo real e historial ----------
+  // Espera el primer sobre PENDIENTE que cumpla el filtro, preguntando cada segundo. Pendiente y no
+  // "nuevo": si la respuesta llegó entre que uno mandó y empezó a esperar, se entrega igual.
+  async esperarCorreo(local, { from = null, thread = null, since = null, timeoutMs = 25_000, everyMs = 1000 } = {}) {
+    const hasta = now() + Math.max(0, timeoutMs);
+    const cumple = (m) => {
+      const e = m.envelope || {};
+      const de = e.extensions?.['urn:nyx5:ext:email']?.from || e.from;
+      return (!from || de === from) && (!thread || e.thread === thread || e.id === thread);
+    };
+    for (;;) {
+      const lista = this.store.listMailSince ? await this.store.listMailSince(local, since) : (await this.store.listMail(local)).filter((m) => !since || String(m.received) > since);
+      const m = lista.find(cumple);
+      if (m) return m;
+      if (now() >= hasta) return null;
+      await new Promise((r) => setTimeout(r, Math.min(everyMs, Math.max(1, hasta - now()))));
+    }
+  }
+  // La conversación con una dirección (o, sin dirección, la lista de conversaciones): lo recibido,
+  // incluido lo confirmado, y lo enviado, que ahora queda en la bandeja con su sobre.
+  async conversacion(local, { con = null, limit = 50 } = {}) {
+    const propia = `${local}@${this.domain}`;
+    const recibidos = (await this.store.listMailHistory(local, { limit: 1000 })).map((m) => ({ id: m.envelope.id, dir: 'in', at: m.received, acked: !!m.acked, envelope: m.envelope }));
+    const enviados = [];
+    const vistos = new Set();
+    for (const e of await this.store.listOutbox(local)) {
+      if (!e.envelope || vistos.has(e.envelope.id)) continue;
+      vistos.add(e.envelope.id);
+      // Lo que uno se manda a sí mismo (un recordatorio) ya aparece como recibido: una sola vez.
+      if (e.envelope.to.includes(propia)) continue;
+      enviados.push({ id: e.envelope.id, dir: 'out', at: e.envelope.created, status: e.status, envelope: e.envelope });
+    }
+    const todos = [...recibidos, ...enviados];
+    const contraparte = (x) => (x.dir === 'in' ? (x.envelope.extensions?.['urn:nyx5:ext:email']?.from || x.envelope.from) : (x.envelope.to.find((t) => t !== propia) || x.envelope.to[0]));
+    const orden = (a, b) => String(a.at).localeCompare(String(b.at));
+    if (con) return todos.filter((x) => contraparte(x) === con || (x.dir === 'out' && x.envelope.to.includes(con))).sort(orden).slice(-limit);
+    const mapa = new Map();
+    for (const x of todos) {
+      const c = contraparte(x);
+      const r = mapa.get(c) || { with: c, count: 0, pending: 0, last_at: '', last_dir: null, last_id: null };
+      r.count++;
+      if (x.dir === 'in' && !x.acked) r.pending++;
+      if (String(x.at) > r.last_at) { r.last_at = String(x.at); r.last_dir = x.dir; r.last_id = x.id; }
+      mapa.set(c, r);
+    }
+    return [...mapa.values()].sort((a, b) => b.last_at.localeCompare(a.last_at));
+  }
+  // Los subagentes que un dueño delegó (sus Claude conectados), con lo necesario para revocarlos.
+  async delegados(local) {
+    const padre = `${local}@${this.domain}`;
+    const out = [];
+    for (const l of await this.store.listAgents()) {
+      if (!l.endsWith(`.${local}`)) continue;
+      const r = await this.store.getAgent(l);
+      if (r?.delegation?.by !== padre) continue;
+      out.push({ address: r.address, sig: r.sig, enc: r.enc || null, since: r.valid_from || null, valid_until: r.valid_until || null, revoked: r.revoked || null, custody: r.custody || null, scope: r.delegation.scope || null, inbox: r.inbox || null });
+    }
+    return out;
+  }
+  // Revocar es definitivo para esa llave: la tarjeta vence ahora (el resolver deja de aceptarla),
+  // la llave sale de la bóveda y ningún token vuelve a servir, porque cada uno se valida contra esto.
+  async revocarDelegado(subLocal, por) {
+    const rec = await this.store.getAgent(subLocal);
+    if (!rec?.delegation) throw Object.assign(new Error('no such subagent'), { status: 404 });
+    const { certification: _c, webhook, notify_email, ...cuerpo } = rec;
+    const card = signObject({ ...cuerpo, valid_until: iso(), revoked: { at: iso(), by: por } }, this.keys, 'certification');
+    await this.store.putAgent(subLocal, { ...card, webhook, notify_email });
+    await this.store.kvDelete?.('boveda', subLocal);
+    await this.store.kvDelete?.('pendiente', subLocal);
+    await this._evento('delegation_revoked', rec.address, { by: por });
+    return card;
+  }
+  // Rutas del conector que un cliente MCP pide con CORS: descubrimiento, registro, token y /mcp.
+  async _rutaRemota(rx) {
+    const p = rx.path;
+    if (rx.method === 'GET' && (p === '/.well-known/oauth-protected-resource' || p === '/.well-known/oauth-protected-resource/mcp')) return { status: 200, body: oauth.metadatosRecurso(this) };
+    if (rx.method === 'GET' && p === '/.well-known/oauth-authorization-server') return { status: 200, body: oauth.metadatosServidor(this) };
+    if (rx.method === 'POST' && p === '/oauth/register') return oauth.registrar(this, rx.body, rx.ip);
+    if (rx.method === 'POST' && p === '/oauth/token') return oauth.token(this, rx.body);
+    if (p === '/mcp') return atenderMcp(this, rx);
+    return null;
+  }
+
   // ---------- autenticación de agentes propios ----------
   // Authorization: Nyx5 <b64u(canonical({address,ts,nonce,method,path,host}))>.<firma Ed25519>
   // `host` amarra el token a ESTA estafeta: el mismo header no sirve contra otra casa.
@@ -325,6 +474,8 @@ export class Estafeta {
       if (!allowForeign) throw Object.assign(new Error('the agent does not belong to this domain'), { status: 401 });
       try { rec = await this.resolver.agentCard(claims.address); } catch (e) { throw Object.assign(new Error(`foreign agent could not be verified: ${e.message}`), { status: 401 }); }
     }
+    if (rec.revoked) throw Object.assign(new Error('this address was revoked by its owner'), { status: 401 });
+    if (rec.valid_until && Date.parse(rec.valid_until) <= now()) throw Object.assign(new Error('this address expired'), { status: 401 });
     if (Math.abs(now() - Date.parse(claims.ts)) > 300_000) throw Object.assign(new Error('token expired (5 minute window)'), { status: 401 });
     if (claims.method !== rx.method || claims.path !== path) throw Object.assign(new Error('token does not match this request'), { status: 401 });
     if (claims.host !== this.authHost) throw Object.assign(new Error(`token issued for another house (host ${claims.host || 'missing'}, expected ${this.authHost})`), { status: 401 });
@@ -342,6 +493,14 @@ export class Estafeta {
     const scope = submitter.record.delegation?.scope;
     if (scope?.types?.length && !scope.types.includes(env.type)) return { ok: false, code: 403, reason: `agente delegado: solo puede enviar type ${scope.types.join('|')}` };
     if (scope?.to_domains?.length && !env.to.every((t) => scope.to_domains.includes(parseAddress(t).domain))) return { ok: false, code: 403, reason: `agente delegado: solo puede escribir a ${scope.to_domains.join(', ')}` };
+    // Sólo mensajes: la dirección que guarda la casa para el Claude de un teléfono no toca el Libro
+    // ni paga estampillas. Aunque el puente no le ofrezca esas herramientas, la casa lo niega igual:
+    // el límite vive donde se ejecuta, no en lo que se muestra.
+    if (scope?.messages_only) {
+      if (!['message', 'result', 'receipt'].includes(env.type)) return { ok: false, code: 403, reason: 'this is a messages-only address: it can send message, result or receipt' };
+      if (env.to.some((t) => parseAddress(t).local === 'libro')) return { ok: false, code: 403, reason: 'this is a messages-only address: it cannot operate the ledger' };
+      if (env.stamp) return { ok: false, code: 403, reason: 'this is a messages-only address: it cannot pay stamps' };
+    }
 
     const byDomain = new Map();
     for (const to of env.to) { const { domain } = parseAddress(to); byDomain.set(domain, [...(byDomain.get(domain) || []), to]); }
@@ -358,7 +517,9 @@ export class Estafeta {
     return { ok: true, code: 202, id: env.id, jobs };
   }
   async _outbox(job, extra = {}) {
-    await this.store.putOutbox(job.from_local, { job: job.id, id: job.envelope.id, domain: job.domain, to: job.to, status: job.status, attempts: job.attempts, next_attempt: job.next_attempt, updated: iso(), log: job.log, ...extra });
+    // El sobre viaja con el estado: la bandeja guardaba sólo cómo iba el envío, y así lo que uno
+    // mandó desaparecía de su propio historial en cuanto se entregaba.
+    await this.store.putOutbox(job.from_local, { job: job.id, id: job.envelope.id, domain: job.domain, to: job.to, status: job.status, attempts: job.attempts, next_attempt: job.next_attempt, updated: iso(), log: job.log, envelope: job.envelope, ...extra });
   }
 
   // ---------- trabajador de entrega (store-and-forward) ----------
@@ -369,6 +530,9 @@ export class Estafeta {
     const due = await this.store.claimDueJobs(now(), 20);
     for (const job of due) await this._deliver(job);
     await this.store.pruneNonces?.(now() - 600_000);
+    // La purga de lo vencido es limpieza: si falla (una casa cuya base aún no tiene la tabla 0006),
+    // no puede tumbar el ciclo que entrega el correo de todos.
+    try { await this.store.kvPurge?.(now()); } catch (e) { this.log(`kv: no se pudo purgar lo vencido: ${e.message}`); }
     if (this.index.enabled) await this._indexCrawlIfDue();
     if (this.verifica.enabled) await this._verificarPendientes();
     await this.flushPushes();
@@ -841,8 +1005,21 @@ export class Estafeta {
     await this.init();
     const path = rx.path;
     const send = (status, body) => ({ status, body });
+    let m;
     try {
       if (rx.method === 'GET' && path === '/health') return send(200, { ok: true, domain: this.domain, agents: (await this.store.listAgents()).length, queue: (await this.store.listQueue()).length });
+      // ----- Conector MCP remoto: OAuth + /mcp -----
+      if (this.remoto.enabled && rutaCors(path)) {
+        if (rx.method === 'OPTIONS') return { status: 204, headers: CORS, contentType: 'text/plain', body: '' };
+        const r = await this._rutaRemota(rx);
+        if (r) return { ...r, headers: { ...CORS, ...(r.headers || {}) } };
+      }
+      if (this.remoto.enabled && rx.method === 'GET' && path === '/oauth/authorize') return oauth.paginaAutorizar(this, rx.query, APP_HTML);
+      if (this.remoto.enabled && rx.method === 'POST' && path === '/oauth/prepare') return oauth.preparar(this, rx);
+      if (this.remoto.enabled && rx.method === 'POST' && path === '/oauth/approve') return oauth.aprobar(this, rx);
+      // ----- La app en la pantalla de inicio -----
+      if (rx.method === 'GET' && path === '/manifest.webmanifest') return { status: 200, contentType: 'application/manifest+json', body: JSON.stringify(MANIFIESTO) };
+      if (rx.method === 'GET' && (m = /^\/(?:icon-(180|192|512)|apple-touch-icon)\.png$/.exec(path))) return { status: 200, contentType: 'image/png', body: Buffer.from(ICONOS[m[1] || 180], 'base64') };
       // Cliente web para personas: se sirve desde la propia casa (mismo origen, sin CORS).
       // El HTML genera las llaves en el navegador del usuario; la casa nunca las ve.
       // La portada muestra prueba de vida REAL, leída del libro en el momento: cuántos agentes
@@ -956,7 +1133,6 @@ export class Estafeta {
         return { status: 402, body: pr, headers: { 'payment-required': x402.cabeceraRequerido(pr) } };
       }
       if (rx.method === 'GET' && path === '/.well-known/nyx5.json') return send(200, await this.domainCard());
-      let m;
       // Reputación = una consulta al libro. Es PÚBLICA a propósito: sirve justamente para que
       // un desconocido decida antes de contratar, igual que la tarjeta. No expone contenido ni
       // contrapartes: solo cuántas entregas, cuántas fianzas y cuántos tokens se movieron.
@@ -996,7 +1172,8 @@ export class Estafeta {
           else return send(403, { reason: `this house does not accept self-registration (registration=${this.policy.registration}); ask for an invitation` });
         }
         // `source` es atribución y NO entra en la tarjeta: se descarta aquí y viaja al evento.
-        const { signature: _s, ts: _t, invite: _i, _welcome, source: _src, ...clean } = body;
+        // `custody` y `revoked` los pone sólo la casa: nadie se declara custodiado ni des-revocado.
+        const { signature: _s, ts: _t, invite: _i, _welcome, source: _src, custody: _cu, revoked: _rv, ...clean } = body;
         const card = await this.registerAgent({ ...clean, welcome: _welcome });
         this.log(`registro ${card.address} via ${via}`);
         if (!card.delegation) {
@@ -1047,6 +1224,56 @@ export class Estafeta {
         const acked = [];
         for (const id of ids) if (await this.store.ackMail(who.local, id)) acked.push(id);
         return send(200, { acked });
+      }
+      // ----- Tiempo real, historial, conectores y tarjetas ajenas -----
+      if (rx.method === 'GET' && (m = /^\/mailbox\/([^/]+)\/wait$/.exec(path))) {
+        const who = await this._authenticate(rx, path);
+        if (who.local !== decodeURIComponent(m[1]).toLowerCase()) return send(403, { reason: 'not your mailbox' });
+        const q = Object.fromEntries(rx.query);
+        const segundos = Math.max(0, Math.min(Number(q.timeout ?? 25) || 0, 90));
+        const msg = await this.esperarCorreo(who.local, { from: q.from || null, thread: q.thread || null, since: q.since || null, timeoutMs: segundos * 1000 });
+        return send(200, { message: msg });
+      }
+      if (rx.method === 'GET' && (m = /^\/conversations\/([^/]+)$/.exec(path))) {
+        const who = await this._authenticate(rx, path);
+        if (who.local !== decodeURIComponent(m[1]).toLowerCase()) return send(403, { reason: 'not your conversations' });
+        const con = rx.query.get('with');
+        const limit = Math.max(1, Math.min(Number(rx.query.get('limit') || 50) || 50, 500));
+        if (con) return send(200, { with: con.toLowerCase(), messages: await this.conversacion(who.local, { con: con.toLowerCase(), limit }) });
+        return send(200, { conversations: await this.conversacion(who.local) });
+      }
+      if (rx.method === 'GET' && (m = /^\/delegations\/([^/]+)$/.exec(path))) {
+        const who = await this._authenticate(rx, path);
+        if (who.local !== decodeURIComponent(m[1]).toLowerCase()) return send(403, { reason: 'not your delegations' });
+        return send(200, { delegations: await this.delegados(who.local) });
+      }
+      if (rx.method === 'POST' && (m = /^\/agents\/([^/]+)\/revoke$/.exec(path))) {
+        const sub = decodeURIComponent(m[1]).toLowerCase();
+        if (!Estafeta.validLocal(sub)) return send(400, { reason: 'invalid agent name' });
+        const rec = await this.store.getAgent(sub);
+        if (!rec?.delegation) return send(404, { reason: 'no such subagent' });
+        let por;
+        if ((rx.headers.authorization || '') === `Bearer ${this.adminToken}`) por = `casa@${this.domain}`;
+        else {
+          const who = await this._authenticate(rx, path);
+          if (who.address !== rec.delegation.by && who.local !== sub) return send(403, { reason: 'only the owner who delegated it can revoke it' });
+          por = who.address;
+        }
+        if (rec.revoked) return send(200, { address: rec.address, revoked: rec.revoked, already: true });
+        const card = await this.revocarDelegado(sub, por);
+        return send(200, { address: card.address, revoked: card.revoked });
+      }
+      // La tarjeta verificada de CUALQUIER dirección, resuelta por la casa. La app del navegador no
+      // puede pedirle la tarjeta a otra casa (CSP y CORS lo impiden, y está bien), y sin la llave de
+      // cifrado del destinatario tendría que mandar en claro.
+      if (rx.method === 'GET' && (m = /^\/resolve\/([^/]+)$/.exec(path))) {
+        if (!this.rate.allow(`resolve:${rx.ip || 'x'}`)) return send(429, { reason: 'too many requests' });
+        let addr; try { addr = decodeURIComponent(m[1]).toLowerCase(); parseAddress(addr); } catch { return send(400, { reason: 'invalid address' }); }
+        try {
+          const { _estafeta, _domain, delegation, ...card } = await this.resolver.agentCard(addr);
+          const { _parent, ...d } = delegation || {};
+          return send(200, { ...card, ...(delegation ? { delegation: d } : {}) });
+        } catch (e) { return send(e.permanent ? 404 : 502, { reason: e.message }); }
       }
       // ----- Libro (lecturas directas; las operaciones van por correo a libro@) -----
       if (rx.method === 'GET' && (m = /^\/libro\/cuenta\/([^/]+)$/.exec(path))) {

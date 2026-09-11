@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const leer = (f) => fs.readFileSync(path.join(raiz, f), 'utf8');
 const cli = leer('bin/nyx5.js');
-const mcp = leer('src/puentes/mcp.js');
+// Las herramientas viven en un módulo que sirven los dos puentes (stdio y el remoto por HTTP).
+const mcp = leer('src/puentes/herramientas.js');
 const docs = ['README.md', 'agents.md'];
 
 test('todo comando que la documentación promete existe en el CLI', () => {
@@ -38,6 +39,10 @@ test('toda herramienta MCP que la documentación nombra existe en el puente', ()
 
 test('la versión del paquete es la que la documentación asume, y el bin apunta a un archivo real', () => {
   const pkg = JSON.parse(leer('package.json'));
+  // El servidor declara su versión desde src/version.js (el edge no tiene sistema de archivos para
+  // leer package.json). Si alguien sube la versión del paquete y no ésta, el conector miente.
+  const declarada = /VERSION = '([^']+)'/.exec(leer('src/version.js'))?.[1];
+  assert.equal(declarada, pkg.version, `src/version.js dice ${declarada} y package.json ${pkg.version}`);
   assert.equal(pkg.name, '@nyx5/nyx5');
   for (const destino of Object.values(pkg.bin)) assert.ok(fs.existsSync(path.join(raiz, destino)), `bin apunta a ${destino}, que no existe`);
   // Todo lo que la documentación menciona como archivo del repo tiene que estar publicado.
