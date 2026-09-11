@@ -581,6 +581,24 @@ export class Estafeta {
     await this.store.putAgent(local, { ...card, webhook, notify_email });
     return card;
   }
+  // Conecta dos direcciones de esta casa en los DOS sentidos. Nació el 11-sep-2026: Nicholas pidió
+  // que su Claude del teléfono y el de Basti quedaran como contactos sin que Basti volviera a
+  // conectar el suyo (el plan gratis de Claude admite un solo conector). Sólo la casa lo hace, y
+  // revisa los dos lados ANTES de escribir: nunca queda una conexión en un solo sentido.
+  async conectarContactos(a, b) {
+    const dirs = [a, b].map((x) => String(x || '').toLowerCase());
+    let pa, pb; try { pa = parseAddress(dirs[0]); pb = parseAddress(dirs[1]); } catch { return { status: 400, body: { reason: 'two addresses of this house are needed' } }; }
+    if (pa.domain !== this.domain || pb.domain !== this.domain) return { status: 400, body: { reason: `both addresses must belong to ${this.domain}` } };
+    if (dirs[0] === dirs[1]) return { status: 400, body: { reason: 'an address is already its own contact' } };
+    for (const l of [pa.local, pb.local]) {
+      const rec = await this.store.getAgent(l);
+      if (!rec || rec.revoked || rec.inbox?.policy !== 'allowlist') return { status: 409, body: { reason: `${l}@${this.domain} does not exist, is revoked, or does not filter by list` } };
+    }
+    await this.agregarContactos(pa.local, [dirs[1]]);
+    await this.agregarContactos(pb.local, [dirs[0]]);
+    await this._evento('contacts_connected', dirs[0], { with: dirs[1] });
+    return { status: 200, body: { connected: dirs } };
+  }
 
   // Rutas del conector que un cliente MCP pide con CORS: descubrimiento, registro, token y /mcp.
   async _rutaRemota(rx) {
@@ -1184,6 +1202,13 @@ export class Estafeta {
       if ((m = /^\/admin\/assistants(?:\/([^/]+))?(?:\/(knowledge|config|pause|resume))?$/.exec(path))) {
         if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house configures assistants' });
         return this._adminAsistente(rx, m[1] ? decodeURIComponent(m[1]).toLowerCase() : null, m[2] || null);
+      }
+      // ----- Contactos: la casa conecta dos direcciones suyas en los dos sentidos -----
+      if (rx.method === 'POST' && path === '/admin/contacts') {
+        if ((rx.headers.authorization || '') !== `Bearer ${this.adminToken}`) return send(401, { reason: 'only the house connects contacts' });
+        const between = Array.isArray(rx.body?.between) ? rx.body.between : [];
+        const r = await this.conectarContactos(between[0], between[1]);
+        return send(r.status, r.body);
       }
       // ----- La app en la pantalla de inicio -----
       if (rx.method === 'GET' && path === '/manifest.webmanifest') return { status: 200, contentType: 'application/manifest+json', body: JSON.stringify(MANIFIESTO) };

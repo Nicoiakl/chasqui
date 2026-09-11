@@ -386,3 +386,23 @@ test('pay: a un subagente de sólo mensajes no se le paga, y el rechazo dice a q
   const e = await nico.waitFor((x) => x.type === 'receipt' && x.from === `postmaster@${H}` && x.in_reply_to === op.id, { timeoutMs: 6000 });
   assert.match((await nico.open(e.envelope)).content.body.reason, /only carries messages.*pay its owner, extrano@remoto\.test/);
 });
+
+// 11-sep-2026: Nicholas pidió que su Claude del teléfono y el de Basti quedaran conectados sin que
+// Basti volviera a conectar el suyo. La casa lo hace, en los dos sentidos, y sólo la casa.
+test('la casa conecta dos Claude en los dos sentidos, se escriben de verdad, y nadie más puede', async () => {
+  const primero = Agent.create(`primero@${H}`, URL_CASA, { hosts });
+  const segundo = Agent.create(`segundo@${H}`, URL_CASA, { hosts });
+  for (const a of [primero, segundo]) await a.register({ adminToken: 't' });
+  const c1 = await conectar(primero);
+  const c2 = await conectar(segundo);
+  const pedir = (auth, between) => fetch(`${URL_CASA}/admin/contacts`, { method: 'POST', headers: { ...(auth ? { authorization: auth } : {}), 'content-type': 'application/json' }, body: JSON.stringify({ between }) }).then(json);
+  assert.equal((await pedir(null, [c1.sub, c2.sub])).status, 401, 'sin la llave de la casa no se conecta nada');
+  assert.equal((await pedir('Bearer t', [c1.sub, 'alguien@otra.casa'])).status, 400, 'sólo direcciones de esta casa');
+  const r = await pedir('Bearer t', [c1.sub, c2.sub]);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.ok((await casa.store.getAgent('claude.primero')).inbox.allowlist.includes(c2.sub));
+  assert.ok((await casa.store.getAgent('claude.segundo')).inbox.allowlist.includes(c1.sub));
+  await herramienta(c1.access_token, 'nyx5_send', { to: c2.sub, body: 'hola segundo' });
+  const w = await herramienta(c2.access_token, 'nyx5_wait', { from: c1.sub, seconds: 10 });
+  assert.equal(w.datos.content.body, 'hola segundo');
+});

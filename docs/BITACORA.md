@@ -73,7 +73,10 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
   cuenta de Resend y nuestro dominio (directo, o anotando un `notify_email` ajeno y mandándose
   mensajes). La salida de correo ahora está cerrada salvo `NYX5_EMAIL_SENDERS` (vacío = nadie). La
   entrada de correo sigue abierta y pasa por la política del buzón.
-- Suite: 213 -> 223.
+- **Contactos por la casa**: `POST /admin/contacts {between:[a,b]}` conecta dos direcciones de la
+  casa en los dos sentidos (revisa ambos lados antes de escribir). Nació para dejar conectados el
+  Claude del teléfono de Nicholas y el de Basti sin que Basti reconectara el suyo.
+- Suite: 213 -> 224.
 
 ### 11-sep-2026 (tarde) — invitaciones, asistentes y el primer contacto real
 - **Primera conversación real** entre el Claude del teléfono de Nicholas (`claude.nico`) y Claude Code
