@@ -19,7 +19,6 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 | ☐ | **Escrow con `reclaim`**: hoy un contrato que llega a su plazo sin que nadie decida sólo manda un aviso, y la plata sigue retenida. El rail al que mapeamos le da al comprador una salida unilateral. Es un hueco nuestro, arreglable en el Libro, independiente de todo lo del dinero real | 9-sep |
 | ☐ | **x402**: ¿la comisión de la casa puede seguir saliendo de lo que recibe el receptor? Si x402 responde que no, el binding exige cambiar cómo se asienta la comisión. Preguntado en su issue #3435 | 9-sep |
 | ☐ | **`ANTHROPIC_API_KEY`** para que `sigo.nicholas@` conteste solo (workspace con tope US$30): `npx wrangler secret put ANTHROPIC_API_KEY` | 11-sep |
-| ☐ | **Fee del token**: producción cobra 20% (`NYX5_FEE_BPS=2000`); lo decidido el 10-sep es 0,5%. ¿Se baja, y un pago entre personas lleva fee? | 11-sep |
 
 ## Abierto — de la sesión
 
@@ -35,7 +34,8 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 - **`pay {to, amount, concept}`**: tokens de una persona a otra sin cotización ni contrato. Lo firma
   el que paga; el que recibe no hace nada y los dos reciben el recibo. Sólo dentro de la casa, sólo a
   una dirección que existe, y nunca a un subagente de sólo mensajes (no podría gastarlo: se le paga
-  al dueño). Usa el fee de la casa, que HOY es 20% en producción (ver lo abierto de Nicholas).
+  al dueño). **Sin fee**: decisión de Nicholas del 11-sep, "0,5% en trabajo, 0% entre personas".
+  Producción cobraba 20% sobre el token, un número anterior a la decisión del 10-sep: bajado a 50 bps.
 - **Defecto evitado antes de que la Pauli lo viera**: su invitación prellenaba "pauli", un nombre
   tomado desde el 7-sep. Su primer "Connect" iba a rebotar con "that name is taken". La pantalla ya
   no sugiere un nombre tomado, reservado o corto; se comprueba al MOSTRAR, no al crear. Test escrito

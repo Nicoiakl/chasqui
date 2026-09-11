@@ -17,7 +17,9 @@ NYX5_DOMAIN = "nyx5.com"
 NYX5_PUBLIC_URL = "https://nyx5.com"
 NYX5_REGISTRATION = "open"
 NYX5_WELCOME = "0"
-NYX5_FEE_BPS = "2000"
+# Fee de la casa en basis points. DECIDIDO por Nicholas: 0,5% sobre el trabajo (10-sep) y 0% entre
+# personas (11-sep; `pay` no lo cobra). Antes eran 2000 (20%), un número anterior a la decisión.
+NYX5_FEE_BPS = "50"
 NYX5_INDEX = "on"
 # Trabajo sembrado ENCENDIDO solo aquí: `tareas@` necesita presupuesto cargado para comprar.
 NYX5_SEED = "on"

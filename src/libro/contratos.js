@@ -255,7 +255,9 @@ const ops = {
     // Un subagente de sólo mensajes nunca podrá gastar: lo que le llegue quedaría varado. Se le paga al dueño.
     must(!rec.delegation?.scope?.messages_only, 400, `${address} only carries messages and could never spend this; pay its owner, ${rec.delegation?.by}`);
     const concept = typeof body.concept === 'string' && body.concept.trim() ? body.concept.trim().slice(0, 200) : `pago de ${from}`;
-    const asiento = await libro.transfer(from, address, body.amount, concept, { kind: 'pay', to: address }, { op: ctx.env.id, op_sha256: ctx.opHash });
+    // Sin fee (decidido por Nicholas el 11-sep-2026): mandarle tokens a una persona es gratis, como un
+    // mensaje. El fee de la casa (0,5%) es para el trabajo que alguien encarga: spot, escrow, mandatos.
+    const asiento = await libro.post(concept, [{ account: from, delta: -body.amount }, { account: address, delta: body.amount }], { kind: 'pay', to: address, fee: 0 }, { op: ctx.env.id, op_sha256: ctx.opHash });
     return { result: { asiento }, recibos: [{ to: [from, address], body: { asiento, pay: { from, to: address, amount: body.amount, concept } } }] };
   },
 

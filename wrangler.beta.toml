@@ -15,7 +15,8 @@ NYX5_DOMAIN = "b.nyx5.com"
 NYX5_PUBLIC_URL = "https://b.nyx5.com"
 NYX5_REGISTRATION = "invite"
 NYX5_WELCOME = "0"
-NYX5_FEE_BPS = "2000"
+# Mismo fee que la casa principal: 0,5% sobre el trabajo, 0% entre personas (decisión del 11-sep).
+NYX5_FEE_BPS = "50"
 NYX5_INDEX = "off"
 
 [[d1_databases]]
