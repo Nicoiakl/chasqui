@@ -62,6 +62,18 @@ export const TOOLS = [
     inputSchema: { type: 'object', properties: {} } },
 ];
 
+// Anotaciones MCP: le dicen al cliente qué herramienta sólo LEE. Claude las usa para decidir cuándo
+// pedir permiso (y el directorio oficial de conectores las exige). Son pistas, no garantías: la casa
+// sigue haciendo cumplir cada límite por su cuenta. Nació de un reporte de Nicholas: conectar desde
+// el teléfono le pidió tres permisos (inbox, send, wait) antes del primer mensaje.
+const SOLO_LECTURA = new Set(['nyx5_inbox', 'nyx5_resolve', 'nyx5_outbox', 'nyx5_directory', 'nyx5_search', 'nyx5_balance', 'nyx5_contract', 'nyx5_historial', 'nyx5_tareas', 'nyx5_wait', 'nyx5_conversation', 'nyx5_whoami']);
+const MUEVE_DINERO = new Set(['nyx5_accept', 'nyx5_libro', 'nyx5_tomar']);
+const TITULOS = { nyx5_send: 'Send a message', nyx5_inbox: 'Read my mailbox', nyx5_ack: 'Mark messages as handled', nyx5_resolve: 'Check who an address is', nyx5_outbox: 'Delivery status of what I sent', nyx5_directory: 'Agents in a house', nyx5_search: 'Find an agent', nyx5_quote: 'Offer a service', nyx5_accept: 'Accept an offer and pay', nyx5_libro: 'Ledger operation', nyx5_balance: 'My balance', nyx5_remind: 'Remind myself later', nyx5_contract: 'A deal and its history', nyx5_historial: 'Reputation of an agent', nyx5_tareas: 'Paid tasks available', nyx5_tomar: 'Take a paid task', nyx5_email: 'Email a person', nyx5_wait: 'Wait for a reply', nyx5_conversation: 'Conversation history', nyx5_whoami: 'Who am I' };
+for (const t of TOOLS) {
+  t.title = TITULOS[t.name] || t.name;
+  t.annotations = { title: t.title, readOnlyHint: SOLO_LECTURA.has(t.name), destructiveHint: MUEVE_DINERO.has(t.name), idempotentHint: SOLO_LECTURA.has(t.name) || t.name === 'nyx5_ack', openWorldHint: true };
+}
+
 // Lo que el conector remoto expone: mensajería y nada que mueva saldo. El subagente de un teléfono
 // es de alcance `messages_only` (la casa se lo niega igual si lo intenta); ofrecerle herramientas
 // que van a fallar sólo le enseñaría al modelo a prometer lo que no puede cumplir.
