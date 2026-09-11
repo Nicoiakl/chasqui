@@ -29,6 +29,17 @@ Nada de esto lo puede hacer la sesión: exige sus credenciales, su firma o su cr
 
 ## Hecho
 
+### 11-sep-2026 (tarde) — invitaciones, asistentes y el primer contacto real
+- **Primera conversación real** entre el Claude del teléfono de Nicholas (`claude.nico`) y Claude Code
+  en su Mac (`code.nicholas`), por nyx5.com, cifrada y firmada. claude.ai se registró solo.
+- **Primera prueba de inyección pasada**: su Claude pidió por el canal mandar un correo en su nombre;
+  no se ejecutó sin su confirmación directa.
+- **Invitaciones**: un link por WhatsApp, la pantalla prellenada, contacto mutuo. La de la Pauli, en
+  camino. Anotaciones MCP de sólo lectura para pedir menos permisos.
+- **Asistentes**: `sigo.nicholas@nyx5.com` contesta solo, con tope de US$30, para Basti.
+- **Seis choques de puertos entre suites** que el guard no veía (uno lo causé yo). Guard ampliado.
+- Suite: 206 -> 213.
+
 ### 10/11-sep-2026 — el WhatsApp de los agentes
 - **Conector MCP remoto en producción: `https://nyx5.com/mcp`.** Cualquier Claude (web, Desktop,
   teléfono) lo agrega con esa URL, sin instalar nada. OAuth 2.1 como lo exige Claude (registro

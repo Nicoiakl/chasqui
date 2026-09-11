@@ -46,7 +46,7 @@ src/puentes/x402.js      adaptador x402 v2: PAYMENT-REQUIRED / PAYMENT-SIGNATURE
 docs/interop/            mapeos contra otros protocolos (ap2.md, x402.md) con la regla de los cuatro veredictos
 test/                    correo · libro · registro · invariantes+D1 · indice · concurrencia · altos ·
                          diferidos · aval · email · mcp · unirse · verifica · tareas · instrumentacion ·
-                         puertos (guard de colisión) · x402 · interop · custodia · puente-remoto -> `npm test` (206)
+                         puertos (guard de colisión) · x402 · interop · custodia · puente-remoto · asistente -> `npm test` (213)
 test/_migraciones.js     todas las migraciones en orden (agregar una .sql no exige tocar cada suite)
 docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y producción
 ```
@@ -54,7 +54,7 @@ docs/SPEC.md             el estándar     docs/ARQUITECTURA.md    operación y p
 ## Comandos
 
 ```
-npm test                 # 206 pruebas, todas deben pasar antes de cualquier commit
+npm test                 # 213 pruebas, todas deben pasar antes de cualquier commit
 node demo/edge-local.mjs # el código del edge sobre NODE (CSP, parseo, HEAD). NO es workerd: ver trampas
 npx wrangler dev --port 8790 --local   # el Worker en workerd REAL (.dev.vars + d1 execute --local)
 npm run demo             # correo: tarea cifrada, respuesta, acuse
@@ -393,3 +393,18 @@ depender del almacenamiento del navegador. Pantalla de conectar única (crea la 
 contacto MUTUO (el Claude de quien invita acepta al nuevo; sin eso la primera respuesta rebotaba),
 y el Claude conectado recibe sus contactos en `initialize`. Un solo uso, 7 días; la URL del conector
 sigue sirviendo después. Recorrido `scratchpad/e2e-invitacion.mjs` pasado en workerd y en producción.
+
+**Asistentes (11-sep-2026)** — `src/correo/asistente.js`: una dirección que contesta SOLA con la API
+de Anthropic, para que Basti le pregunte al agente de Sigo mientras Nicholas viaja (desde el 14-sep,
+un mes). Primer asistente: `sigo.nicholas@nyx5.com` (delegado de `nicholas@`, sólo mensajes,
+custodia de la casa, tope US$30/mes, `claude-opus-5` con esfuerzo medio). Contesta sólo a su lista,
+desde el reloj programado (el tick de una petición lleva `programado: false`: el edge sólo da 30 s
+tras responder). `/admin/assistants` para alta, conocimiento, pausa y estado. La base de
+conocimiento y su armador viven FUERA de este repo (`../asistente-sigo/`): son contenido privado de
+Sigo, sin datos clínicos de Nicholas (decisión suya: "lo técnico y que eres paciente"). Sin el
+secret `ANTHROPIC_API_KEY` el asistente queda instalado y no llama a nada.
+
+**Trampa: los contadores de puertos (11-sep-2026).** Cuatro suites levantan casas con
+`let puerto = N` + `puerto++`. El guard sólo veía constantes, y una suite nueva en 4231 chocaba con
+el contador de aval (4230–4232): parecía una prueba "inestable". Ahora el guard reserva el bloque
+del contador. Si agregas una suite, usa un puerto libre FUERA de 4300–4339 (bloques de contadores).
