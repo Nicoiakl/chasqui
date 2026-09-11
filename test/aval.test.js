@@ -9,7 +9,7 @@ import path from 'node:path';
 import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 
-let puerto = 4230;
+let puerto = 4300; // bloque 4300-4309 (lo cuida test/puertos.test.js)
 async function casa() {
   const p = puerto++;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-aval-'));

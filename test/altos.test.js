@@ -18,7 +18,7 @@ import { MIGRACIONES } from './_migraciones.js';
 const MIG = ['../migrations/0002_nyx5.sql', '../migrations/0003_candado.sql', '../migrations/0004_pins.sql']
   .map((f) => { try { return fs.readFileSync(new URL(f, import.meta.url), 'utf8'); } catch { return ''; } }).join('\n');
 const d1store = () => { const db = openLocalD1(); db._raw.exec(MIGRACIONES); return new D1Store(db); };
-let puerto = 4160;
+let puerto = 4310; // bloque 4310-4319 (lo cuida test/puertos.test.js)
 const casa = async (opts = {}) => {
   const p = puerto++;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-altos-'));

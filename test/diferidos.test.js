@@ -10,7 +10,7 @@ import { Estafeta } from '../src/correo/estafeta.js';
 import { Agent } from '../src/correo/agente.js';
 import { Libro } from '../src/libro/libro.js';
 
-let puerto = 4180;
+let puerto = 4320; // bloque 4320-4329 (lo cuida test/puertos.test.js)
 async function casa() {
   const p = puerto++;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nyx5-dif-'));
