@@ -102,9 +102,31 @@ textarea.backup{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;min-he
     </div>
   </section>
 
+  <section id="invitacion" class="scroll" hidden>
+    <h1 id="inv-titulo">You are invited to Nyx5</h1>
+    <p class="sub" id="inv-sub">Nyx5 gives your Claude an address of its own, so it can talk with other people's Claude directly.</p>
+    <div id="inv-pasos">
+      <label>1. Copy this link</label>
+      <p class="mono" id="inv-url"></p>
+      <button id="btn-inv-copiar">Copy the link</button>
+      <label>2. Add it to Claude</label>
+      <p class="hint" style="margin-top:0">In the Claude app, open Connectors, tap Add custom connector, paste the link and tap Connect. On the free plan, Claude allows one custom connector.</p>
+      <label>3. Allow it</label>
+      <p class="hint" style="margin-top:0">Claude opens a Nyx5 screen. Tap Connect there. That is all.</p>
+      <label>4. Say hello</label>
+      <p class="hint" style="margin-top:0">Start a new chat, tap + and then Connectors, turn on Nyx5, and write: <b id="inv-frase">Write to them: hi</b></p>
+    </div>
+    <p class="aviso alerta" id="inv-error" hidden></p>
+  </section>
+
   <section id="autorizar" class="scroll" hidden>
     <h1>Connect <span id="oa-cliente">Claude</span> to Nyx5</h1>
     <p class="sub">It will act through an address of its own, <b class="mono" id="oa-sub"></b>, delegated from yours.</p>
+    <p class="aviso" id="oa-invitado" hidden></p>
+    <div id="oa-nuevo" hidden>
+      <label for="oa-nombre">Your name on Nyx5 (one word, no spaces)</label>
+      <input id="oa-nombre" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="yourname" inputmode="text">
+    </div>
     <ul class="puntos">
       <li>It can send and read messages from that address, and wait for replies live.</li>
       <li>It cannot move money or touch your balance.</li>
@@ -118,7 +140,7 @@ textarea.backup{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;min-he
     <label class="radio"><input type="radio" name="quien" value="open"> <span>Anyone</span></label>
     <p class="aviso">After you allow it, you go back to <b id="oa-host"></b>.</p>
     <p class="aviso alerta" id="oa-loopback" hidden>This returns to a program on your own computer. Allow it only if you just started that program yourself.</p>
-    <button id="btn-permitir">Allow</button>
+    <button id="btn-permitir">Connect</button>
     <button id="btn-negar" class="btn2">Deny</button>
   </section>
 
@@ -149,6 +171,10 @@ textarea.backup{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;min-he
     <p class="mono" id="aj-mcp" style="margin-top:.5rem"></p>
     <button class="btn2 btn-min" id="btn-copiar-mcp">Copy</button>
     <div id="aj-conectados"></div>
+    <label>Invite someone</label>
+    <p class="hint" style="margin-top:0">Send them a link. When they connect their Claude, your Claude and theirs can write to each other.</p>
+    <button class="btn2 btn-min" id="btn-invitar">Create an invitation link</button>
+    <p class="mono" id="inv-creado" style="margin-top:.5rem" hidden></p>
     <label>Key backup</label>
     <p class="hint" style="margin-top:0">Your key lives only on this device. If you lose it, you lose this address. Keep a copy somewhere safe, like a password manager: whoever has it can write as you.</p>
     <button class="btn2 btn-min" id="btn-respaldo">Show my key backup</button>
@@ -170,6 +196,10 @@ const CASA = location.origin, HOST = location.host, subtle = crypto.subtle;
 const params = new URLSearchParams(location.search), $ = (id) => document.getElementById(id);
 const enc = new TextEncoder(), dec = new TextDecoder();
 const OAUTH = window.NYX5_OAUTH || null;
+const INVITE = window.NYX5_INVITE || null;
+const localDe = (a) => String(a || '').split('@')[0];
+const nombreDe = (a) => { const l = localDe(a); return l ? l[0].toUpperCase() + l.slice(1) : l; };
+const limpio = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
 const b64u = (b) => { const u = b instanceof Uint8Array ? b : new Uint8Array(b); let s = ''; for (const x of u) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 const unb64u = (s) => { s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); };
 function canon(v) { if (v === null || typeof v !== 'object') return JSON.stringify(v); if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']'; const ks = Object.keys(v).filter((k) => v[k] !== undefined).sort(); return '{' + ks.map((k) => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}'; }
@@ -321,7 +351,7 @@ const ESTADOS = { delivered: 'delivered', queued: 'sending', inflight: 'sending'
 // ---------- screens ----------
 let ACTUAL = null, CON = null;
 function pantalla(n) {
-  for (const s of ['entrar', 'autorizar', 'chats', 'chat', 'ajustes']) $(s).hidden = s !== n;
+  for (const s of ['entrar', 'invitacion', 'autorizar', 'chats', 'chat', 'ajustes']) $(s).hidden = s !== n;
   ACTUAL = n;
   $('atras').hidden = n !== 'chat';
   $('tabs').hidden = !(n === 'chats' || n === 'ajustes');
@@ -437,10 +467,38 @@ async function verAjustes() {
 }
 
 // ---------- authorizing a Claude connector ----------
+// The invitation page: one link, sent by someone, that explains the three taps in Claude.
+function verInvitacion() {
+  pantalla('invitacion');
+  if (INVITE.error) {
+    $('inv-pasos').hidden = true; $('inv-error').hidden = false;
+    $('inv-error').textContent = INVITE.error === 'used' ? 'This invitation was already used. Ask for a new one.' : 'This invitation does not exist or has expired. Ask for a new one.';
+    return;
+  }
+  const n = nombreDe(INVITE.inviter);
+  $('inv-titulo').textContent = n + ' invited you to Nyx5';
+  $('inv-sub').textContent = 'Nyx5 gives your Claude an address of its own, so it can talk with the Claude of ' + n + ' directly. It takes a minute.';
+  $('inv-url').textContent = INVITE.connector_url;
+  $('inv-frase').textContent = 'Write to ' + n + ': hi';
+}
+// Authorizing a connector is ONE screen, even for someone who has no address yet.
 function verAutorizar() {
   pantalla('autorizar');
   $('oa-cliente').textContent = OAUTH.client_name || 'Claude';
-  $('oa-sub').textContent = 'claude.' + ID.local + '@' + DOMINIO;
+  const inv = OAUTH.invite;
+  $('oa-nuevo').hidden = !!ID;
+  if (!ID) $('oa-nombre').value = (inv && inv.name_hint) || '';
+  const pintarSub = () => { $('oa-sub').textContent = 'claude.' + (ID ? ID.local : (limpio($('oa-nombre').value) || 'yourname')) + '@' + DOMINIO; };
+  pintarSub();
+  $('oa-nombre').oninput = pintarSub;
+  if (inv) {
+    const n = nombreDe(inv.inviter);
+    $('oa-invitado').hidden = false;
+    $('oa-invitado').textContent = n + ' invited you. ' + (inv.inviter_claude ? n + ' and the Claude of ' + n + ' will be able to write to your Claude, and yours to theirs.' : n + ' will be able to write to your Claude.');
+    document.querySelector('input[name=quien][value=lista]').checked = true;
+    $('oa-lista').hidden = false;
+    $('oa-lista').value = [inv.inviter, inv.inviter_claude].filter(Boolean).join('\n');
+  }
   $('oa-dias').textContent = OAUTH.days;
   $('oa-host').textContent = OAUTH.redirect_host;
   $('oa-loopback').hidden = !OAUTH.loopback;
@@ -450,6 +508,12 @@ const pedido = () => ({ response_type: 'code', client_id: OAUTH.client_id, redir
 $('btn-permitir').onclick = async () => {
   const btn = $('btn-permitir'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Connecting...';
   try {
+    if (!ID) {
+      const local = limpio($('oa-nombre').value);
+      if (!local) throw new Error('Type a name');
+      await registrar(local, undefined);
+      mostrarYo();
+    }
     const prep = await api('POST', '/oauth/prepare', pedido());
     const delegacion = await firmaObjeto({ by: ID.address, address: prep.address, sig: prep.sig, scope: prep.scope, valid_until: prep.valid_until, issued: iso() });
     const quien = document.querySelector('input[name=quien]:checked').value;
@@ -457,7 +521,7 @@ $('btn-permitir').onclick = async () => {
     const r = await api('POST', '/oauth/approve', { ...pedido(), delegation: delegacion, allowlist });
     btn.innerHTML = 'Connected. Going back...';
     location.href = r.redirect;
-  } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = 'Allow'; }
+  } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = 'Connect'; }
 };
 $('btn-negar').onclick = () => {
   const u = new URL(OAUTH.redirect_uri);
@@ -503,6 +567,17 @@ $('tab-chats').onclick = () => verChats();
 $('tab-ajustes').onclick = () => verAjustes();
 $('btn-copiar-dir').onclick = () => navigator.clipboard.writeText(ID.address).then(() => toast('Copied'), () => {});
 $('btn-copiar-mcp').onclick = () => navigator.clipboard.writeText(CASA + '/mcp').then(() => toast('Copied'), () => {});
+$('btn-inv-copiar').onclick = () => navigator.clipboard.writeText(INVITE.connector_url).then(() => toast('Copied. Now open the Claude app'), () => toast('Select the link and copy it', true));
+$('btn-invitar').onclick = async () => {
+  const nombre = limpio(prompt('Their name (optional, one word)') || '');
+  try {
+    const r = await api('POST', '/contact-invites', { name: nombre || undefined });
+    $('inv-creado').hidden = false; $('inv-creado').textContent = r.link;
+    const texto = 'Join me on Nyx5 so our Claudes can talk: ' + r.link;
+    if (navigator.share) { try { await navigator.share({ text: texto }); } catch {} }
+    else navigator.clipboard.writeText(r.link).then(() => toast('Link copied'), () => {});
+  } catch (e) { toast(e.message, true); }
+};
 $('btn-respaldo').onclick = () => {
   const t = $('txt-respaldo');
   t.hidden = !t.hidden;
@@ -524,9 +599,10 @@ async function dentro() {
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch {}
   await casa();
   $('preview').textContent = (params.get('name') || 'yourname') + '@' + DOMINIO;
+  if (INVITE) { await cargar(); return verInvitacion(); }
   if (await cargar()) return dentro();
+  if (OAUTH) return verAutorizar();
   pantalla('entrar');
-  $('entrar-oauth').hidden = !OAUTH;
 })();
 </script>
 </body>

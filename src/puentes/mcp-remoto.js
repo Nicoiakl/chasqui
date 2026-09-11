@@ -44,11 +44,13 @@ export async function atenderMcp(est, rx) {
   switch (method) {
     case 'initialize': {
       const pedida = params?.protocolVersion;
+      const propia = `${sub}@${est.domain}`;
+      const contactos = ((await est.store.getAgent(sub))?.inbox?.allowlist || []).filter((x) => x !== propia);
       return ok({
         protocolVersion: VERSIONES.includes(pedida) ? pedida : '2025-06-18',
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'nyx5', title: 'Nyx5', version: VERSION },
-        instructions: instrucciones({ remoto: true, address: `${sub}@${est.domain}` }),
+        instructions: instrucciones({ remoto: true, address: propia, contactos }),
       });
     }
     case 'ping': return ok({});

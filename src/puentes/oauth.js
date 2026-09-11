@@ -26,13 +26,19 @@ const s256 = (verifier) => b64u(createHash('sha256').update(String(verifier)).di
 const iso = (t = Date.now()) => new Date(t).toISOString();
 const err = (status, error, error_description) => ({ status, body: { error, error_description } });
 
-export function urlsDe(est) {
+export function urlsDe(est, ruta = '/mcp') {
   const base = est.publicUrl.replace(/\/+$/, '');
-  return { base, recurso: `${base}/mcp`, prm: `${base}/.well-known/oauth-protected-resource/mcp` };
+  return { base, recurso: `${base}${ruta}`, prm: `${base}/.well-known/oauth-protected-resource${ruta}` };
 }
+// Una invitación viaja DENTRO de la URL del conector: /mcp/i/<código>. Claude la devuelve sola como
+// `resource` al pedir autorización, así que la pantalla de consentimiento sabe quién invitó sin
+// depender de lo que haya guardado el navegador (en iPhone, la ventana de autorización y Safari
+// pueden no compartir almacenamiento). La URL sigue siendo el conector de la persona para siempre,
+// aunque la invitación ya se haya usado: el código sólo decide el prellenado, no el acceso.
+export const RUTA_INVITACION = /^\/mcp\/i\/([A-Za-z0-9_-]{16,64})$/;
 
-export function metadatosRecurso(est) {
-  const { base, recurso } = urlsDe(est);
+export function metadatosRecurso(est, ruta = '/mcp') {
+  const { base, recurso } = urlsDe(est, ruta);
   return { resource: recurso, authorization_servers: [base], bearer_methods_supported: ['header'], scopes_supported: [ALCANCE], resource_name: `Nyx5 (${est.domain})`, resource_documentation: `${base}/spec` };
 }
 
@@ -76,12 +82,20 @@ function normalizarUrl(u) {
   try { const x = new URL(u); if (x.hash) return null; return `${x.protocol.toLowerCase()}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '')}${x.search}`; }
   catch { return null; }
 }
-// El token vale sólo para ESTE recurso (RFC 8707): el conector o la casa misma.
+// La ruta de NUESTRO recurso a la que apunta una URL (el conector, el de una invitación, o la casa
+// misma), o null si no es nuestra. El token vale sólo para nuestros recursos (RFC 8707).
+export function rutaDeRecurso(est, r) {
+  const n = normalizarUrl(r);
+  const b = normalizarUrl(urlsDe(est).base);
+  if (!n || !b) return null;
+  if (n === b) return '/mcp';
+  if (!n.startsWith(`${b}/`)) return null;
+  const ruta = n.slice(b.length);
+  return ruta === '/mcp' || RUTA_INVITACION.test(ruta) ? ruta : null;
+}
 export function recursoValido(est, r) {
   if (r == null || r === '') return true;
-  const n = normalizarUrl(r);
-  const { base, recurso } = urlsDe(est);
-  return n !== null && (n === normalizarUrl(recurso) || n === normalizarUrl(base));
+  return rutaDeRecurso(est, r) !== null;
 }
 
 // ---------- registro dinámico de clientes (RFC 7591) ----------
@@ -128,7 +142,11 @@ async function validarPedido(est, q) {
   if (!reto || !/^[A-Za-z0-9_-]{43,128}$/.test(reto) || g('code_challenge_method') !== 'S256') return mal('invalid_request', 'PKCE with code_challenge_method=S256 is required');
   const resource = g('resource');
   if (!recursoValido(est, resource)) return mal('invalid_target', `this server only issues tokens for ${urlsDe(est).recurso}`);
-  return { ok: true, pedido: { ...pedido, code_challenge: reto, resource: resource || urlsDe(est).recurso, scope: ALCANCE } };
+  // Una invitación vigente y sin usar prellena la pantalla. Sale del recurso, no del navegador.
+  let invitacion = null;
+  const mi = RUTA_INVITACION.exec(resource ? rutaDeRecurso(est, resource) || '' : '');
+  if (mi) { const inv = await est.store.kvGet('invitacion', mi[1]); if (inv && !inv.used_by) invitacion = inv; }
+  return { ok: true, pedido: { ...pedido, code_challenge: reto, resource: resource || urlsDe(est).recurso, scope: ALCANCE, invitacion } };
 }
 
 const escapar = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -154,6 +172,7 @@ export async function paginaAutorizar(est, query, appHtml) {
     client_name: p.cliente.client_name || null, redirect_host: destino.host,
     // El spec pide mostrar con claridad a dónde vuelve el permiso, y advertir si es sólo loopback.
     loopback: LOOPBACK.has(destino.hostname), house: est.domain, days: est.remoto.dias,
+    invite: p.invitacion ? { inviter: p.invitacion.inviter, inviter_claude: p.invitacion.inviter_claude || null, name_hint: p.invitacion.name_hint || null } : null,
   };
   const inyectado = `<script>window.NYX5_OAUTH=${JSON.stringify(datos).replace(/</g, '\\u003c')}</script>`;
   return { status: 200, contentType: 'text/html; charset=utf-8', body: appHtml.replace('<!--OAUTH-->', inyectado) };
@@ -229,7 +248,12 @@ export async function aprobar(est, rx) {
   if (!d.valid_until || Number.isNaN(Date.parse(d.valid_until)) || Date.parse(d.valid_until) > tope || Date.parse(d.valid_until) < Date.now()) {
     return { status: 400, body: { reason: `valid_until must be in the future and at most ${est.remoto.dias} days away` } };
   }
-  const allowlist = listaDeEscritura(b.allowlist, who.address, address);
+  let allowlist = listaDeEscritura(b.allowlist, who.address, address);
+  // Invitación: se toma en UN paso (dos aprobaciones simultáneas no la usan las dos) y sus contactos
+  // entran a la lista. Quién invitó lo dice la casa, no el navegador.
+  let inv = v.pedido.invitacion ? await est.store.kvTake('invitacion', v.pedido.invitacion.code) : null;
+  if (inv && inv.inviter === who.address) { await est.store.kvPut('invitacion', inv.code, inv, Date.parse(inv.expires)); inv = null; }
+  if (inv && allowlist) allowlist = [...new Set([...allowlist, inv.inviter, ...(inv.inviter_claude ? [inv.inviter_claude] : [])])];
   const card = await est.registerAgent({
     local: sub, sig: keys.sig, enc: keys.enc, delegation: d, valid_until: d.valid_until,
     capabilities: { accepts: ['text/plain', 'application/json'] },
@@ -238,6 +262,13 @@ export async function aprobar(est, rx) {
   });
   await est.store.kvPut('boveda', sub, { sellado: est.boveda.sellar(keys, sub), root: who.address, since: iso() });
   if (dePendiente) await est.store.kvDelete('pendiente', sub);
+  if (inv) {
+    // El contacto queda en los dos sentidos: el Claude de quien invitó acepta al nuevo. Sin esto, la
+    // primera respuesta del Claude invitado rebotaba contra la lista del que invitó.
+    await est.store.kvPut('invitacion', inv.code, { ...inv, used_by: who.address, used_at: iso(), claude: address }, Date.now() + 30 * DIA);
+    if (inv.inviter_claude) await est.agregarContactos(parseAddress(inv.inviter_claude).local, [address, who.address]);
+    await est._evento('invitation_accepted', who.address, { by: inv.inviter });
+  }
   const code = aleatorio();
   const p = v.pedido;
   await est.store.kvPut('codigo', sha(code), { client_id: p.client_id, redirect_uri: p.redirect_uri, code_challenge: p.code_challenge, resource: p.resource, scope: p.scope, sub, root: who.address }, Date.now() + 5 * 60_000);
@@ -245,7 +276,7 @@ export async function aprobar(est, rx) {
   const u = new URL(p.redirect_uri);
   u.searchParams.set('code', code);
   if (p.state) u.searchParams.set('state', p.state);
-  return { status: 200, body: { redirect: u.toString(), address: card.address } };
+  return { status: 200, body: { redirect: u.toString(), address: card.address, invited_by: inv?.inviter || null } };
 }
 
 // ---------- /oauth/token ----------
@@ -295,7 +326,8 @@ export async function token(est, body) {
 
 // ---------- el recurso: validar el token en /mcp ----------
 export async function validarAcceso(est, rx) {
-  const { prm } = urlsDe(est);
+  // El 401 apunta a los metadatos de la MISMA URL que el usuario pegó: Claude exige que coincidan.
+  const { prm } = urlsDe(est, RUTA_INVITACION.test(rx.path || '') ? rx.path : '/mcp');
   const negar = (desc) => ({
     ok: false,
     out: {

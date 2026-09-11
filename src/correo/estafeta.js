@@ -51,7 +51,7 @@ const CORS = {
   'access-control-expose-headers': 'www-authenticate, mcp-session-id',
   'access-control-max-age': '600',
 };
-const rutaCors = (p) => p.startsWith('/.well-known/oauth-') || p === '/oauth/register' || p === '/oauth/token' || p === '/mcp';
+const rutaCors = (p) => p.startsWith('/.well-known/oauth-') || p === '/oauth/register' || p === '/oauth/token' || p === '/mcp' || oauth.RUTA_INVITACION.test(p);
 // La app se instala en la pantalla de inicio: en iPhone es lo que evita que Safari borre la llave
 // del usuario a los siete días sin abrirla.
 const MANIFIESTO = { name: 'Nyx5', short_name: 'Nyx5', start_url: '/app', scope: '/', display: 'standalone', background_color: '#FFFFFF', theme_color: '#12A594', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }] };
@@ -443,14 +443,66 @@ export class Estafeta {
     await this._evento('delegation_revoked', rec.address, { by: por });
     return card;
   }
+  // ---------- invitaciones de contacto ----------
+  // Quien invita (su llave raíz, o la casa en su nombre) genera un link. El invitado conecta su
+  // Claude con la URL que trae el link, la pantalla llega prellenada, y los dos Claude quedan como
+  // contactos: cada uno en la lista del otro. Un solo uso, siete días.
+  async crearInvitacion(rx) {
+    const b = rx.body || {};
+    let inviter;
+    if ((rx.headers.authorization || '') === `Bearer ${this.adminToken}`) {
+      inviter = String(b.inviter || '').toLowerCase();
+      let local, domain;
+      try { ({ local, domain } = parseAddress(inviter)); } catch { return { status: 400, body: { reason: 'inviter must be an address' } }; }
+      const rec = domain === this.domain ? await this.store.getAgent(local) : null;
+      if (!rec || rec.delegation) return { status: 404, body: { reason: 'the inviter must be an own (not delegated) address of this house' } };
+    } else {
+      const who = await this._authenticate(rx, rx.path);
+      if (who.record.delegation) return { status: 403, body: { reason: 'a delegated address cannot invite; use your own address' } };
+      inviter = who.address;
+    }
+    if (!this.remotoRate.allow(`invitar:${inviter}`)) return { status: 429, body: { reason: 'too many invitations; try again in a minute' } };
+    const suClaude = await this.store.getAgent(`claude.${parseAddress(inviter).local}`);
+    const viva = suClaude && !suClaude.revoked && suClaude.delegation?.by === inviter && (!suClaude.valid_until || Date.parse(suClaude.valid_until) > now());
+    const hint = typeof b.name === 'string' ? b.name.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 30) : '';
+    const code = uuid().replace(/-/g, '');
+    const inv = { code, inviter, inviter_claude: viva ? suClaude.address : null, name_hint: hint || null, created: iso(), expires: iso(now() + 7 * 86_400_000) };
+    await this.store.kvPut('invitacion', code, inv, now() + 7 * 86_400_000);
+    await this._evento('invitation_created', inviter, { with_claude: !!inv.inviter_claude });
+    return { status: 201, body: { link: `${this.publicUrl}/i/${code}`, connector_url: `${this.publicUrl}/mcp/i/${code}`, inviter, inviter_claude: inv.inviter_claude, expires: inv.expires } };
+  }
+  async _paginaInvitacion(code) {
+    const inv = await this.store.kvGet('invitacion', code);
+    const datos = inv && !inv.used_by
+      ? { code, inviter: inv.inviter, inviter_claude: inv.inviter_claude, name_hint: inv.name_hint, connector_url: `${this.publicUrl}/mcp/i/${code}` }
+      : { error: inv ? 'used' : 'unknown' };
+    const html = APP_HTML.replace('<!--OAUTH-->', `<script>window.NYX5_INVITE=${JSON.stringify(datos).replace(/</g, '\\u003c')}</script>`);
+    return { status: inv ? 200 : 404, contentType: 'text/html; charset=utf-8', body: html };
+  }
+  // Suma direcciones a la lista de quién puede escribirle a una dirección (la re-certifica la casa).
+  // Sólo agrega, y sólo si esa dirección ya filtra por lista: una abierta sigue abierta.
+  async agregarContactos(local, direcciones) {
+    const rec = await this.store.getAgent(local);
+    if (!rec || rec.revoked || rec.inbox?.policy !== 'allowlist') return null;
+    const lista = [...new Set([...(rec.inbox.allowlist || []), ...direcciones])];
+    const { certification: _c, webhook, notify_email, ...cuerpo } = rec;
+    const card = signObject({ ...cuerpo, inbox: { ...rec.inbox, allowlist: lista } }, this.keys, 'certification');
+    await this.store.putAgent(local, { ...card, webhook, notify_email });
+    return card;
+  }
+
   // Rutas del conector que un cliente MCP pide con CORS: descubrimiento, registro, token y /mcp.
   async _rutaRemota(rx) {
     const p = rx.path;
-    if (rx.method === 'GET' && (p === '/.well-known/oauth-protected-resource' || p === '/.well-known/oauth-protected-resource/mcp')) return { status: 200, body: oauth.metadatosRecurso(this) };
+    if (rx.method === 'GET' && p.startsWith('/.well-known/oauth-protected-resource')) {
+      const ruta = p.slice('/.well-known/oauth-protected-resource'.length) || '/mcp';
+      if (ruta === '/mcp' || oauth.RUTA_INVITACION.test(ruta)) return { status: 200, body: oauth.metadatosRecurso(this, ruta) };
+      return null;
+    }
     if (rx.method === 'GET' && p === '/.well-known/oauth-authorization-server') return { status: 200, body: oauth.metadatosServidor(this) };
     if (rx.method === 'POST' && p === '/oauth/register') return oauth.registrar(this, rx.body, rx.ip);
     if (rx.method === 'POST' && p === '/oauth/token') return oauth.token(this, rx.body);
-    if (p === '/mcp') return atenderMcp(this, rx);
+    if (p === '/mcp' || oauth.RUTA_INVITACION.test(p)) return atenderMcp(this, rx);
     return null;
   }
 
@@ -1017,6 +1069,9 @@ export class Estafeta {
       if (this.remoto.enabled && rx.method === 'GET' && path === '/oauth/authorize') return oauth.paginaAutorizar(this, rx.query, APP_HTML);
       if (this.remoto.enabled && rx.method === 'POST' && path === '/oauth/prepare') return oauth.preparar(this, rx);
       if (this.remoto.enabled && rx.method === 'POST' && path === '/oauth/approve') return oauth.aprobar(this, rx);
+      // ----- Invitaciones de contacto: un link que se manda por WhatsApp -----
+      if (this.remoto.enabled && rx.method === 'POST' && path === '/contact-invites') return this.crearInvitacion(rx);
+      if (this.remoto.enabled && rx.method === 'GET' && (m = /^\/i\/([A-Za-z0-9_-]{16,64})$/.exec(path))) return this._paginaInvitacion(m[1]);
       // ----- La app en la pantalla de inicio -----
       if (rx.method === 'GET' && path === '/manifest.webmanifest') return { status: 200, contentType: 'application/manifest+json', body: JSON.stringify(MANIFIESTO) };
       if (rx.method === 'GET' && (m = /^\/(?:icon-(180|192|512)|apple-touch-icon)\.png$/.exec(path))) return { status: 200, contentType: 'image/png', body: Buffer.from(ICONOS[m[1] || 180], 'base64') };

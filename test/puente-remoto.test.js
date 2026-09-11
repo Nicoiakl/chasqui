@@ -29,13 +29,13 @@ const s256 = (v) => b64u(createHash('sha256').update(v).digest());
 const json = async (r) => ({ status: r.status, headers: r.headers, body: await r.json().catch(() => null) });
 const form = (ruta, datos) => fetch(`${URL_CASA}${ruta}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(datos).toString() }).then(json);
 let rpcId = 0;
-const mcp = (token, method, params = {}, extra = {}) => fetch(`${URL_CASA}/mcp`, {
+const mcp = (token, method, params = {}, extra = {}, url = `${URL_CASA}/mcp`) => fetch(url, {
   method: 'POST',
   headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18', ...(token ? { authorization: `Bearer ${token}` } : {}), ...extra },
   body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }),
 }).then(json);
-const herramienta = async (token, name, args = {}) => {
-  const r = await mcp(token, 'tools/call', { name, arguments: args });
+const herramienta = async (token, name, args = {}, url) => {
+  const r = await mcp(token, 'tools/call', { name, arguments: args }, {}, url);
   assert.equal(r.status, 200, `tools/call ${name}: HTTP ${r.status} ${JSON.stringify(r.body)}`);
   const res = r.body.result;
   return { ...res, datos: (() => { try { return JSON.parse(res.content[0].text); } catch { return res.content[0].text; } })() };
@@ -43,12 +43,12 @@ const herramienta = async (token, name, args = {}) => {
 
 // El recorrido que hace Claude, de punta a punta. `dueno` es el agente con la llave raíz (en la vida
 // real vive en el navegador del dueño; aquí, en la prueba).
-async function conectar(dueno, { allowlist = [], verificador } = {}) {
+async function conectar(dueno, { allowlist = [], verificador, recurso = `${URL_CASA}/mcp` } = {}) {
   const reg = await fetch(`${URL_CASA}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'Claude', redirect_uris: [CALLBACK], grant_types: ['authorization_code', 'refresh_token'], token_endpoint_auth_method: 'none' }) }).then(json);
   assert.equal(reg.status, 201, JSON.stringify(reg.body));
   const cliente = reg.body;
   const code_verifier = verificador || b64u(randomBytes(32));
-  const pedido = { response_type: 'code', client_id: cliente.client_id, redirect_uri: CALLBACK, state: 'st4te', code_challenge: s256(code_verifier), code_challenge_method: 'S256', resource: `${URL_CASA}/mcp` };
+  const pedido = { response_type: 'code', client_id: cliente.client_id, redirect_uri: CALLBACK, state: 'st4te', code_challenge: s256(code_verifier), code_challenge_method: 'S256', resource: recurso };
   const pagina = await fetch(`${URL_CASA}/oauth/authorize?${new URLSearchParams(pedido)}`);
   assert.equal(pagina.status, 200);
   const html = await pagina.text();
@@ -63,9 +63,9 @@ async function conectar(dueno, { allowlist = [], verificador } = {}) {
   assert.equal(`${vuelta.origin}${vuelta.pathname}`, CALLBACK);
   assert.equal(vuelta.searchParams.get('state'), 'st4te');
   const code = vuelta.searchParams.get('code');
-  const tok = await form('/oauth/token', { grant_type: 'authorization_code', code, code_verifier, client_id: cliente.client_id, redirect_uri: CALLBACK, resource: `${URL_CASA}/mcp` });
+  const tok = await form('/oauth/token', { grant_type: 'authorization_code', code, code_verifier, client_id: cliente.client_id, redirect_uri: CALLBACK, resource: recurso });
   assert.equal(tok.status, 200, JSON.stringify(tok.body));
-  return { cliente, code, code_verifier, pedido, sub: prep.address, ...tok.body };
+  return { cliente, code, code_verifier, pedido, html, invited_by: ok.invited_by, sub: prep.address, ...tok.body };
 }
 
 before(async () => {
@@ -295,4 +295,53 @@ test('el código que corre en el edge no usa primitivas de node:crypto que worke
   };
   recorrer(path.join(raiz, 'src'));
   assert.deepEqual(malos, [], `primitivas que workerd no tiene, en código que corre en el edge:\n  ${malos.join('\n  ')}`);
+});
+
+// La invitación existe para que la Pauli (y cualquiera después) llegue sin escribir una sola
+// dirección. Sin el contacto mutuo, la primera respuesta de su Claude rebotaba contra la lista del
+// Claude de quien invitó: el defecto estaba en el diseño anterior, antes de que nadie lo probara.
+test('invitación: un link, la pantalla prellenada, un solo uso, y los dos Claude quedan como contactos', async () => {
+  const c0 = await conectar(nico);
+  const inv = await nico._call('POST', '/contact-invites', { name: 'Paula' });
+  assert.equal(inv.inviter_claude, `claude.nico@${H}`);
+  assert.match(inv.connector_url, /\/mcp\/i\/[A-Za-z0-9_-]{16,}$/);
+  const pagina = await fetch(inv.link).then((r) => r.text());
+  assert.match(pagina, /window\.NYX5_INVITE=/);
+  assert.match(pagina, /"name_hint":"paula"/);
+  // Claude exige que los metadatos del recurso coincidan con la URL EXACTA que la persona pegó.
+  const ruta = new URL(inv.connector_url).pathname;
+  const prm = await fetch(`${URL_CASA}/.well-known/oauth-protected-resource${ruta}`).then(json);
+  assert.equal(prm.body.resource, inv.connector_url);
+  const r401 = await mcp(null, 'initialize', {}, {}, inv.connector_url);
+  assert.equal(r401.status, 401);
+  assert.ok(r401.headers.get('www-authenticate').includes(`oauth-protected-resource${ruta}"`), r401.headers.get('www-authenticate'));
+  // Ella se conecta con la URL de la invitación y NO escribe ninguna dirección (allowlist vacía).
+  const paula = Agent.create(`paula@${H}`, URL_CASA, { hosts });
+  await paula.register({ adminToken: 't' });
+  const c = await conectar(paula, { recurso: inv.connector_url, allowlist: [] });
+  assert.match(c.html, /"inviter":"nico@remoto\.test"/, 'la pantalla sabe quién invitó');
+  assert.equal(c.invited_by, nico.address);
+  const suya = await casa.store.getAgent('claude.paula');
+  for (const x of [nico.address, `claude.nico@${H}`]) assert.ok(suya.inbox.allowlist.includes(x), `falta ${x} en la lista del Claude invitado`);
+  const mia = await casa.store.getAgent('claude.nico');
+  for (const x of [`claude.paula@${H}`, paula.address]) assert.ok(mia.inbox.allowlist.includes(x), `falta ${x} en la lista del Claude que invitó`);
+  // Su Claude conoce a sus contactos desde el saludo, y funciona en la URL de la invitación.
+  const ini = await mcp(c.access_token, 'initialize', { protocolVersion: '2025-06-18' }, {}, inv.connector_url);
+  assert.match(ini.body.result.instructions, /claude\.nico@remoto\.test/);
+  // El Claude de ella le escribe al de él, y NO rebota.
+  await herramienta(c.access_token, 'nyx5_send', { to: `claude.nico@${H}`, body: 'hola Nico' }, inv.connector_url);
+  const w = await herramienta(c0.access_token, 'nyx5_wait', { from: `claude.paula@${H}`, seconds: 10 });
+  assert.equal(w.datos.content.body, 'hola Nico');
+  // Un solo uso: el link ya no ofrece nada, pero la URL del conector de ella sigue sirviendo.
+  assert.match(await fetch(inv.link).then((r) => r.text()), /"error":"used"/);
+  assert.equal((await mcp(c.access_token, 'ping', {}, {}, inv.connector_url)).status, 200);
+});
+
+test('invitación: sólo invita una dirección propia, y la casa puede invitar en nombre de alguien', async () => {
+  const delegado = await nico.delegate('ayudante', { scope: {} });
+  await assert.rejects(() => delegado._call('POST', '/contact-invites', {}), /delegated address cannot invite/);
+  const r = await fetch(`${URL_CASA}/contact-invites`, { method: 'POST', headers: { authorization: 'Bearer t', 'content-type': 'application/json' }, body: JSON.stringify({ inviter: nico.address, name: 'alguien' }) }).then(json);
+  assert.equal(r.status, 201);
+  assert.equal(r.body.inviter, nico.address);
+  assert.equal((await fetch(`${URL_CASA}/i/noexiste0000000000000000`).then((x) => x.status)), 404);
 });

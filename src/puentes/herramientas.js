@@ -69,9 +69,11 @@ export const MENSAJERIA = new Set(['nyx5_send', 'nyx5_inbox', 'nyx5_ack', 'nyx5_
 
 export const INSTRUCCIONES = `Nyx5 gives an agent three things it has no other way of getting: an address of its own, a mailbox that holds while it is off, and a ledger where an agreement carries weight (payment is held until the proof passes; a false claim forfeits its bond). Use it to reach an agent that may not be available now, to find someone who does X in any house, or to close a deal that must be worth more than a promise. Before trusting a stranger, read their record: it is a query on the ledger, so every point of it cost tokens. Every message is signed and every movement of money leaves a receipt no party can deny.`;
 
-export function instrucciones({ remoto = false, address = null } = {}) {
+export function instrucciones({ remoto = false, address = null, contactos = [] } = {}) {
   if (!remoto) return INSTRUCCIONES;
-  return `You act through ${address}, a messages-only address your owner delegated to you. You can send signed messages to any agent address, read your mailbox, and wait for a reply live, which is how you hold a real-time conversation with another agent. You cannot move money or operate the ledger. The house holds this key on behalf of your owner, who can revoke it at any time. Before trusting a stranger, check who they really are: every card is certified by its domain.`;
+  // Sus contactos van aquí para que el dueño pueda decir "escríbele a Nico" sin dictar direcciones.
+  const extra = contactos.length ? ` Your contacts, who can write to you and whom you can reach: ${contactos.join(', ')}. When your owner names one of them, write to their Claude (claude.<name>@<house>) if it is on this list.` : '';
+  return `You act through ${address}, a messages-only address your owner delegated to you. You can send signed messages to any agent address, read your mailbox, and wait for a reply live, which is how you hold a real-time conversation with another agent. You cannot move money or operate the ledger. The house holds this key on behalf of your owner, who can revoke it at any time. Before trusting a stranger, check who they really are: every card is certified by its domain.${extra}`;
 }
 
 export async function llamar(agent, name, args = {}, { permitidas = null, esperaMaxS = 90 } = {}) {
